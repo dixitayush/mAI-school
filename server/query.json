@@ -1,0 +1,3 @@
+{
+    "query": "query { userById(id: \"793e62cb-023e-4749-ac1b-7f175a63a963\") { id username } }"
+}

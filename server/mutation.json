@@ -1,0 +1,10 @@
+{
+    "query": "mutation CreateFee($studentId: UUID!, $amount: BigFloat!, $description: String!, $dueDate: Date!, $invoiceNumber: String!) { createFee(input: { fee: { studentId: $studentId, amount: $amount, description: $description, dueDate: $dueDate, invoiceNumber: $invoiceNumber } }) { fee { id } } }",
+    "variables": {
+        "studentId": "c43fbec1-54e2-4035-98f8-8f08432a6a09",
+        "amount": "100",
+        "description": "Curl Test BigFloat",
+        "dueDate": "2024-12-31",
+        "invoiceNumber": "INV-CURL-TEST-2"
+    }
+}

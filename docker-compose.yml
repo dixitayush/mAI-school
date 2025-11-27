@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: mai-school-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mai_school
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/init.sql
+
+  server:
+    build: ./server
+    container_name: mai-school-server
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - DATABASE_URL=postgres://postgres:password@postgres:5432/mai_school
+      - JWT_SECRET=mysecurejwtsecret
+    depends_on:
+      - postgres
+    restart: always
+
+  client:
+    build: ./client
+    container_name: mai-school-client
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5000
+    depends_on:
+      - server
+    restart: always
+
+volumes:
+  postgres_data:
