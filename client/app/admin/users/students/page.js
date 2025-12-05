@@ -200,7 +200,7 @@ function StudentsContent() {
     setSendingEmail(row.id);
     const email = getEmail(row);
     try {
-      const res = await fetch('http://localhost:5000/api/email/send', {
+      const res = await fetch('/api/email/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

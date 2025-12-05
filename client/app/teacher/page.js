@@ -129,6 +129,24 @@ function TeacherDashboardContent() {
                     )}
                 </div>
 
+                <div
+                    onClick={() => router.push('/teacher/attendance')}
+                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-shadow"
+                >
+                    <div className="flex items-center space-x-3 mb-4">
+                        <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
+                            <CheckSquare className="w-6 h-6" />
+                        </div>
+                        <h2 className="text-lg font-bold text-gray-800">Manual Attendance</h2>
+                    </div>
+                    <p className="text-gray-500 text-sm mb-4">
+                        Mark attendance manually for your classes. Send email notifications to parents instantly.
+                    </p>
+                    <div className="flex items-center text-purple-600 font-medium text-sm">
+                        Go to Attendance Dashboard &rarr;
+                    </div>
+                </div>
+
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                     <div className="flex items-center space-x-3 mb-6">
                         <div className="p-2 bg-orange-100 rounded-lg text-orange-600">

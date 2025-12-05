@@ -6,7 +6,7 @@ import { ApolloWrapper } from '@/components/ApolloWrapper';
 import Sidebar from '@/components/Sidebar';
 import DataTable from '@/components/DataTable';
 import InvoiceModal from '@/components/InvoiceModal';
-import { DollarSign, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { CheckCircle, AlertCircle } from 'lucide-react';
 
 const GET_FEES_AND_STUDENTS = gql`
   query GetFeesAndStudents {

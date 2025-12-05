@@ -66,7 +66,9 @@ CREATE TABLE attendance (
   student_id UUID REFERENCES students(id),
   date DATE NOT NULL DEFAULT CURRENT_DATE,
   status TEXT CHECK (status IN ('present', 'absent', 'late')),
-  recorded_by UUID REFERENCES users(id) -- Teacher who marked it
+  remarks TEXT,
+  recorded_by UUID REFERENCES users(id), -- Teacher who marked it
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 4. Fees Management (Updated)

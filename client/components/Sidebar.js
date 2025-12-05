@@ -1,21 +1,39 @@
 "use client";
 
 import { usePathname, useRouter } from 'next/navigation';
-import { Users, GraduationCap, BookOpen, DollarSign, LogOut, FileText, User, LayoutDashboard, Settings } from 'lucide-react';
+import { Users, GraduationCap, BookOpen, DollarSign, LogOut, FileText, User, LayoutDashboard, Settings, CheckCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const menuItems = [
-    { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-    { name: 'Students', href: '/admin/users/students', icon: GraduationCap },
-    { name: 'Teachers', href: '/admin/users/teachers', icon: BookOpen },
-    { name: 'Fees', href: '/admin/fees', icon: DollarSign },
-    { name: 'Exams', href: '/exams', icon: FileText },
-    { name: 'Profile', href: '/profile', icon: User },
-];
+const menuItems = {
+    admin: [
+        { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+        { name: 'Students', href: '/admin/users/students', icon: GraduationCap },
+        { name: 'Teachers', href: '/admin/users/teachers', icon: BookOpen },
+        { name: 'Attendance', href: '/teacher/attendance', icon: CheckCircle },
+        { name: 'Fees', href: '/admin/fees', icon: DollarSign },
+        { name: 'Exams', href: '/exams', icon: FileText },
+        { name: 'Profile', href: '/profile', icon: User },
+    ],
+    teacher: [
+        { name: 'Dashboard', href: '/teacher', icon: LayoutDashboard },
+        { name: 'Attendance', href: '/teacher/attendance', icon: CheckCircle },
+        { name: 'Exams', href: '/exams', icon: FileText },
+        { name: 'Profile', href: '/profile', icon: User },
+    ],
+    student: [
+        { name: 'Dashboard', href: '/student', icon: LayoutDashboard },
+        { name: 'Fees', href: '/student/fees', icon: DollarSign },
+        { name: 'Exams', href: '/exams', icon: FileText },
+        { name: 'Profile', href: '/profile', icon: User },
+    ]
+};
 
 export default function Sidebar({ userRole = 'admin' }) {
     const pathname = usePathname();
     const router = useRouter();
+
+    // Default to admin if role not found or invalid
+    const items = menuItems[userRole] || menuItems['admin'];
 
     const handleLogout = () => {
         localStorage.clear();
@@ -39,7 +57,7 @@ export default function Sidebar({ userRole = 'admin' }) {
 
             {/* Menu Items */}
             <nav className="flex-1 p-4 space-y-1">
-                {menuItems.map((item, index) => {
+                {items.map((item, index) => {
                     const isActive = pathname === item.href;
                     const Icon = item.icon;
 
