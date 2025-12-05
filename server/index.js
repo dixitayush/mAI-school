@@ -19,11 +19,13 @@ app.use('/uploads', express.static('uploads')); // Serve uploaded files
 const aiRoutes = require('./routes/ai');
 const emailRoutes = require('./routes/email');
 const uploadRoutes = require('./routes/upload');
+const attendanceRoutes = require('./routes/attendance');
 
 // Use Routes
 app.use('/api/ai', aiRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 // Database Pool for Auth
 const pool = new Pool({
