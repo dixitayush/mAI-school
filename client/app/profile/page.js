@@ -7,6 +7,7 @@ import { ApolloWrapper } from '@/components/ApolloWrapper';
 import Sidebar from '@/components/Sidebar';
 import { User, Mail, Phone, MapPin, Camera, Save, X, Briefcase, Calendar, GraduationCap, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 
 const GET_USER_PROFILE = gql`
   query GetUserProfile($id: UUID!) {
@@ -160,7 +161,7 @@ function ProfileContent() {
             }
         } catch (err) {
             console.error('Upload failed', err);
-            alert('Failed to upload image');
+            toast.error('Failed to upload image');
         }
     };
 
@@ -186,10 +187,10 @@ function ProfileContent() {
 
             setIsEditing(false);
             refetch();
-            alert('Profile updated successfully!');
+            toast.success('Profile updated successfully!');
         } catch (err) {
             console.error('Update failed', err);
-            alert('Failed to update profile: ' + err.message);
+            toast.error('Failed to update profile: ' + err.message);
         }
     };
 

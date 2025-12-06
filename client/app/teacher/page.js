@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
 import { Calendar, CheckSquare, Upload, Camera, Loader2 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 function TeacherDashboardContent() {
     const router = useRouter();
@@ -59,7 +60,7 @@ function TeacherDashboardContent() {
             setAiResult(data);
         } catch (err) {
             console.error(err);
-            alert('AI Processing Failed: ' + err.message);
+            toast.error('AI Processing Failed: ' + err.message);
         } finally {
             setIsUploading(false);
         }

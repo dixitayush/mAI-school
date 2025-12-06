@@ -6,6 +6,7 @@ import { ApolloWrapper } from '@/components/ApolloWrapper';
 import Sidebar from '@/components/Sidebar';
 import DataTable from '@/components/DataTable';
 import TeacherModal from '@/components/TeacherModal';
+import { toast } from 'react-hot-toast';
 
 const GET_TEACHERS = gql`
   query GetTeachers {
@@ -130,11 +131,11 @@ function TeachersContent() {
         await deleteTeacher({
           variables: { teacherId: row.id }
         });
-        alert('Teacher deleted successfully!');
+        toast.success('Teacher deleted successfully!');
         refetch();
       } catch (err) {
         console.error(err);
-        alert('Failed to delete teacher: ' + err.message);
+        toast.error('Failed to delete teacher: ' + err.message);
       }
     }
   };
@@ -152,7 +153,7 @@ function TeachersContent() {
             qualification: formData.qualification
           }
         });
-        alert('Teacher updated successfully!');
+        toast.success('Teacher updated successfully!');
         setModalOpen(false);
         refetch();
       } else {
@@ -166,13 +167,13 @@ function TeachersContent() {
             qualification: formData.qualification
           }
         });
-        alert('Teacher created successfully!');
+        toast.success('Teacher created successfully!');
         setModalOpen(false);
         refetch();
       }
     } catch (err) {
       console.error(err);
-      alert('Failed to save teacher: ' + err.message);
+      toast.error('Failed to save teacher: ' + err.message);
     }
   };
 

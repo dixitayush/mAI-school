@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
 import { BarChart3, FileText, TrendingUp, AlertTriangle, Loader2, Download, DollarSign, User } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 function PrincipalDashboardContent() {
     const router = useRouter();
@@ -36,7 +37,7 @@ function PrincipalDashboardContent() {
             setReport(data);
         } catch (err) {
             console.error(err);
-            alert('Failed to generate report');
+            toast.error('Failed to generate report');
         } finally {
             setIsGenerating(false);
         }
