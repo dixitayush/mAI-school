@@ -54,7 +54,7 @@ function AttendanceContent() {
     useEffect(() => {
         if (filteredStudents.length > 0 && activeTab === 'mark') {
             filteredStudents.forEach(student => {
-                fetch(`/api/attendance/stats/${student.id}`)
+                fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/attendance/stats/${student.id}`)
                     .then(res => res.json())
                     .then(data => {
                         setStudentStats(prev => ({ ...prev, [student.id]: data }));
@@ -68,7 +68,7 @@ function AttendanceContent() {
     useEffect(() => {
         if (activeTab === 'history' && selectedClass && date) {
             setLoadingHistory(true);
-            fetch(`/api/attendance/history?class_id=${selectedClass}&date=${date}`)
+            fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/attendance/history?class_id=${selectedClass}&date=${date}`)
                 .then(res => res.json())
                 .then(data => {
                     setHistoryData(data);
@@ -101,7 +101,7 @@ function AttendanceContent() {
             const promises = Object.entries(attendanceData).map(async ([studentId, record]) => {
                 if (!record.status) return; // Skip if no status selected
 
-                const res = await fetch('/api/attendance/mark', {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/attendance/mark`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

@@ -35,7 +35,7 @@ function TeacherDashboardContent() {
             const formData = new FormData();
             formData.append('file', file);
 
-            const uploadRes = await fetch('http://localhost:5000/api/upload', {
+            const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/upload`, {
                 method: 'POST',
                 body: formData
             });
@@ -47,7 +47,7 @@ function TeacherDashboardContent() {
             }
 
             // 2. Call AI Service with the file URL
-            const res = await fetch('http://localhost:5000/api/ai/attendance', {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/ai/attendance`, {
                 method: 'POST',
                 body: JSON.stringify({
                     classId: 'mock-class-id',
