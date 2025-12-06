@@ -16,6 +16,13 @@ const GET_STUDENTS = gql`
         id
         enrollmentDate
         classId
+        parentByParentId {
+          id
+          fullName
+          email
+          phone
+          address
+        }
         userByUserId {
           id
           fullName
@@ -39,13 +46,27 @@ const GET_STUDENTS = gql`
 `;
 
 const CREATE_STUDENT = gql`
-  mutation CreateStudent($fullName: String!, $username: String!, $email: String!, $password: String!, $classId: UUID) {
+  mutation CreateStudent(
+    $fullName: String!, 
+    $username: String!, 
+    $email: String!, 
+    $password: String!, 
+    $classId: UUID,
+    $parentName: String,
+    $parentEmail: String,
+    $parentPhone: String,
+    $parentAddress: String
+  ) {
     registerStudent(input: {
       fullName: $fullName
       username: $username
       email: $email
       password: $password
       classId: $classId
+      parentName: $parentName
+      parentEmail: $parentEmail
+      parentPhone: $parentPhone
+      parentAddress: $parentAddress
     }) {
       student {
         id
@@ -111,6 +132,7 @@ function StudentsContent() {
     { header: 'Name', accessor: 'userByUserId.fullName', render: (row) => row.userByUserId?.fullName },
     { header: 'Username', accessor: 'userByUserId.username', render: (row) => row.userByUserId?.username },
     { header: 'Email', accessor: 'email', render: (row) => getEmail(row) },
+    { header: 'Parent', accessor: 'parentByParentId.fullName', render: (row) => row.parentByParentId?.fullName || '-' },
     { header: 'Class', accessor: 'classByClassId.name', render: (row) => row.classByClassId?.name || 'Unassigned' },
     { header: 'Enrollment Date', accessor: 'enrollmentDate' },
     {
@@ -184,7 +206,11 @@ function StudentsContent() {
             username: formData.username,
             email: formData.email,
             password: formData.password,
-            classId: formData.classId || null
+            classId: formData.classId || null,
+            parentName: formData.parentName || null,
+            parentEmail: formData.parentEmail || null,
+            parentPhone: formData.parentPhone || null,
+            parentAddress: formData.parentAddress || null
           }
         });
         toast.success('Student created successfully!');

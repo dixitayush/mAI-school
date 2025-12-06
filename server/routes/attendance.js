@@ -173,6 +173,10 @@ async function sendAttendanceEmail(studentEmail, studentName, status, date, rema
     }
 }
 
+const { sendSMS, sendWhatsApp } = require('../services/smsService');
+
+// ... (existing imports and setup)
+
 // Mark Attendance Route
 router.post('/mark', async (req, res) => {
     const { student_id, date, status, remarks, recorded_by } = req.body;
@@ -191,20 +195,40 @@ router.post('/mark', async (req, res) => {
         const result = await pool.query(insertQuery, [student_id, date || new Date(), status, remarks, recorded_by]);
         const attendanceRecord = result.rows[0];
 
-        // 2. Fetch Student & Parent Details for Email
+        // 2. Fetch Student & Parent Details for Notifications
+        // We now join with parents table
         const studentQuery = `
-            SELECT s.id, u.full_name, p.email 
+            SELECT 
+                s.id, 
+                u.full_name as student_name, 
+                p.email as parent_email,
+                p.phone as parent_phone,
+                p.full_name as parent_name
             FROM students s
             JOIN users u ON s.user_id = u.id
-            JOIN profiles p ON u.id = p.user_id
+            LEFT JOIN parents p ON s.parent_id = p.id
             WHERE s.id = $1;
         `;
         const studentResult = await pool.query(studentQuery, [student_id]);
 
         if (studentResult.rows.length > 0) {
             const student = studentResult.rows[0];
-            // Send Email asynchronously
-            sendAttendanceEmail(student.email, student.full_name, status, attendanceRecord.date, remarks);
+
+            // Send Email to Parent
+            if (student.parent_email) {
+                sendAttendanceEmail(student.parent_email, student.student_name, status, attendanceRecord.date, remarks);
+            }
+
+            // Send SMS & WhatsApp to Parent
+            if (student.parent_phone) {
+                const message = `Attendance Alert: ${student.student_name} is marked ${status.toUpperCase()} on ${new Date(attendanceRecord.date).toLocaleDateString()}. Remarks: ${remarks || 'None'}`;
+
+                // Send SMS
+                await sendSMS(student.parent_phone, message);
+
+                // Send WhatsApp
+                await sendWhatsApp(student.parent_phone, message);
+            }
         }
 
         res.json({ success: true, data: attendanceRecord });
