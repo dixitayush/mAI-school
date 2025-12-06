@@ -7,6 +7,7 @@ import Sidebar from '@/components/Sidebar';
 import DataTable from '@/components/DataTable';
 import InvoiceModal from '@/components/InvoiceModal';
 import { CheckCircle, AlertCircle } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 const GET_FEES_AND_STUDENTS = gql`
   query GetFeesAndStudents {
@@ -107,12 +108,12 @@ function FeesContent() {
           invoiceNumber: formData.invoiceNumber
         }
       });
-      alert('Invoice created successfully!');
+      toast.success('Invoice created successfully!');
       setModalOpen(false);
       refetch();
     } catch (err) {
       console.error(err);
-      alert('Failed to create invoice: ' + err.message);
+      toast.error('Failed to create invoice: ' + err.message);
     }
   };
 

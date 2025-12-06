@@ -5,6 +5,7 @@ import { useQuery, gql } from '@apollo/client';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
 import { Calendar, CheckCircle, Save, Loader2, ArrowLeft, History } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 
 const GET_CLASSES_AND_STUDENTS = gql`
   query GetClassesAndStudents {
@@ -115,7 +116,7 @@ function AttendanceContent() {
             });
 
             await Promise.all(promises);
-            alert('Attendance marked and emails sent successfully!');
+            toast.success('Attendance marked and emails sent successfully!');
             setAttendanceData({});
             // Refresh stats
             if (activeTab === 'mark') {
@@ -123,7 +124,7 @@ function AttendanceContent() {
             }
         } catch (err) {
             console.error(err);
-            alert('Failed to mark attendance');
+            toast.error('Failed to mark attendance');
         } finally {
             setSubmitting(false);
         }

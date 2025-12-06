@@ -7,6 +7,7 @@ import Sidebar from '@/components/Sidebar';
 import DataTable from '@/components/DataTable';
 import StudentModal from '@/components/StudentModal';
 import { Mail, Loader2 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 const GET_STUDENTS = gql`
   query GetStudents {
@@ -152,11 +153,11 @@ function StudentsContent() {
         await deleteStudent({
           variables: { studentId: row.id }
         });
-        alert('Student deleted successfully!');
+        toast.success('Student deleted successfully!');
         refetch();
       } catch (err) {
         console.error(err);
-        alert('Failed to delete student: ' + err.message);
+        toast.error('Failed to delete student: ' + err.message);
       }
     }
   };
@@ -173,7 +174,7 @@ function StudentsContent() {
             email: formData.email
           }
         });
-        alert('Student updated successfully!');
+        toast.success('Student updated successfully!');
         setModalOpen(false);
         refetch();
       } else {
@@ -186,13 +187,13 @@ function StudentsContent() {
             classId: formData.classId || null
           }
         });
-        alert('Student created successfully!');
+        toast.success('Student created successfully!');
         setModalOpen(false);
         refetch();
       }
     } catch (err) {
       console.error(err);
-      alert('Failed to save student: ' + err.message);
+      toast.error('Failed to save student: ' + err.message);
     }
   };
 
@@ -211,13 +212,17 @@ function StudentsContent() {
       });
       const data = await res.json();
       if (data.success) {
-        alert(`Email sent! Preview: ${data.previewUrl}`);
+        toast.success(`Email sent!`, {
+          duration: 5000,
+          icon: '📧',
+        });
+        console.log('Preview URL:', data.previewUrl);
       } else {
-        alert('Failed to send email');
+        toast.error('Failed to send email');
       }
     } catch (err) {
       console.error(err);
-      alert('Error sending email');
+      toast.error('Error sending email');
     } finally {
       setSendingEmail(null);
     }

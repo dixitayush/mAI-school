@@ -7,6 +7,7 @@ import Sidebar from '@/components/Sidebar';
 import DataTable from '@/components/DataTable';
 import ExamModal from '@/components/ExamModal';
 import { FileText, Award } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 const GET_EXAMS_AND_CLASSES = gql`
   query GetExamsAndClasses {
@@ -86,12 +87,12 @@ function ExamsContent() {
           description: formData.description
         }
       });
-      alert('Exam scheduled successfully!');
+      toast.success('Exam scheduled successfully!');
       setModalOpen(false);
       refetch();
     } catch (err) {
       console.error(err);
-      alert('Failed to schedule exam: ' + err.message);
+      toast.error('Failed to schedule exam: ' + err.message);
     }
   };
 
