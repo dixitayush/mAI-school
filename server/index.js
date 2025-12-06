@@ -110,7 +110,17 @@ app.post('/register', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`GraphiQL available at http://localhost:${PORT}/graphiql`);
+const { initDb } = require('./db/init');
+
+// ... (rest of imports)
+
+// Initialize DB and Start Server
+initDb().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`GraphiQL available at http://localhost:${PORT}/graphiql`);
+  });
+}).catch(err => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });
