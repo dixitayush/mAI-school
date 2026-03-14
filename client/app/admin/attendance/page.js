@@ -2,6 +2,6 @@
 
 import { AttendanceContent } from '@/components/AttendanceManager';
 
-export default function TeacherAttendancePage() {
+export default function AdminAttendancePage() {
     return <AttendanceContent />;
 }

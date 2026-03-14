@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Checking for processes using ports 3000 and 5000..."
+echo "Checking for processes using ports 3000 and 5001..."
 
 # Function to kill process on a specific port
 stop_process_on_port() {
@@ -17,7 +17,7 @@ stop_process_on_port() {
 }
 
 stop_process_on_port 3000
-stop_process_on_port 5000
+stop_process_on_port 5001
 
 echo "Stopping and removing all containers..."
 docker-compose down -v
@@ -45,7 +45,7 @@ echo "============================================"
 echo "Deployment complete!"
 echo "============================================"
 echo "Client: http://localhost:3000"
-echo "Server: http://localhost:5000"
+echo "Server: http://localhost:5001"
 echo ""
 echo "Default Admin Login:"
 echo "  Username: admin"

@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
-import Sidebar from '@/components/Sidebar';
 import DataTable from '@/components/DataTable';
 import StudentModal from '@/components/StudentModal';
 import { Mail, Loader2 } from 'lucide-react';
@@ -16,13 +15,10 @@ const GET_STUDENTS = gql`
         id
         enrollmentDate
         classId
-        parentByParentId {
-          id
-          fullName
-          email
-          phone
-          address
-        }
+        parentName
+        parentEmail
+        parentPhone
+        parentAddress
         userByUserId {
           id
           fullName
@@ -132,7 +128,7 @@ function StudentsContent() {
     { header: 'Name', accessor: 'userByUserId.fullName', render: (row) => row.userByUserId?.fullName },
     { header: 'Username', accessor: 'userByUserId.username', render: (row) => row.userByUserId?.username },
     { header: 'Email', accessor: 'email', render: (row) => getEmail(row) },
-    { header: 'Parent', accessor: 'parentByParentId.fullName', render: (row) => row.parentByParentId?.fullName || '-' },
+    { header: 'Parent', accessor: 'parentName', render: (row) => row.parentName || '-' },
     { header: 'Class', accessor: 'classByClassId.name', render: (row) => row.classByClassId?.name || 'Unassigned' },
     { header: 'Enrollment Date', accessor: 'enrollmentDate' },
     {
@@ -227,7 +223,7 @@ function StudentsContent() {
     setSendingEmail(row.id);
     const email = getEmail(row);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/email/send`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/email/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -255,33 +251,29 @@ function StudentsContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar />
+    <div className="w-full">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Student Management</h1>
+        <p className="text-gray-500">Manage student records, enrollments, and classes.</p>
+      </div>
 
-      <main className="flex-1 ml-64 p-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Student Management</h1>
-          <p className="text-gray-500">Manage student records, enrollments, and classes.</p>
-        </div>
+      <DataTable
+        title="All Students"
+        columns={columns}
+        data={data?.allStudents?.nodes || []}
+        isLoading={loading}
+        onAdd={handleAdd}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
 
-        <DataTable
-          title="All Students"
-          columns={columns}
-          data={data?.allStudents?.nodes || []}
-          isLoading={loading}
-          onAdd={handleAdd}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
-
-        <StudentModal
-          isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
-          onSubmit={handleModalSubmit}
-          student={selectedStudent}
-          classes={data?.allClasses?.nodes || []}
-        />
-      </main>
+      <StudentModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleModalSubmit}
+        student={selectedStudent}
+        classes={data?.allClasses?.nodes || []}
+      />
     </div>
   );
 }

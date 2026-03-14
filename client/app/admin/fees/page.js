@@ -1,16 +1,14 @@
-"use client";
+'use client';
 
 import { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
-import Sidebar from '@/components/Sidebar';
 import DataTable from '@/components/DataTable';
-import InvoiceModal from '@/components/InvoiceModal';
-import { CheckCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { DollarSign, CheckCircle, Clock } from 'lucide-react';
 
-const GET_FEES_AND_STUDENTS = gql`
-  query GetFeesAndStudents {
+const GET_FEES = gql`
+  query GetFees {
     allFees {
       nodes {
         id
@@ -23,44 +21,8 @@ const GET_FEES_AND_STUDENTS = gql`
           userByUserId {
             fullName
           }
-        }
-      }
-    }
-    allStudents {
-      nodes {
-        id
-        classByClassId {
-          name
-        }
-        userByUserId {
-          fullName
-        }
-      }
-    }
-  }
-`;
-
-const CREATE_FEE = gql`
-  mutation CreateFee($studentId: UUID!, $amount: BigFloat!, $description: String!, $dueDate: Date!, $invoiceNumber: String!) {
-    createFee(input: {
-      fee: {
-        studentId: $studentId
-        amount: $amount
-        description: $description
-        dueDate: $dueDate
-        invoiceNumber: $invoiceNumber
-      }
-    }) {
-      fee {
-        id
-        amount
-        description
-        dueDate
-        status
-        invoiceNumber
-        studentByStudentId {
-          userByUserId {
-            fullName
+          classByClassId {
+            name
           }
         }
       }
@@ -68,107 +30,105 @@ const CREATE_FEE = gql`
   }
 `;
 
+const UPDATE_FEE_STATUS = gql`
+  mutation UpdateFeeStatus($id: UUID!, $status: String!) {
+    updateFeeById(input: { id: $id, feePatch: { status: $status } }) {
+      fee {
+        id
+        status
+      }
+    }
+  }
+`;
+
 function FeesContent() {
-  const { loading, error, data, refetch } = useQuery(GET_FEES_AND_STUDENTS);
-  const [createFee] = useMutation(CREATE_FEE);
-  const [modalOpen, setModalOpen] = useState(false);
+  const { loading, error, data, refetch } = useQuery(GET_FEES);
+  const [updateFee] = useMutation(UPDATE_FEE_STATUS);
 
   const columns = [
     { header: 'Invoice #', accessor: 'invoiceNumber' },
-    { header: 'Student', accessor: 'studentByStudentId.userByUserId.fullName', render: (row) => row.studentByStudentId?.userByUserId?.fullName },
+    {
+      header: 'Student',
+      accessor: 'studentByStudentId.userByUserId.fullName',
+      render: (row) => row.studentByStudentId?.userByUserId?.fullName || 'Unknown'
+    },
+    {
+      header: 'Class',
+      accessor: 'studentByStudentId.classByClassId.name',
+      render: (row) => row.studentByStudentId?.classByClassId?.name || '-'
+    },
     { header: 'Description', accessor: 'description' },
-    { header: 'Amount', accessor: 'amount', render: (row) => `$${row.amount}` },
+    {
+      header: 'Amount',
+      accessor: 'amount',
+      render: (row) => <span className="font-medium">${Number(row.amount).toFixed(2)}</span>
+    },
     { header: 'Due Date', accessor: 'dueDate' },
     {
       header: 'Status',
       accessor: 'status',
-      render: (row) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${row.status === 'paid' ? 'bg-green-100 text-green-700' :
-          row.status === 'overdue' ? 'bg-red-100 text-red-700' :
-            'bg-yellow-100 text-yellow-700'
-          }`}>
-          {row.status.toUpperCase()}
-        </span>
-      )
+      render: (row) => {
+        const colors = {
+          paid: 'bg-green-100 text-green-700',
+          pending: 'bg-yellow-100 text-yellow-700',
+          overdue: 'bg-red-100 text-red-700'
+        };
+        const icons = {
+          paid: CheckCircle,
+          pending: Clock,
+          overdue: Clock
+        };
+        const Icon = icons[row.status] || Clock;
+        return (
+          <span className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center w-fit gap-1 ${colors[row.status] || 'bg-gray-100'}`}>
+            <Icon className="w-3 h-3" />
+            {row.status.toUpperCase()}
+          </span>
+        );
+      }
     },
+    {
+      header: 'Actions',
+      accessor: 'actions',
+      render: (row) => row.status !== 'paid' && (
+        <button
+          onClick={(e) => { e.stopPropagation(); handleMarkPaid(row); }}
+          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors text-xs font-semibold flex items-center gap-1"
+          title="Mark as Paid"
+        >
+          <DollarSign className="w-3 h-3" /> Pay
+        </button>
+      )
+    }
   ];
 
-  const handleCreateInvoice = () => {
-    setModalOpen(true);
-  };
-
-  const handleModalSubmit = async (formData) => {
+  const handleMarkPaid = async (row) => {
     try {
-      await createFee({
-        variables: {
-          studentId: formData.studentId,
-          amount: formData.amount,
-          description: formData.description,
-          dueDate: formData.dueDate,
-          invoiceNumber: formData.invoiceNumber
-        }
+      await updateFee({
+        variables: { id: row.id, status: 'paid' }
       });
-      toast.success('Invoice created successfully!');
-      setModalOpen(false);
+      toast.success('Fee marked as paid!');
       refetch();
     } catch (err) {
       console.error(err);
-      toast.error('Failed to create invoice: ' + err.message);
+      toast.error('Actions failed');
     }
   };
 
-  // Calculate totals
-  const totalCollected = data?.allFees?.nodes
-    .filter(f => f.status === 'paid')
-    .reduce((acc, curr) => acc + parseFloat(curr.amount), 0) || 0;
-
-  const totalPending = data?.allFees?.nodes
-    .filter(f => f.status === 'pending' || f.status === 'overdue')
-    .reduce((acc, curr) => acc + parseFloat(curr.amount), 0) || 0;
-
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar />
+    <div className="w-full">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Fees Management</h1>
+        <p className="text-gray-500">Track invoices, payments, and outstanding balances.</p>
+      </div>
 
-      <main className="flex-1 ml-64 p-8">
-        <div className="mb-8 flex justify-between items-end">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Fee Management</h1>
-            <p className="text-gray-500">Track invoices, payments, and outstanding dues.</p>
-          </div>
-          <div className="flex space-x-4">
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-3">
-              <div className="p-2 bg-green-50 rounded-full text-green-600"><CheckCircle className="w-5 h-5" /></div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase font-semibold">Collected</p>
-                <p className="font-bold text-gray-800 text-lg">${totalCollected.toFixed(2)}</p>
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-3">
-              <div className="p-2 bg-red-50 rounded-full text-red-600"><AlertCircle className="w-5 h-5" /></div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase font-semibold">Pending</p>
-                <p className="font-bold text-gray-800 text-lg">${totalPending.toFixed(2)}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <DataTable
-          title="Invoices"
-          columns={columns}
-          data={data?.allFees?.nodes || []}
-          isLoading={loading}
-          onAdd={handleCreateInvoice}
-        />
-
-        <InvoiceModal
-          isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
-          onSubmit={handleModalSubmit}
-          students={data?.allStudents?.nodes || []}
-        />
-      </main>
+      <DataTable
+        title="All Fees & Invoices"
+        columns={columns}
+        data={data?.allFees?.nodes || []}
+        isLoading={loading}
+      // No Add/Edit for now in simple version, but can be added
+      />
     </div>
   );
 }

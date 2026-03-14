@@ -35,14 +35,12 @@ const GET_EXAMS_AND_CLASSES = gql`
 const CREATE_EXAM = gql`
   mutation CreateExam($classId: UUID!, $title: String!, $subject: String!, $examDate: Date!, $totalMarks: Int!, $description: String) {
     createExam(input: {
-      exam: {
-        classId: $classId
-        title: $title
-        subject: $subject
-        examDate: $examDate
-        totalMarks: $totalMarks
-        description: $description
-      }
+      classId: $classId
+      title: $title
+      subject: $subject
+      examDate: $examDate
+      totalMarks: $totalMarks
+      description: $description
     }) {
       exam {
         id

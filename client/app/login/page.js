@@ -17,7 +17,7 @@ export default function LoginPage() {
         setLoading(true);
 
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/login`, {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData),
@@ -35,6 +35,8 @@ export default function LoginPage() {
                     router.push('/admin');
                 } else if (data.role === 'teacher') {
                     router.push('/teacher');
+                } else if (data.role === 'principal') {
+                    router.push('/principal');
                 } else if (data.role === 'student') {
                     router.push('/student');
                 }

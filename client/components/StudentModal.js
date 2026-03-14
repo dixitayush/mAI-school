@@ -25,10 +25,10 @@ export default function StudentModal({ isOpen, onClose, onSubmit, student = null
                 email: student.userByUserId?.profileByUserId?.email || '',
                 password: '', // Don't populate password for security
                 classId: student.classId || '',
-                parentName: student.parentByParentId?.fullName || '',
-                parentEmail: student.parentByParentId?.email || '',
-                parentPhone: student.parentByParentId?.phone || '',
-                parentAddress: student.parentByParentId?.address || ''
+                parentName: student.parentName || '',
+                parentEmail: student.parentEmail || '',
+                parentPhone: student.parentPhone || '',
+                parentAddress: student.parentAddress || ''
             });
         } else {
             setFormData({

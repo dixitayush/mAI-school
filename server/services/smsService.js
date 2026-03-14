@@ -7,7 +7,7 @@ const whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER
 
 let client;
 
-if (accountSid && authToken) {
+if (accountSid && accountSid.startsWith('AC') && authToken) {
     client = twilio(accountSid, authToken);
     console.log('Twilio Client Initialized');
 } else {

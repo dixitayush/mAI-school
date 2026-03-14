@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
-import Sidebar from '@/components/Sidebar';
 import DataTable from '@/components/DataTable';
 import TeacherModal from '@/components/TeacherModal';
 import { toast } from 'react-hot-toast';
@@ -178,32 +177,28 @@ function TeachersContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar />
+    <div className="w-full">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Teacher Management</h1>
+        <p className="text-gray-500">Manage teaching staff and specializations.</p>
+      </div>
 
-      <main className="flex-1 ml-64 p-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Teacher Management</h1>
-          <p className="text-gray-500">Manage teaching staff and specializations.</p>
-        </div>
+      <DataTable
+        title="All Teachers"
+        columns={columns}
+        data={data?.allTeachers?.nodes || []}
+        isLoading={loading}
+        onAdd={handleAdd}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
 
-        <DataTable
-          title="All Teachers"
-          columns={columns}
-          data={data?.allTeachers?.nodes || []}
-          isLoading={loading}
-          onAdd={handleAdd}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
-
-        <TeacherModal
-          isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
-          onSubmit={handleModalSubmit}
-          teacher={selectedTeacher}
-        />
-      </main>
+      <TeacherModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleModalSubmit}
+        teacher={selectedTeacher}
+      />
     </div>
   );
 }

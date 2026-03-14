@@ -23,34 +23,36 @@ const GET_USER_PROFILE = gql`
         address
         photoUrl
       }
-      studentByUserId {
-        classByClassId {
-          name
+      studentsByUserId {
+        nodes {
+          classByClassId {
+            name
+          }
+          parentPhone
+          dob
+          enrollmentDate
         }
-        parentContact
-        dob
-        enrollmentDate
       }
-      teacherByUserId {
-        subjectSpecialization
-        qualification
-        joiningDate
+      teachersByUserId {
+        nodes {
+          subjectSpecialization
+          qualification
+          joiningDate
+        }
       }
     }
   }
 `;
 
-const UPDATE_PROFILE = gql`
-  mutation UpdateProfile($userId: UUID!, $bio: String, $email: String, $phone: String, $address: String, $photoUrl: String) {
-    updateProfileByUserId(input: {
-      userId: $userId,
-      profilePatch: {
-        bio: $bio,
-        email: $email,
-        phone: $phone,
-        address: $address,
-        photoUrl: $photoUrl
-      }
+const UPSERT_PROFILE = gql`
+  mutation UpsertProfile($pUserId: UUID!, $pBio: String, $pEmail: String, $pPhone: String, $pAddress: String, $pPhotoUrl: String) {
+    upsertProfile(input: {
+      pUserId: $pUserId,
+      pBio: $pBio,
+      pEmail: $pEmail,
+      pPhone: $pPhone,
+      pAddress: $pAddress,
+      pPhotoUrl: $pPhotoUrl
     }) {
       profile {
         userId
@@ -64,13 +66,11 @@ const UPDATE_PROFILE = gql`
   }
 `;
 
-const UPDATE_USER = gql`
-  mutation UpdateUser($id: UUID!, $fullName: String!) {
-    updateUserById(input: {
-      id: $id,
-      userPatch: {
-        fullName: $fullName
-      }
+const UPDATE_USER_NAME = gql`
+  mutation UpdateUserName($userId: UUID!, $newName: String!) {
+    updateUserName(input: {
+      userId: $userId,
+      newName: $newName
     }) {
       user {
         id
@@ -83,8 +83,10 @@ const UPDATE_USER = gql`
 function ProfileContent() {
     const router = useRouter();
     const [userId, setUserId] = useState(null);
+    const [userRole, setUserRole] = useState('admin');
     const [activeTab, setActiveTab] = useState('personal');
     const [isEditing, setIsEditing] = useState(false);
+    const [hasProfile, setHasProfile] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -98,13 +100,13 @@ function ProfileContent() {
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
-        console.log("Stored user from localStorage:", storedUser);
+        const storedRole = localStorage.getItem('role');
         if (!storedUser) {
             router.push('/login');
         } else {
             const parsedUser = JSON.parse(storedUser);
-            console.log("Parsed user ID:", parsedUser.id);
             setUserId(parsedUser.id);
+            setUserRole(storedRole || 'admin');
         }
     }, [router]);
 
@@ -112,9 +114,9 @@ function ProfileContent() {
         variables: { id: userId },
         skip: !userId,
         onCompleted: (data) => {
-            console.log("Query completed with data:", data);
             if (data?.userById) {
                 const { fullName, profileByUserId } = data.userById;
+                setHasProfile(!!profileByUserId);
                 setFormData({
                     fullName: fullName || '',
                     bio: profileByUserId?.bio || '',
@@ -126,12 +128,12 @@ function ProfileContent() {
             }
         },
         onError: (err) => {
-            console.error("Query error:", err);
+            console.error('Query error:', err);
         }
     });
 
-    const [updateProfile] = useMutation(UPDATE_PROFILE);
-    const [updateUser] = useMutation(UPDATE_USER);
+    const [upsertProfile] = useMutation(UPSERT_PROFILE);
+    const [updateUserName] = useMutation(UPDATE_USER_NAME);
 
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
@@ -141,20 +143,20 @@ function ProfileContent() {
         uploadData.append('file', file);
 
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/upload`, {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/upload`, {
                 method: 'POST',
                 body: uploadData,
             });
             const result = await res.json();
             if (result.success) {
-                const newPhotoUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${result.fileUrl}`;
+                const newPhotoUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}${result.fileUrl}`;
                 setFormData(prev => ({ ...prev, photoUrl: newPhotoUrl }));
 
                 // Auto-save photo update
-                await updateProfile({
+                await upsertProfile({
                     variables: {
-                        userId,
-                        photoUrl: newPhotoUrl
+                        pUserId: userId,
+                        pPhotoUrl: newPhotoUrl
                     }
                 });
                 refetch();
@@ -167,21 +169,21 @@ function ProfileContent() {
 
     const handleSave = async () => {
         try {
-            await updateUser({
+            await updateUserName({
                 variables: {
-                    id: userId,
-                    fullName: formData.fullName
+                    userId,
+                    newName: formData.fullName
                 }
             });
 
-            await updateProfile({
+            await upsertProfile({
                 variables: {
-                    userId,
-                    bio: formData.bio,
-                    email: formData.email,
-                    phone: formData.phone,
-                    address: formData.address,
-                    photoUrl: formData.photoUrl
+                    pUserId: userId,
+                    pBio: formData.bio,
+                    pEmail: formData.email,
+                    pPhone: formData.phone,
+                    pAddress: formData.address,
+                    pPhotoUrl: formData.photoUrl
                 }
             });
 
@@ -207,12 +209,12 @@ function ProfileContent() {
     );
 
     const user = data.userById;
-    const roleDetails = user.role === 'student' ? user.studentByUserId :
-        user.role === 'teacher' ? user.teacherByUserId : null;
+    const roleDetails = user.role === 'student' ? user.studentsByUserId?.nodes?.[0] :
+        user.role === 'teacher' ? user.teachersByUserId?.nodes?.[0] : null;
 
     return (
         <div className="min-h-screen bg-gray-50 flex font-sans">
-            <Sidebar />
+            <Sidebar userRole={userRole} />
 
             <main className="flex-1 ml-64 relative">
                 {/* Gradient Header */}
@@ -443,7 +445,7 @@ function ProfileContent() {
                                                     <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                                                         <Phone className="w-5 h-5 text-green-500" /> Parent Contact
                                                     </h3>
-                                                    <p className="text-gray-700 font-medium text-lg">{roleDetails.parentContact || 'Not set'}</p>
+                                                    <p className="text-gray-700 font-medium text-lg">{roleDetails.parentPhone || 'Not set'}</p>
                                                 </div>
                                             </>
                                         ) : user.role === 'teacher' && roleDetails ? (

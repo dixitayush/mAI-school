@@ -186,27 +186,27 @@ router.post('/mark', async (req, res) => {
     }
 
     try {
-        // 1. Insert Attendance Record
-        const insertQuery = `
+        // 1. Upsert Attendance Record (insert or update if same student+date exists)
+        const upsertQuery = `
             INSERT INTO attendance (student_id, date, status, remarks, recorded_by)
             VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (student_id, date)
+            DO UPDATE SET status = EXCLUDED.status, remarks = EXCLUDED.remarks, recorded_by = EXCLUDED.recorded_by, created_at = NOW()
             RETURNING *;
         `;
-        const result = await pool.query(insertQuery, [student_id, date || new Date(), status, remarks, recorded_by]);
+        const result = await pool.query(upsertQuery, [student_id, date || new Date(), status, remarks, recorded_by]);
         const attendanceRecord = result.rows[0];
 
         // 2. Fetch Student & Parent Details for Notifications
-        // We now join with parents table
         const studentQuery = `
             SELECT 
                 s.id, 
                 u.full_name as student_name, 
-                p.email as parent_email,
-                p.phone as parent_phone,
-                p.full_name as parent_name
+                s.parent_email,
+                s.parent_phone,
+                s.parent_name
             FROM students s
             JOIN users u ON s.user_id = u.id
-            LEFT JOIN parents p ON s.parent_id = p.id
             WHERE s.id = $1;
         `;
         const studentResult = await pool.query(studentQuery, [student_id]);

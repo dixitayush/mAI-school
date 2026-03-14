@@ -7,7 +7,7 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/mai_school';
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
@@ -45,7 +45,9 @@ app.use(
       extendedErrors: ['hint', 'detail', 'errcode'],
       // jwtSecret: JWT_SECRET, // Disabled to prevent role switching issues
       // jwtPgTypeIdentifier: 'public.jwt_token',
-      pgDefaultRole: 'postgres', // Use postgres for all operations
+      // pgDefaultRole: 'postgres', // Use postgres for all operations
+      ignoreRBAC: true, // Generate all mutations regardless of explicit GRANTs
+      legacyRelations: 'omit',
     }
   )
 );
@@ -119,6 +121,7 @@ initDb().then(() => {
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`GraphiQL available at http://localhost:${PORT}/graphiql`);
+    console.log('PostGraphile options: ignoreRBAC=true');
   });
 }).catch(err => {
   console.error('Failed to initialize database:', err);
