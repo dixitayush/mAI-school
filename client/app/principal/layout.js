@@ -5,6 +5,7 @@ import { ApolloWrapper } from '@/components/ApolloWrapper';
 import { Bell, Search, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import NotificationListener from '@/components/NotificationListener';
 
 export default function PrincipalLayout({ children }) {
     const [user, setUser] = useState(null);
@@ -21,6 +22,7 @@ export default function PrincipalLayout({ children }) {
             <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900">
                 {/* Persistent Sidebar */}
                 <Sidebar userRole="principal" />
+                <NotificationListener userRole="principal" />
 
                 {/* Main Content Area */}
                 <div className="flex-1 flex flex-col min-w-0 md:pl-64 transition-all duration-300">

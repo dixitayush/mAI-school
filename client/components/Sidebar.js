@@ -34,7 +34,6 @@ const menuItems = {
     ],
     student: [
         { name: 'Dashboard', href: '/student', icon: LayoutDashboard },
-        { name: 'Fees', href: '/student/fees', icon: DollarSign },
         { name: 'Exams', href: '/exams', icon: FileText },
         { name: 'Profile', href: '/profile', icon: User },
     ]

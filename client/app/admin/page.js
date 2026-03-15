@@ -30,6 +30,12 @@ const GET_STATS = gql`
         status
       }
     }
+    allAttendances {
+      nodes {
+        date
+        status
+      }
+    }
   }
 `;
 
@@ -74,17 +80,39 @@ export default function AdminDashboard() {
     // Calculate fee statistics
     const totalFees = data?.allFees?.nodes.reduce((sum, fee) => sum + parseFloat(fee.amount), 0) || 0;
 
-    // Mock attendance data for Area chart (Smoother look)
-    const attendanceData = [
-        { month: 'Jan', rate: 85 },
-        { month: 'Feb', rate: 88 },
-        { month: 'Mar', rate: 82 },
-        { month: 'Apr', rate: 90 },
-        { month: 'May', rate: 94 },
-        { month: 'Jun', rate: 96 },
-        { month: 'Jul', rate: 91 },
-        { month: 'Aug', rate: 93 },
-    ];
+    // Calculate Attendance Data by Month dynamically
+    const attendances = data?.allAttendances?.nodes || [];
+    const monthlyAttendance = {};
+
+    attendances.forEach(att => {
+        const date = new Date(att.date);
+        const month = date.toLocaleString('default', { month: 'short' });
+        
+        if (!monthlyAttendance[month]) {
+            monthlyAttendance[month] = { total: 0, present: 0 };
+        }
+        
+        monthlyAttendance[month].total += 1;
+        if (att.status === 'present') {
+            monthlyAttendance[month].present += 1;
+        }
+    });
+
+    // Default months if no data exists yet to keep the chart from looking empty
+    const defaultMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    const attendanceData = Object.keys(monthlyAttendance).length > 0 
+        ? Object.keys(monthlyAttendance).map(month => ({
+            month,
+            rate: Math.round((monthlyAttendance[month].present / monthlyAttendance[month].total) * 100)
+        }))
+        : defaultMonths.map(month => ({ month, rate: 0 }));
+
+    // Calculate average attendance for the stat card
+    const totalAttendanceRecords = attendances.length;
+    const totalPresentRecords = attendances.filter(a => a.status === 'present').length;
+    const averageAttendanceRate = totalAttendanceRecords > 0 
+        ? Math.round((totalPresentRecords / totalAttendanceRecords) * 100)
+        : 0;
 
     const feeStatusData = [
         { name: 'Paid', value: data?.allFees?.nodes.filter(f => f.status === 'paid').length || 0, color: '#34D399' }, // Emerald-400
@@ -209,10 +237,10 @@ export default function AdminDashboard() {
                 />
                 <StatCard
                     title="Avg Attendance"
-                    value="94%"
+                    value={`${averageAttendanceRate}%`}
                     icon={Activity}
-                    trend="down"
-                    trendValue="-1%"
+                    trend="up"
+                    trendValue="Active"
                     color="orange"
                     delay={0.3}
                 />

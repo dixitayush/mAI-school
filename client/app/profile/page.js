@@ -208,7 +208,14 @@ function ProfileContent() {
         </div>
     );
 
-    const user = data.userById;
+    const user = data?.userById;
+    
+    if (!user) return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-500">
+            Profile data not found. Please try refreshing.
+        </div>
+    );
+
     const roleDetails = user.role === 'student' ? user.studentsByUserId?.nodes?.[0] :
         user.role === 'teacher' ? user.teachersByUserId?.nodes?.[0] : null;
 

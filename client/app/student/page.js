@@ -12,6 +12,8 @@ import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { generateReportCard } from '@/lib/generateReportCard';
+import AnnouncementCard from '@/components/AnnouncementCard';
+import RecentAttendanceCard from '@/components/RecentAttendanceCard';
 
 const GET_STUDENT_DASHBOARD = gql`
   query GetStudentDashboard($userId: UUID!) {
@@ -175,6 +177,12 @@ export default function StudentDashboard() {
         ? ((presentDays / totalAttendanceDays) * 100).toFixed(1)
         : 0;
 
+    // Calculate fees breakdown
+    const feesRecords = studentData?.feesByStudentId?.nodes || [];
+    const pendingFees = feesRecords
+        .filter(f => f.status === 'pending' || f.status === 'overdue')
+        .reduce((sum, f) => sum + parseFloat(f.amount), 0);
+
     // Get results
     const results = studentData?.resultsByStudentId?.nodes || [];
 
@@ -306,13 +314,13 @@ export default function StudentDashboard() {
                     className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
                 >
                     <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-purple-100 rounded-lg">
-                            <FileText className="w-6 h-6 text-purple-600" />
+                        <div className="p-3 bg-red-100 rounded-lg">
+                            <TrendingUp className="w-6 h-6 text-red-600" />
                         </div>
                     </div>
-                    <p className="text-sm text-gray-500 font-medium">Exams Taken</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">{results.length}</p>
-                    <p className="text-xs text-gray-500 mt-2">Total assessments</p>
+                    <p className="text-sm text-gray-500 font-medium">Fees Due</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">${pendingFees.toLocaleString()}</p>
+                    <p className="text-xs text-red-500 mt-2 font-medium">Pending payments</p>
                 </motion.div>
 
                 <motion.div
@@ -401,48 +409,8 @@ export default function StudentDashboard() {
                 </motion.div>
 
                 {/* Recent Attendance */}
-                <motion.div
-                    variants={itemVariants}
-                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"
-                >
-                    <div className="flex items-center space-x-3 mb-6">
-                        <div className="p-2 bg-green-100 rounded-lg">
-                            <Calendar className="w-5 h-5 text-green-600" />
-                        </div>
-                        <div>
-                            <h2 className="text-lg font-bold text-gray-900">Recent Attendance</h2>
-                            <p className="text-sm text-gray-500">Last 7 days</p>
-                        </div>
-                    </div>
-                    <div className="space-y-3">
-                        {recentAttendance.length > 0 ? recentAttendance.map((record, index) => (
-                            <div
-                                key={index}
-                                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                            >
-                                <div className="flex items-center space-x-3">
-                                    {record.status === 'present' ? (
-                                        <CheckCircle2 className="w-5 h-5 text-green-500" />
-                                    ) : record.status === 'late' ? (
-                                        <Clock className="w-5 h-5 text-orange-500" />
-                                    ) : (
-                                        <XCircle className="w-5 h-5 text-red-500" />
-                                    )}
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-900">
-                                            {new Date(record.date).toLocaleDateString('en-US', {
-                                                month: 'short',
-                                                day: 'numeric'
-                                            })}
-                                        </p>
-                                        <p className="text-xs text-gray-500 capitalize">{record.status}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )) : (
-                            <p className="text-center text-gray-500 py-4 text-sm">No attendance records yet</p>
-                        )}
-                    </div>
+                <motion.div variants={itemVariants}>
+                    <RecentAttendanceCard studentId={studentData?.id} />
                 </motion.div>
             </div>
 
@@ -498,52 +466,8 @@ export default function StudentDashboard() {
                 </motion.div>
 
                 {/* Upcoming Exams */}
-                <motion.div
-                    variants={itemVariants}
-                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"
-                >
-                    <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-orange-100 rounded-lg">
-                                <Clock className="w-5 h-5 text-orange-600" />
-                            </div>
-                            <div>
-                                <h2 className="text-lg font-bold text-gray-900">Upcoming Exams</h2>
-                                <p className="text-sm text-gray-500">Scheduled assessments</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                        {upcomingExams.length > 0 ? upcomingExams.map((exam) => (
-                            <div
-                                key={exam.id}
-                                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
-                            >
-                                <div className="flex items-center space-x-3">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-red-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-                                        {new Date(exam.examDate).getDate()}
-                                    </div>
-                                    <div>
-                                        <p className="font-medium text-gray-900">{exam.title}</p>
-                                        <p className="text-sm text-gray-500">{exam.subject}</p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-sm font-medium text-gray-900">
-                                        {new Date(exam.examDate).toLocaleDateString('en-US', {
-                                            month: 'short',
-                                            day: 'numeric'
-                                        })}
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                        {new Date(exam.examDate).toLocaleDateString('en-US', { weekday: 'short' })}
-                                    </p>
-                                </div>
-                            </div>
-                        )) : (
-                            <p className="text-center text-gray-500 py-8">No upcoming exams scheduled</p>
-                        )}
-                    </div>
+                <motion.div variants={itemVariants}>
+                    <AnnouncementCard />
                 </motion.div>
             </div>
         </motion.div>

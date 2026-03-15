@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import AnnouncementCard from '@/components/AnnouncementCard';
 
 const GET_TEACHER_DASHBOARD = gql`
   query GetTeacherDashboard {
@@ -339,45 +340,9 @@ function TeacherDashboardContent() {
                     </div>
                 </motion.div>
 
-                {/* Upcoming Exams */}
-                <motion.div variants={itemVariants} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
-                                <Award className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h2 className="text-lg font-bold text-gray-900">Upcoming Exams</h2>
-                                <p className="text-sm text-gray-500">Scheduled assessments</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => router.push('/teacher/exams')}
-                            className="text-primary-600 text-sm font-medium hover:text-primary-700"
-                        >
-                            View All
-                        </button>
-                    </div>
-                    <div className="space-y-3">
-                        {upcomingExams.length > 0 ? upcomingExams.slice(0, 4).map((exam) => (
-                            <div key={exam.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                <div>
-                                    <p className="font-medium text-gray-900">{exam.title}</p>
-                                    <p className="text-xs text-gray-500">{exam.classByClassId?.name} • {exam.subject}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-sm font-medium text-gray-900">
-                                        {new Date(exam.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                        {new Date(exam.date).toLocaleDateString('en-US', { weekday: 'short' })}
-                                    </p>
-                                </div>
-                            </div>
-                        )) : (
-                            <p className="text-center text-gray-500 py-4">No upcoming exams</p>
-                        )}
-                    </div>
+                {/* Announcements */}
+                <motion.div variants={itemVariants}>
+                    <AnnouncementCard />
                 </motion.div>
             </div>
 

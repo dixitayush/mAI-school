@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useRouter } from 'next/navigation';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
 import Sidebar from '@/components/Sidebar';
 import DataTable from '@/components/DataTable';
 import ExamModal from '@/components/ExamModal';
-import { FileText, Award } from 'lucide-react';
+import { FileText, Award, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 const GET_EXAMS_AND_CLASSES = gql`
@@ -57,9 +58,32 @@ const CREATE_EXAM = gql`
 `;
 
 function ExamsContent() {
+  const router = useRouter();
   const { loading, error, data, refetch } = useQuery(GET_EXAMS_AND_CLASSES);
   const [createExam] = useMutation(CREATE_EXAM);
   const [modalOpen, setModalOpen] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+      setMounted(true);
+      const storedUser = localStorage.getItem('user');
+      const role = localStorage.getItem('role');
+
+      if (!storedUser || !role) {
+          router.push('/login');
+      } else {
+          setUserRole(role);
+      }
+  }, [router]);
+
+  if (!mounted || !userRole) {
+      return (
+          <div className="flex justify-center items-center h-screen bg-gray-50">
+              <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+          </div>
+      );
+  }
 
   const columns = [
     { header: 'Title', accessor: 'title' },
@@ -96,7 +120,7 @@ function ExamsContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar />
+      <Sidebar userRole={userRole} />
 
       <main className="flex-1 ml-64 p-8">
         <div className="mb-8">
@@ -109,7 +133,7 @@ function ExamsContent() {
           columns={columns}
           data={data?.allExams?.nodes || []}
           isLoading={loading}
-          onAdd={handleCreateExam}
+          onAdd={userRole === 'admin' || userRole === 'principal' || userRole === 'teacher' ? handleCreateExam : undefined}
         />
 
         <ExamModal

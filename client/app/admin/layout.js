@@ -4,6 +4,7 @@ import Sidebar from '@/components/Sidebar';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
 import { Bell, Search, User } from 'lucide-react';
 import { motion } from 'framer-motion';
+import NotificationListener from '@/components/NotificationListener';
 
 export default function AdminLayout({ children }) {
     return (
@@ -11,6 +12,7 @@ export default function AdminLayout({ children }) {
             <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900">
                 {/* Persistent Sidebar */}
                 <Sidebar userRole="admin" />
+                <NotificationListener userRole="admin" />
 
                 {/* Main Content Area */}
                 <div className="flex-1 flex flex-col min-w-0 md:pl-64 transition-all duration-300">
