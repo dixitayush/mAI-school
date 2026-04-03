@@ -7,18 +7,24 @@ import { FileText, Award, Loader2, Calendar, BookOpen, Users } from 'lucide-reac
 import { motion } from 'framer-motion';
 
 const GET_TEACHER_EXAMS = gql`
-  query GetTeacherExams {
-    allExams {
+  query GetTeacherExams($teacherId: UUID!) {
+    allClasses(condition: { teacherId: $teacherId }) {
       nodes {
         id
-        title
-        subject
-        date
-        totalMarks
-        classId
-        classByClassId {
-          name
-          gradeLevel
+        name
+        gradeLevel
+        examsByClassId(orderBy: EXAM_DATE_ASC) {
+          nodes {
+            id
+            title
+            subject
+            examDate
+            totalMarks
+            classByClassId {
+              name
+              gradeLevel
+            }
+          }
         }
       }
     }
@@ -28,7 +34,6 @@ const GET_TEACHER_EXAMS = gql`
 function TeacherExamsContent() {
     const router = useRouter();
     const [user, setUser] = useState(null);
-    const { loading, data } = useQuery(GET_TEACHER_EXAMS);
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
@@ -41,19 +46,28 @@ function TeacherExamsContent() {
         }
     }, [router]);
 
+    const { loading, data } = useQuery(GET_TEACHER_EXAMS, {
+        variables: { teacherId: user?.id },
+        skip: !user?.id,
+    });
+
     if (!user) return null;
 
-    const exams = data?.allExams?.nodes || [];
+    // Flatten exams from teacher's classes
+    const classes = data?.allClasses?.nodes || [];
+    const exams = classes.flatMap(cls =>
+        (cls.examsByClassId?.nodes || []).map(exam => ({ ...exam, className: cls.name }))
+    );
 
     // Separate exams by status
     const now = new Date();
     const upcomingExams = exams
-        .filter(exam => new Date(exam.date) > now)
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
+        .filter(exam => new Date(exam.examDate) > now)
+        .sort((a, b) => new Date(a.examDate) - new Date(b.examDate));
 
     const pastExams = exams
-        .filter(exam => new Date(exam.date) <= now)
-        .sort((a, b) => new Date(b.date) - new Date(a.date));
+        .filter(exam => new Date(exam.examDate) <= now)
+        .sort((a, b) => new Date(b.examDate) - new Date(a.examDate));
 
     if (loading) {
         return (
@@ -174,14 +188,14 @@ function TeacherExamsContent() {
                                     </div>
                                     <div className="text-right">
                                         <p className="text-sm font-bold text-gray-900">
-                                            {new Date(exam.date).toLocaleDateString('en-US', {
+                                            {new Date(exam.examDate).toLocaleDateString('en-US', {
                                                 month: 'short',
                                                 day: 'numeric',
                                                 year: 'numeric'
                                             })}
                                         </p>
                                         <p className="text-xs text-gray-500 mt-1">
-                                            {new Date(exam.date).toLocaleDateString('en-US', { weekday: 'long' })}
+                                            {new Date(exam.examDate).toLocaleDateString('en-US', { weekday: 'long' })}
                                         </p>
                                         <p className="text-xs text-green-600 font-medium mt-1">
                                             {exam.totalMarks} marks
@@ -239,14 +253,14 @@ function TeacherExamsContent() {
                                     </div>
                                     <div className="text-right">
                                         <p className="text-sm font-medium text-gray-600">
-                                            {new Date(exam.date).toLocaleDateString('en-US', {
+                                            {new Date(exam.examDate).toLocaleDateString('en-US', {
                                                 month: 'short',
                                                 day: 'numeric',
                                                 year: 'numeric'
                                             })}
                                         </p>
                                         <p className="text-xs text-gray-400 mt-1">
-                                            {new Date(exam.date).toLocaleDateString('en-US', { weekday: 'long' })}
+                                            {new Date(exam.examDate).toLocaleDateString('en-US', { weekday: 'long' })}
                                         </p>
                                         <p className="text-xs text-gray-500 mt-1">
                                             {exam.totalMarks} marks

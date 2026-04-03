@@ -13,8 +13,8 @@ import { motion } from 'framer-motion';
 import AnnouncementCard from '@/components/AnnouncementCard';
 
 const GET_TEACHER_DASHBOARD = gql`
-  query GetTeacherDashboard {
-    allClasses {
+  query GetTeacherDashboard($teacherId: UUID!) {
+    allClasses(condition: { teacherId: $teacherId }) {
       nodes {
         id
         name
@@ -22,22 +22,19 @@ const GET_TEACHER_DASHBOARD = gql`
         studentsByClassId {
           totalCount
         }
-      }
-    }
-    allExams {
-      nodes {
-        id
-        title
-        subject
-        date
-        classId
-        classByClassId {
-          name
+        examsByClassId(orderBy: EXAM_DATE_ASC) {
+          nodes {
+            id
+            title
+            subject
+            examDate
+            totalMarks
+            classByClassId {
+              name
+            }
+          }
         }
       }
-    }
-    allStudents {
-      totalCount
     }
   }
 `;
@@ -47,7 +44,6 @@ function TeacherDashboardContent() {
     const [user, setUser] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
     const [aiResult, setAiResult] = useState(null);
-    const { loading, data } = useQuery(GET_TEACHER_DASHBOARD);
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
@@ -59,6 +55,11 @@ function TeacherDashboardContent() {
             setUser(JSON.parse(storedUser));
         }
     }, [router]);
+
+    const { loading, data } = useQuery(GET_TEACHER_DASHBOARD, {
+        variables: { teacherId: user?.id },
+        skip: !user?.id,
+    });
 
     const handleAiAttendance = async (e) => {
         const file = e.target.files[0];
@@ -85,7 +86,7 @@ function TeacherDashboardContent() {
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/ai/attendance`, {
                 method: 'POST',
                 body: JSON.stringify({
-                    classId: 'mock-class-id',
+                    classId: classes[0]?.id || '',
                     imageUrl: uploadData.fileUrl
                 }),
                 headers: { 'Content-Type': 'application/json' }
@@ -104,22 +105,74 @@ function TeacherDashboardContent() {
     if (!user) return null;
 
     const classes = data?.allClasses?.nodes || [];
-    const allStudents = data?.allStudents?.totalCount || 0;
-    const exams = data?.allExams?.nodes || [];
 
-    // Get upcoming exams (next 30 days)
+    // Derive total students from the teacher's classes
+    const totalStudents = classes.reduce((sum, cls) => sum + (cls.studentsByClassId?.totalCount || 0), 0);
+
+    // Flatten all exams from the teacher's classes
+    const allExams = classes.flatMap(cls =>
+        (cls.examsByClassId?.nodes || []).map(exam => ({ ...exam, className: cls.name }))
+    );
+
     const now = new Date();
-    const upcomingExams = exams
-        .filter(exam => new Date(exam.date) > now)
-        .sort((a, b) => new Date(a.date) - new Date(b.date))
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Get upcoming exams
+    const upcomingExams = allExams
+        .filter(exam => new Date(exam.examDate) > now)
+        .sort((a, b) => new Date(a.examDate) - new Date(b.examDate))
         .slice(0, 5);
 
-    // Mock today's schedule - in production, fetch from timetable
-    const todaySchedule = [
-        { class: classes[0]?.name || 'Mathematics (10-A)', time: '09:00 AM - 10:00 AM', status: 'completed' },
-        { class: classes[1]?.name || 'Physics (11-B)', time: '11:00 AM - 12:00 PM', status: 'upcoming' },
-        { class: classes[2]?.name || 'Chemistry (10-A)', time: '02:00 PM - 03:00 PM', status: 'upcoming' },
-    ];
+    // Build dynamic schedule: today's exams + nearest upcoming exams
+    const buildSchedule = () => {
+        const todayExams = allExams.filter(exam => {
+            const examDay = new Date(exam.examDate);
+            return examDay.toDateString() === today.toDateString();
+        });
+
+        const futureExams = allExams
+            .filter(exam => new Date(exam.examDate) > today)
+            .sort((a, b) => new Date(a.examDate) - new Date(b.examDate));
+
+        const pastExams = allExams
+            .filter(exam => new Date(exam.examDate) < today)
+            .sort((a, b) => new Date(b.examDate) - new Date(a.examDate));
+
+        const items = [];
+
+        // Add today's exams
+        todayExams.forEach(exam => {
+            items.push({
+                class: `${exam.title} — ${exam.className}`,
+                time: new Date(exam.examDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                status: 'today',
+            });
+        });
+
+        // Fill up to 3 with upcoming
+        futureExams.slice(0, 3 - items.length).forEach(exam => {
+            items.push({
+                class: `${exam.title} — ${exam.className}`,
+                time: new Date(exam.examDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                status: 'upcoming',
+            });
+        });
+
+        // If still less than 3, add recent past
+        if (items.length < 3) {
+            pastExams.slice(0, 3 - items.length).forEach(exam => {
+                items.push({
+                    class: `${exam.title} — ${exam.className}`,
+                    time: new Date(exam.examDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                    status: 'completed',
+                });
+            });
+        }
+
+        return items;
+    };
+
+    const todaySchedule = buildSchedule();
 
     const containerVariants = {
         hidden: { opacity: 0 },
@@ -184,8 +237,8 @@ function TeacherDashboardContent() {
                 <motion.div variants={itemVariants} className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200 shadow-sm">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-green-600 text-sm font-medium mb-1">Total Students</p>
-                            <p className="text-3xl font-bold text-green-900">{allStudents}</p>
+                            <p className="text-green-600 text-sm font-medium mb-1">My Students</p>
+                            <p className="text-3xl font-bold text-green-900">{totalStudents}</p>
                         </div>
                         <div className="w-12 h-12 bg-green-200 rounded-full flex items-center justify-center">
                             <Users className="w-6 h-6 text-green-700" />
@@ -196,8 +249,8 @@ function TeacherDashboardContent() {
                 <motion.div variants={itemVariants} className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200 shadow-sm">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-purple-600 text-sm font-medium mb-1">Classes Today</p>
-                            <p className="text-3xl font-bold text-purple-900">{todaySchedule.length}</p>
+                            <p className="text-purple-600 text-sm font-medium mb-1">Scheduled</p>
+                            <p className="text-3xl font-bold text-purple-900">{allExams.length}</p>
                         </div>
                         <div className="w-12 h-12 bg-purple-200 rounded-full flex items-center justify-center">
                             <Calendar className="w-6 h-6 text-purple-700" />
@@ -228,26 +281,35 @@ function TeacherDashboardContent() {
                                 <Clock className="w-5 h-5" />
                             </div>
                             <div>
-                                <h2 className="text-lg font-bold text-gray-900">Today's Schedule</h2>
-                                <p className="text-sm text-gray-500">Your classes for {new Date().toLocaleDateString('en-US', { weekday: 'long' })}</p>
+                                <h2 className="text-lg font-bold text-gray-900">Exam Schedule</h2>
+                                <p className="text-sm text-gray-500">Your upcoming & recent exams</p>
                             </div>
                         </div>
                     </div>
                     <div className="space-y-3">
-                        {todaySchedule.map((item, index) => (
+                        {todaySchedule.length > 0 ? todaySchedule.map((item, index) => (
                             <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-indigo-100 transition-colors">
                                 <div className="flex items-center space-x-4">
-                                    <div className={`w-1 h-12 rounded-full ${item.status === 'completed' ? 'bg-green-500' : 'bg-blue-500'}`} />
+                                    <div className={`w-1 h-12 rounded-full ${item.status === 'completed' ? 'bg-green-500' : item.status === 'today' ? 'bg-amber-500' : 'bg-blue-500'}`} />
                                     <div>
                                         <p className="font-bold text-gray-800">{item.class}</p>
                                         <p className="text-sm text-gray-500">{item.time}</p>
                                     </div>
                                 </div>
-                                <span className={`px-3 py-1 ${item.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'} text-xs rounded-full font-medium`}>
-                                    {item.status === 'completed' ? 'Completed' : 'Upcoming'}
+                                <span className={`px-3 py-1 ${
+                                    item.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                    item.status === 'today' ? 'bg-amber-100 text-amber-700' :
+                                    'bg-blue-100 text-blue-700'
+                                } text-xs rounded-full font-medium`}>
+                                    {item.status === 'completed' ? 'Completed' : item.status === 'today' ? 'Today' : 'Upcoming'}
                                 </span>
                             </div>
-                        ))}
+                        )) : (
+                            <div className="text-center py-8">
+                                <Clock className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                                <p className="text-gray-500 text-sm">No exams scheduled for your classes yet</p>
+                            </div>
+                        )}
                     </div>
                 </motion.div>
 

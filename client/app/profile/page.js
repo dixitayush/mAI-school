@@ -135,6 +135,17 @@ function ProfileContent() {
     const [upsertProfile] = useMutation(UPSERT_PROFILE);
     const [updateUserName] = useMutation(UPDATE_USER_NAME);
 
+    // If user not found, the session is stale (e.g. DB was re-initialized).
+    // Clear auth data and redirect to login.
+    useEffect(() => {
+        if (!loading && !error && data && !data.userById) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('role');
+            localStorage.removeItem('user');
+            router.push('/login');
+        }
+    }, [loading, error, data, router]);
+
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -209,10 +220,13 @@ function ProfileContent() {
     );
 
     const user = data?.userById;
-    
+
     if (!user) return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-500">
-            Profile data not found. Please try refreshing.
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+                <p className="text-gray-500">Session expired. Redirecting to login...</p>
+            </div>
         </div>
     );
 
