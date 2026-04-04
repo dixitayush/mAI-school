@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { institutionSlugFromHostname, tenantApexForHostname } from "@/lib/tenant";
+import {
+  institutionSlugFromHostname,
+  sanitizeTenantSlugParam,
+  tenantApexForHostname,
+  TENANT_LOGIN_QUERY_KEY,
+} from "@/lib/tenant";
 
 /** Edge middleware can read NEXT_PUBLIC_* ; set this to your API (same as client). */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5001";
@@ -60,7 +65,10 @@ function isTenantPublicMarketingPath(pathname) {
 
 export async function middleware(request) {
   const host = (request.headers.get("host") || "").split(":")[0];
-  const slug = institutionSlugFromHostname(host);
+  const slugFromQuery = sanitizeTenantSlugParam(
+    request.nextUrl.searchParams.get(TENANT_LOGIN_QUERY_KEY)
+  );
+  const slug = institutionSlugFromHostname(host) || slugFromQuery;
   const pathname = request.nextUrl.pathname;
 
   if (slug && !isTenantPublicMarketingPath(pathname)) {

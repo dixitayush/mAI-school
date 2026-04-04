@@ -2,8 +2,36 @@
  * Multi-tenant helpers: subdomain detection and persisted institution from login.
  */
 
+/** Query key for institute login on apex hosts (Netlify/Vercel/Render have no TLS for `slug.apex`). */
+export const TENANT_LOGIN_QUERY_KEY = "i";
+
 export function getRootDomain() {
   return (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost").split(":")[0];
+}
+
+/** Slug from `?i=` (or empty). */
+export function sanitizeTenantSlugParam(raw) {
+  if (raw == null || typeof raw !== "string") return "";
+  const s = raw.trim().toLowerCase();
+  if (s.length === 0 || s.length > 64) return "";
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(s)) return "";
+  return s;
+}
+
+/**
+ * Hosted platforms only provision TLS for the primary hostname, not `tenant.*.netlify.app`.
+ * Use apex `/login?i=slug` instead of subdomain links.
+ */
+export function tenantLoginUsesQueryForApex(apexHostname) {
+  if (process.env.NEXT_PUBLIC_TENANT_LOGIN_SUBDOMAIN === "1") return false;
+  if (!apexHostname) return false;
+  const h = apexHostname.toLowerCase();
+  if (h === "localhost" || h === "127.0.0.1") return false;
+  return (
+    h.endsWith(".netlify.app") ||
+    h.endsWith(".vercel.app") ||
+    h.endsWith(".onrender.com")
+  );
 }
 
 /**
@@ -91,6 +119,14 @@ export function institutionSlugFromHostname(hostname) {
   return "";
 }
 
+/** Resolve tenant slug: real subdomain wins, then `?i=` on apex (production platforms). */
+export function resolveTenantSlugForLogin(hostname, searchString) {
+  const fromHost = institutionSlugFromHostname(hostname);
+  if (fromHost) return fromHost;
+  const q = new URLSearchParams(searchString || "").get(TENANT_LOGIN_QUERY_KEY);
+  return sanitizeTenantSlugParam(q);
+}
+
 export function getInstitutionFromStorage() {
   if (typeof window === "undefined") return null;
   try {
@@ -108,19 +144,22 @@ export function getInstitutionIdFromStorage() {
 }
 
 /**
- * Full URL for an institute admin / tenant login page (`/login` on the institute subdomain).
- * - Optional `NEXT_PUBLIC_INSTITUTE_LOGIN_BASE_URL`: apex origin for tenant links, e.g. `https://school.com`
- *   (builds `https://{slug}.school.com/login`). Use when the MAI dashboard is hosted on a different host
- *   than tenant subdomains.
- * - Otherwise uses tenant apex from `NEXT_PUBLIC_ROOT_DOMAIN`, the current browser host, or deploy URL
- *   (Netlify `URL` / `DEPLOY_PRIME_URL`) so production links are not `*.localhost` when env is unset.
+ * Full URL for an institute admin / tenant login page.
+ * - Local dev: `http://{slug}.localhost:port/login`
+ * - Netlify / Vercel / Render apex: `https://apex/login?i={slug}` (subdomains are not TLS-valid there)
+ * - Custom domain with wildcard TLS: `https://{slug}.apex/login` when apex is not a platform default host
+ * - Optional `NEXT_PUBLIC_INSTITUTE_LOGIN_BASE_URL`: base origin (same rules as above)
  */
 export function instituteLoginPageUrl(slug) {
   if (!slug) return "";
+  const q = `${TENANT_LOGIN_QUERY_KEY}=${encodeURIComponent(slug)}`;
   const base = process.env.NEXT_PUBLIC_INSTITUTE_LOGIN_BASE_URL?.trim();
   if (base) {
     try {
       const u = new URL(base.replace(/\/$/, ""));
+      if (tenantLoginUsesQueryForApex(u.hostname)) {
+        return `${u.origin}/login?${q}`;
+      }
       const host = `${slug}.${u.hostname}`;
       const port = u.port ? `:${u.port}` : "";
       return `${u.protocol}//${host}${port}/login`;
@@ -138,6 +177,13 @@ export function instituteLoginPageUrl(slug) {
       const p = port ? `:${port}` : "";
       return `http://${slug}.localhost${p}/login`;
     }
+    if (tenantLoginUsesQueryForApex(apex)) {
+      const p =
+        port && port !== "" && port !== "80" && port !== "443"
+          ? `:${port}`
+          : "";
+      return `${protocol}//${apex}${p}/login?${q}`;
+    }
     const p =
       port && port !== "" && port !== "80" && port !== "443"
         ? `:${port}`
@@ -153,7 +199,20 @@ export function instituteLoginPageUrl(slug) {
     const portPart = portNum ? `:${portNum}` : "";
     return `http://${slug}.localhost${portPart}/login`;
   }
+  if (tenantLoginUsesQueryForApex(apex)) {
+    const proto = process.env.NEXT_PUBLIC_INSTITUTE_LOGIN_PROTOCOL || "https:";
+    const normProto = proto.endsWith(":") ? proto : `${proto}:`;
+    const portEnv = process.env.NEXT_PUBLIC_INSTITUTE_LOGIN_PORT;
+    const p =
+      portEnv && String(portEnv).length > 0
+        ? String(portEnv).startsWith(":")
+          ? portEnv
+          : `:${portEnv}`
+        : "";
+    return `${normProto}//${apex}${p}/login?${q}`;
+  }
   const proto = process.env.NEXT_PUBLIC_INSTITUTE_LOGIN_PROTOCOL || "https:";
+  const normProto = proto.endsWith(":") ? proto : `${proto}:`;
   const portEnv = process.env.NEXT_PUBLIC_INSTITUTE_LOGIN_PORT;
   const p =
     portEnv && String(portEnv).length > 0
@@ -161,5 +220,5 @@ export function instituteLoginPageUrl(slug) {
         ? portEnv
         : `:${portEnv}`
       : "";
-  return `${proto}//${slug}.${apex}${p}/login`;
+  return `${normProto}//${slug}.${apex}${p}/login`;
 }

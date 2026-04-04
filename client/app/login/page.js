@@ -20,7 +20,7 @@ import {
   Sparkles,
   User,
 } from "lucide-react";
-import { institutionSlugFromHostname } from "@/lib/tenant";
+import { resolveTenantSlugForLogin } from "@/lib/tenant";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 const easeOut = [0.22, 1, 0.36, 1];
@@ -60,7 +60,10 @@ export default function LoginPage() {
   const [instLoading, setInstLoading] = useState(true);
 
   useEffect(() => {
-    const slug = institutionSlugFromHostname(window.location.hostname);
+    const slug = resolveTenantSlugForLogin(
+      window.location.hostname,
+      window.location.search
+    );
     setTenantSlug(slug);
     if (!slug) {
       setInstitution(null);
@@ -108,8 +111,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const slugFromHost = institutionSlugFromHostname(window.location.hostname);
-      const institution_slug = slugFromHost ? slugFromHost : null;
+      const institution_slug =
+        resolveTenantSlugForLogin(
+          window.location.hostname,
+          window.location.search
+        ) || null;
       const res = await fetch(`${apiBase}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -245,8 +251,8 @@ export default function LoginPage() {
                   MAI administrator access
                 </h1>
                 <p className="mt-3 max-w-md text-sm leading-relaxed text-zinc-600 sm:text-base">
-                  Sign in here to onboard institutes, manage tenants, and review billing. School
-                  staff should use their institute subdomain—not this page.
+                  Sign in here to onboard institutes, manage tenants, and review billing.                   School
+                  staff should use their institute sign-in link—not this page.
                 </p>
               </div>
               <ul className="space-y-3">
@@ -456,7 +462,7 @@ export default function LoginPage() {
                     <span className="font-mono font-semibold text-zinc-900">mai_admin123</span>
                   </p>
                   <p className="mt-2 text-center text-[11px] leading-relaxed text-zinc-500">
-                    School users: use your institute subdomain link from your admin.
+                    School users: use your institute sign-in link from your admin.
                   </p>
                 </motion.div>
               )}
