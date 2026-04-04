@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { institutionSlugFromHostname } from "@/lib/tenant";
+import { institutionSlugFromHostname, tenantApexForHostname } from "@/lib/tenant";
 
 /** Edge middleware can read NEXT_PUBLIC_* ; set this to your API (same as client). */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5001";
@@ -7,7 +7,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5001";
 function apexOrigin(request) {
   const u = request.nextUrl.clone();
   const h = u.hostname.toLowerCase();
-  const root = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost").split(":")[0];
+  const root = tenantApexForHostname(h);
   if (h.endsWith(".localhost") && h !== "localhost") {
     u.hostname = "localhost";
     return u.origin;
