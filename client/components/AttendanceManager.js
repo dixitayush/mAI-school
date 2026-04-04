@@ -221,10 +221,10 @@ function AttendanceContent() {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
+            <div className="flex min-h-[50vh] items-center justify-center py-16">
                 <div className="text-center">
                     <Loader2 className="w-12 h-12 animate-spin text-primary-600 mx-auto mb-4" />
-                    <p className="text-gray-500">Loading attendance system...</p>
+                    <p className="text-zinc-500">Loading attendance system...</p>
                 </div>
             </div>
         );
@@ -236,20 +236,20 @@ function AttendanceContent() {
             <div className="mb-8">
                 <div className="flex items-center justify-between mb-2">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Attendance Management</h1>
-                        <p className="text-gray-500 mt-1">Track, manage, and analyze student attendance</p>
+                        <h1 className="text-3xl font-bold text-zinc-900">Attendance Management</h1>
+                        <p className="text-zinc-500 mt-1">Track, manage, and analyze student attendance</p>
                     </div>
                     <div className="flex items-center space-x-3">
                         <button
                             onClick={handleExportCSV}
-                            className="flex items-center px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium shadow-sm"
+                            className="flex items-center px-4 py-2 bg-white border border-zinc-200 text-zinc-700 rounded-lg hover:bg-zinc-50 transition-colors font-medium shadow-sm"
                         >
                             <Download className="w-4 h-4 mr-2" />
                             Export CSV
                         </button>
                         <button
                             onClick={handlePrint}
-                            className="flex items-center px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium shadow-sm"
+                            className="flex items-center px-4 py-2 bg-white border border-zinc-200 text-zinc-700 rounded-lg hover:bg-zinc-50 transition-colors font-medium shadow-sm"
                         >
                             <Printer className="w-4 h-4 mr-2" />
                             Print
@@ -319,28 +319,28 @@ function AttendanceContent() {
             </AnimatePresence>
 
             {/* Main Content Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-white">
+            <div className="bg-white rounded-xl shadow-sm border border-zinc-100 overflow-hidden">
+                <div className="p-6 border-b border-zinc-100 bg-white">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                         {/* Tabs */}
-                        <div className="flex bg-gray-100 p-1 rounded-lg">
+                        <div className="flex bg-zinc-100 p-1 rounded-lg">
                             <button
                                 onClick={() => setActiveTab('mark')}
-                                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'mark' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'mark' ? 'bg-white text-primary-600 shadow-sm' : 'text-zinc-600 hover:text-zinc-900'}`}
                             >
                                 <CheckCircle className="w-4 h-4 mr-2" />
                                 Mark Attendance
                             </button>
                             <button
                                 onClick={() => setActiveTab('history')}
-                                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'history' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'history' ? 'bg-white text-primary-600 shadow-sm' : 'text-zinc-600 hover:text-zinc-900'}`}
                             >
                                 <History className="w-4 h-4 mr-2" />
                                 View History
                             </button>
                             <button
                                 onClick={() => setActiveTab('analytics')}
-                                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'analytics' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'analytics' ? 'bg-white text-primary-600 shadow-sm' : 'text-zinc-600 hover:text-zinc-900'}`}
                             >
                                 <BarChart3 className="w-4 h-4 mr-2" />
                                 Analytics
@@ -371,18 +371,18 @@ function AttendanceContent() {
                     {/* Filters and Date Selection */}
                     <div className="flex flex-col md:flex-row items-start md:items-center space-y-3 md:space-y-0 md:space-x-4">
                         <div className="flex items-center space-x-2">
-                            <Calendar className="w-5 h-5 text-gray-400" />
+                            <Calendar className="w-5 h-5 text-zinc-400" />
                             <input
                                 type="date"
                                 value={date}
                                 onChange={(e) => setDate(e.target.value)}
-                                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                                className="px-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                             />
                         </div>
                         <select
                             value={selectedClass}
                             onChange={(e) => setSelectedClass(e.target.value)}
-                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white min-w-[200px]"
+                            className="px-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white min-w-[200px]"
                         >
                             <option value="">Select Class</option>
                             {classes.map(cls => (
@@ -392,27 +392,27 @@ function AttendanceContent() {
 
                         {activeTab === 'mark' && selectedClass && (
                             <>
-                                <div className="flex items-center bg-gray-100 rounded-lg px-4 py-2 flex-1 min-w-[250px]">
-                                    <Search className="w-5 h-5 text-gray-400 mr-2" />
+                                <div className="flex items-center bg-zinc-100 rounded-lg px-4 py-2 flex-1 min-w-[250px]">
+                                    <Search className="w-5 h-5 text-zinc-400 mr-2" />
                                     <input
                                         type="text"
                                         placeholder="Search students..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="bg-transparent border-none outline-none text-sm w-full text-gray-700"
+                                        className="bg-transparent border-none outline-none text-sm w-full text-zinc-700"
                                     />
                                 </div>
                                 <div className="relative">
                                     <button
                                         onClick={() => setShowFilters(!showFilters)}
-                                        className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                        className="flex items-center px-4 py-2 border border-zinc-300 rounded-lg hover:bg-zinc-50 transition-colors"
                                     >
-                                        <Filter className="w-4 h-4 mr-2 text-gray-600" />
-                                        <span className="text-sm font-medium text-gray-700">Filter</span>
-                                        <ChevronDown className={`w-4 h-4 ml-2 text-gray-600 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+                                        <Filter className="w-4 h-4 mr-2 text-zinc-600" />
+                                        <span className="text-sm font-medium text-zinc-700">Filter</span>
+                                        <ChevronDown className={`w-4 h-4 ml-2 text-zinc-600 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
                                     </button>
                                     {showFilters && (
-                                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-zinc-200 z-20">
                                             <div className="p-2">
                                                 {['all', 'present', 'absent', 'late'].map(status => (
                                                     <button
@@ -421,7 +421,7 @@ function AttendanceContent() {
                                                             setFilterStatus(status);
                                                             setShowFilters(false);
                                                         }}
-                                                        className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${filterStatus === status ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                        className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${filterStatus === status ? 'bg-primary-50 text-primary-700 font-medium' : 'text-zinc-700 hover:bg-zinc-50'}`}
                                                     >
                                                         {status.charAt(0).toUpperCase() + status.slice(1)}
                                                     </button>
@@ -441,15 +441,15 @@ function AttendanceContent() {
                             <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <Calendar className="w-8 h-8 text-primary-400" />
                             </div>
-                            <h3 className="text-lg font-medium text-gray-900">Select a Class</h3>
-                            <p className="text-gray-500 mt-1">Please select a class from the dropdown to proceed.</p>
+                            <h3 className="text-lg font-medium text-zinc-900">Select a Class</h3>
+                            <p className="text-zinc-500 mt-1">Please select a class from the dropdown to proceed.</p>
                         </div>
                     ) : activeTab === 'mark' ? (
                         <>
                             {displayedStudents.length === 0 ? (
                                 <div className="text-center py-12">
-                                    <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                                    <p className="text-gray-500">
+                                    <AlertCircle className="w-12 h-12 text-zinc-400 mx-auto mb-3" />
+                                    <p className="text-zinc-500">
                                         {searchQuery || filterStatus !== 'all'
                                             ? 'No students match your filters'
                                             : 'No students found in this class'}
@@ -465,7 +465,7 @@ function AttendanceContent() {
                                                 key={student.id}
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
-                                                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-primary-100 hover:shadow-sm transition-all"
+                                                className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg border border-zinc-100 hover:border-primary-100 hover:shadow-sm transition-all"
                                             >
                                                 <div className="flex items-center space-x-4 flex-1">
                                                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-indigo-500 flex items-center justify-center text-white font-bold shadow-sm">
@@ -473,7 +473,7 @@ function AttendanceContent() {
                                                     </div>
                                                     <div className="flex-1">
                                                         <div className="flex items-center space-x-2">
-                                                            <p className="font-medium text-gray-900">{student.userByUserId.fullName}</p>
+                                                            <p className="font-medium text-zinc-900">{student.userByUserId.fullName}</p>
                                                             {isLowAttendance && (
                                                                 <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-medium flex items-center">
                                                                     <AlertCircle className="w-3 h-3 mr-1" />
@@ -481,9 +481,9 @@ function AttendanceContent() {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div className="flex items-center text-xs text-gray-500 space-x-2 mt-1">
+                                                        <div className="flex items-center text-xs text-zinc-500 space-x-2 mt-1">
                                                             <span>{student.userByUserId.profileByUserId?.email || 'No email'}</span>
-                                                            <span className="text-gray-300">|</span>
+                                                            <span className="text-zinc-300">|</span>
                                                             <span className={`font-medium ${isLowAttendance ? 'text-red-500' : 'text-green-600'}`}>
                                                                 {stats.percentage}% Overall Attendance
                                                             </span>
@@ -492,7 +492,7 @@ function AttendanceContent() {
                                                 </div>
 
                                                 <div className="flex items-center space-x-4">
-                                                    <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-sm">
+                                                    <div className="flex bg-white rounded-lg p-1 border border-zinc-200 shadow-sm">
                                                         {['present', 'absent', 'late'].map((status) => (
                                                             <button
                                                                 key={status}
@@ -503,7 +503,7 @@ function AttendanceContent() {
                                                                         ? status === 'present' ? 'bg-green-100 text-green-700 shadow-sm'
                                                                             : status === 'absent' ? 'bg-red-100 text-red-700 shadow-sm'
                                                                                 : 'bg-yellow-100 text-yellow-700 shadow-sm'
-                                                                        : 'text-gray-500 hover:bg-gray-50'
+                                                                        : 'text-zinc-500 hover:bg-zinc-50'
                                                                     }
                                                                 `}
                                                             >
@@ -516,7 +516,7 @@ function AttendanceContent() {
                                                         placeholder="Remarks (optional)"
                                                         value={attendanceData[student.id]?.remarks || ''}
                                                         onChange={(e) => handleRemarksChange(student.id, e.target.value)}
-                                                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-primary-500 w-48"
+                                                        className="px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-primary-500 w-48"
                                                     />
                                                 </div>
                                             </motion.div>
@@ -526,8 +526,8 @@ function AttendanceContent() {
                             )}
 
                             {filteredStudents.length > 0 && (
-                                <div className="mt-8 flex items-center justify-between pt-6 border-t border-gray-100">
-                                    <div className="text-sm text-gray-500">
+                                <div className="mt-8 flex items-center justify-between pt-6 border-t border-zinc-100">
+                                    <div className="text-sm text-zinc-500">
                                         {Object.keys(attendanceData).length} of {filteredStudents.length} students marked
                                     </div>
                                     <button
@@ -546,26 +546,26 @@ function AttendanceContent() {
                             {loadingHistory ? (
                                 <div className="text-center py-12">
                                     <Loader2 className="w-8 h-8 animate-spin text-primary-600 mx-auto" />
-                                    <p className="text-gray-500 mt-3">Loading history...</p>
+                                    <p className="text-zinc-500 mt-3">Loading history...</p>
                                 </div>
                             ) : historyData.length === 0 ? (
                                 <div className="text-center py-12">
-                                    <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                                    <p className="text-gray-500">No attendance records found for this date.</p>
+                                    <FileText className="w-12 h-12 text-zinc-400 mx-auto mb-3" />
+                                    <p className="text-zinc-500">No attendance records found for this date.</p>
                                 </div>
                             ) : (
                                 <div className="space-y-3">
                                     {historyData.map(record => {
                                         const student = students.find(s => s.id === record.student_id);
                                         return (
-                                            <div key={record.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                            <div key={record.id} className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg border border-zinc-100">
                                                 <div className="flex items-center space-x-4">
-                                                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 font-bold">
+                                                    <div className="w-10 h-10 rounded-full bg-zinc-200 flex items-center justify-center text-zinc-700 font-bold">
                                                         {student?.userByUserId?.fullName.charAt(0) || '?'}
                                                     </div>
                                                     <div>
-                                                        <p className="font-medium text-gray-900">{student?.userByUserId?.fullName || 'Unknown Student'}</p>
-                                                        <p className="text-xs text-gray-500">Recorded at: {new Date(record.created_at).toLocaleTimeString()}</p>
+                                                        <p className="font-medium text-zinc-900">{student?.userByUserId?.fullName || 'Unknown Student'}</p>
+                                                        <p className="text-xs text-zinc-500">Recorded at: {new Date(record.created_at).toLocaleTimeString()}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center space-x-4">
@@ -576,7 +576,7 @@ function AttendanceContent() {
                                                         {record.status.toUpperCase()}
                                                     </span>
                                                     {record.remarks && (
-                                                        <span className="text-sm text-gray-500 italic">"{record.remarks}"</span>
+                                                        <span className="text-sm text-zinc-500 italic">"{record.remarks}"</span>
                                                     )}
                                                 </div>
                                             </div>
@@ -589,23 +589,23 @@ function AttendanceContent() {
                         // Analytics Tab
                         <div className="text-center py-20">
                             <BarChart3 className="w-16 h-16 text-primary-400 mx-auto mb-4" />
-                            <h3 className="text-lg font-medium text-gray-900">Analytics Dashboard</h3>
-                            <p className="text-gray-500 mt-1">Advanced analytics and trends coming soon!</p>
+                            <h3 className="text-lg font-medium text-zinc-900">Analytics Dashboard</h3>
+                            <p className="text-zinc-500 mt-1">Advanced analytics and trends coming soon!</p>
                             <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
-                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200">
                                     <TrendingUp className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-                                    <p className="text-sm font-medium text-gray-700">Attendance Trends</p>
-                                    <p className="text-xs text-gray-500 mt-1">Weekly and monthly patterns</p>
+                                    <p className="text-sm font-medium text-zinc-700">Attendance Trends</p>
+                                    <p className="text-xs text-zinc-500 mt-1">Weekly and monthly patterns</p>
                                 </div>
-                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200">
                                     <BarChart3 className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                                    <p className="text-sm font-medium text-gray-700">Class Comparison</p>
-                                    <p className="text-xs text-gray-500 mt-1">Compare across classes</p>
+                                    <p className="text-sm font-medium text-zinc-700">Class Comparison</p>
+                                    <p className="text-xs text-zinc-500 mt-1">Compare across classes</p>
                                 </div>
-                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200">
                                     <Calendar className="w-8 h-8 text-purple-500 mx-auto mb-2" />
-                                    <p className="text-sm font-medium text-gray-700">Calendar View</p>
-                                    <p className="text-xs text-gray-500 mt-1">Visual attendance calendar</p>
+                                    <p className="text-sm font-medium text-zinc-700">Calendar View</p>
+                                    <p className="text-xs text-zinc-500 mt-1">Visual attendance calendar</p>
                                 </div>
                             </div>
                         </div>

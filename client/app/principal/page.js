@@ -79,8 +79,8 @@ function PrincipalDashboardContent() {
 
     if (!user || loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+            <div className="flex min-h-[50vh] items-center justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
             </div>
         );
     }
@@ -150,13 +150,13 @@ function PrincipalDashboardContent() {
             {/* Welcome Section */}
             <div className="flex justify-between items-end">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Principal's Office</h1>
-                    <p className="text-gray-500 mt-1">School-wide overview and analytics for {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                    <h1 className="text-3xl font-bold text-zinc-900 tracking-tight">Principal's Office</h1>
+                    <p className="text-zinc-500 mt-1">School-wide overview and analytics for {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
                 </div>
                 <div className="flex space-x-3">
                     <button
                         onClick={() => router.push('/principal/calendar')}
-                        className="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                        className="bg-white border border-zinc-200 text-zinc-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-50 transition-colors"
                     >
                         View Calendar
                     </button>
@@ -225,11 +225,11 @@ function PrincipalDashboardContent() {
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Class Performance Chart */}
-                <motion.div variants={itemVariants} className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <motion.div variants={itemVariants} className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-zinc-100">
                     <div className="flex items-center justify-between mb-6">
                         <div>
-                            <h3 className="text-lg font-bold text-gray-900">Class Performance</h3>
-                            <p className="text-sm text-gray-500">Attendance rate by class</p>
+                            <h3 className="text-lg font-bold text-zinc-900">Class Performance</h3>
+                            <p className="text-sm text-zinc-500">Attendance rate by class</p>
                         </div>
                     </div>
                     <div className="h-[300px] w-full">
@@ -246,9 +246,9 @@ function PrincipalDashboardContent() {
                 </motion.div>
 
                 {/* Fee Collection Pie Chart */}
-                <motion.div variants={itemVariants} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">Fee Status</h3>
-                    <p className="text-sm text-gray-500 mb-6">Payment breakdown</p>
+                <motion.div variants={itemVariants} className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100">
+                    <h3 className="text-lg font-bold text-zinc-900 mb-2">Fee Status</h3>
+                    <p className="text-sm text-zinc-500 mb-6">Payment breakdown</p>
                     <div className="flex-1 min-h-[200px] relative">
                         <ResponsiveContainer width="100%" height={200}>
                             <PieChart>
@@ -266,9 +266,9 @@ function PrincipalDashboardContent() {
                             <div key={item.name} className="flex items-center justify-between text-sm">
                                 <div className="flex items-center space-x-2">
                                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                                    <span className="text-gray-600 font-medium">{item.name}</span>
+                                    <span className="text-zinc-600 font-medium">{item.name}</span>
                                 </div>
-                                <span className="font-bold text-gray-900">{item.value}</span>
+                                <span className="font-bold text-zinc-900">{item.value}</span>
                             </div>
                         ))}
                     </div>
@@ -278,14 +278,14 @@ function PrincipalDashboardContent() {
             {/* Bottom Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Action Items & Alerts */}
-                <motion.div variants={itemVariants} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <motion.div variants={itemVariants} className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100">
                     <div className="flex items-center space-x-3 mb-6">
                         <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
                             <AlertTriangle className="w-5 h-5" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-gray-900">Alerts & Actions</h2>
-                            <p className="text-sm text-gray-500">Items requiring attention</p>
+                            <h2 className="text-lg font-bold text-zinc-900">Alerts & Actions</h2>
+                            <p className="text-sm text-zinc-500">Items requiring attention</p>
                         </div>
                     </div>
                     <div className="space-y-3">
@@ -304,55 +304,55 @@ function PrincipalDashboardContent() {
                 </motion.div>
 
                 {/* Quick Actions */}
-                <motion.div variants={itemVariants} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <motion.div variants={itemVariants} className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100">
                     <div className="flex items-center space-x-3 mb-6">
                         <div className="p-2 bg-primary-100 rounded-lg text-primary-600">
                             <FileText className="w-5 h-5" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-gray-900">Quick Actions</h2>
-                            <p className="text-sm text-gray-500">Common tasks</p>
+                            <h2 className="text-lg font-bold text-zinc-900">Quick Actions</h2>
+                            <p className="text-sm text-zinc-500">Common tasks</p>
                         </div>
                     </div>
                     <div className="space-y-3">
                         <div
                             onClick={() => router.push('/principal/calendar')}
-                            className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                            className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
                         >
                             <div className="flex items-center space-x-3">
                                 <Calendar className="w-5 h-5 text-primary-600" />
                                 <div>
-                                    <p className="font-medium text-gray-900">View Calendar</p>
-                                    <p className="text-xs text-gray-500">Manage meetings & events</p>
+                                    <p className="font-medium text-zinc-900">View Calendar</p>
+                                    <p className="text-xs text-zinc-500">Manage meetings & events</p>
                                 </div>
                             </div>
-                            <ArrowRight className="w-4 h-4 text-gray-400" />
+                            <ArrowRight className="w-4 h-4 text-zinc-400" />
                         </div>
                         <div
                             onClick={() => handleGenerateReport('monthly')}
-                            className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                            className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
                         >
                             <div className="flex items-center space-x-3">
                                 <Download className="w-5 h-5 text-green-600" />
                                 <div>
-                                    <p className="font-medium text-gray-900">Generate Reports</p>
-                                    <p className="text-xs text-gray-500">Download school analytics</p>
+                                    <p className="font-medium text-zinc-900">Generate Reports</p>
+                                    <p className="text-xs text-zinc-500">Download school analytics</p>
                                 </div>
                             </div>
-                            <ArrowRight className="w-4 h-4 text-gray-400" />
+                            <ArrowRight className="w-4 h-4 text-zinc-400" />
                         </div>
                         <div
                             onClick={() => router.push('/admin/users/teachers')}
-                            className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                            className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
                         >
                             <div className="flex items-center space-x-3">
                                 <Users className="w-5 h-5 text-purple-600" />
                                 <div>
-                                    <p className="font-medium text-gray-900">Manage Staff</p>
-                                    <p className="text-xs text-gray-500">View teacher roster</p>
+                                    <p className="font-medium text-zinc-900">Manage Staff</p>
+                                    <p className="text-xs text-zinc-500">View teacher roster</p>
                                 </div>
                             </div>
-                            <ArrowRight className="w-4 h-4 text-gray-400" />
+                            <ArrowRight className="w-4 h-4 text-zinc-400" />
                         </div>
                     </div>
                 </motion.div>
@@ -363,17 +363,17 @@ function PrincipalDashboardContent() {
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"
+                    className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100"
                 >
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-bold text-gray-900">Generated Report</h3>
-                        <button onClick={() => setReport(null)} className="text-gray-400 hover:text-gray-600">
+                        <h3 className="text-lg font-bold text-zinc-900">Generated Report</h3>
+                        <button onClick={() => setReport(null)} className="text-zinc-400 hover:text-zinc-600">
                             <XCircle className="w-5 h-5" />
                         </button>
                     </div>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                        <h4 className="font-bold text-gray-800 mb-2">Analysis Summary</h4>
-                        <p className="text-sm text-gray-600 mb-3">{report.summary}</p>
+                    <div className="bg-zinc-50 p-4 rounded-lg">
+                        <h4 className="font-bold text-zinc-800 mb-2">Analysis Summary</h4>
+                        <p className="text-sm text-zinc-600 mb-3">{report.summary}</p>
                         {report.insights && (
                             <ul className="space-y-1 mb-3">
                                 {report.insights.map((insight, i) => (

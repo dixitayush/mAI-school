@@ -108,7 +108,7 @@ const priorityColors = {
     urgent: 'bg-red-100 text-red-700 border border-red-200',
     high: 'bg-orange-100 text-orange-700 border border-orange-200',
     normal: 'bg-blue-100 text-blue-700 border border-blue-200',
-    low: 'bg-gray-100 text-gray-600 border border-gray-200',
+    low: 'bg-zinc-100 text-zinc-600 border border-zinc-200',
 };
 
 const audienceLabels = {
@@ -133,7 +133,7 @@ export default function AnnouncementsPage() {
             accessor: 'title',
             render: (row) => (
                 <div className="max-w-[200px]">
-                    <span className="font-semibold text-gray-900 truncate block">{row.title}</span>
+                    <span className="font-semibold text-zinc-900 truncate block">{row.title}</span>
                 </div>
             )
         },
@@ -141,7 +141,7 @@ export default function AnnouncementsPage() {
             header: 'Content',
             accessor: 'content',
             render: (row) => (
-                <p className="text-sm text-gray-500 line-clamp-2 max-w-[280px]">{row.content}</p>
+                <p className="text-sm text-zinc-500 line-clamp-2 max-w-[280px]">{row.content}</p>
             )
         },
         {
@@ -157,7 +157,7 @@ export default function AnnouncementsPage() {
             header: 'Audience',
             accessor: 'targetAudience',
             render: (row) => (
-                <span className="text-sm text-gray-600 font-medium">
+                <span className="text-sm text-zinc-600 font-medium">
                     {audienceLabels[row.targetAudience] || row.targetAudience}
                 </span>
             )
@@ -170,7 +170,7 @@ export default function AnnouncementsPage() {
                     onClick={(e) => { e.stopPropagation(); handleToggle(row); }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${row.isActive
                             ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                            : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'
                         }`}
                     title={row.isActive ? 'Click to deactivate' : 'Click to activate'}
                 >
@@ -186,7 +186,7 @@ export default function AnnouncementsPage() {
             header: 'Created By',
             accessor: 'userByCreatedBy.fullName',
             render: (row) => (
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-zinc-600">
                     {row.userByCreatedBy?.fullName || '—'}
                 </span>
             )
@@ -195,7 +195,7 @@ export default function AnnouncementsPage() {
             header: 'Date',
             accessor: 'createdAt',
             render: (row) => (
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-zinc-500">
                     {new Date(row.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
             )
@@ -281,8 +281,8 @@ export default function AnnouncementsPage() {
         <div className="w-full">
             {/* Header */}
             <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Announcements</h1>
-                <p className="text-gray-500">Create and manage school-wide announcements.</p>
+                <h1 className="text-3xl font-bold text-zinc-900 mb-2">Announcements</h1>
+                <p className="text-zinc-500">Create and manage school-wide announcements.</p>
             </div>
 
             {/* Quick Stats */}
@@ -290,12 +290,12 @@ export default function AnnouncementsPage() {
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm"
+                    className="bg-white rounded-xl p-4 border border-zinc-100 shadow-sm"
                 >
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total</p>
-                            <p className="text-2xl font-bold text-gray-900 mt-1">{announcements.length}</p>
+                            <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Total</p>
+                            <p className="text-2xl font-bold text-zinc-900 mt-1">{announcements.length}</p>
                         </div>
                         <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center">
                             <Megaphone className="w-5 h-5 text-primary-600" />
@@ -306,11 +306,11 @@ export default function AnnouncementsPage() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.05 }}
-                    className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm"
+                    className="bg-white rounded-xl p-4 border border-zinc-100 shadow-sm"
                 >
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Active</p>
+                            <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Active</p>
                             <p className="text-2xl font-bold text-emerald-600 mt-1">{activeCount}</p>
                         </div>
                         <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
@@ -322,11 +322,11 @@ export default function AnnouncementsPage() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm"
+                    className="bg-white rounded-xl p-4 border border-zinc-100 shadow-sm"
                 >
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">High Priority</p>
+                            <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">High Priority</p>
                             <p className="text-2xl font-bold text-orange-600 mt-1">{urgentCount}</p>
                         </div>
                         <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center">

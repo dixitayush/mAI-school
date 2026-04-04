@@ -179,8 +179,8 @@ function TeachersContent() {
   return (
     <div className="w-full">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Teacher Management</h1>
-        <p className="text-gray-500">Manage teaching staff and specializations.</p>
+        <h1 className="text-3xl font-bold text-zinc-900 mb-2">Teacher Management</h1>
+        <p className="text-zinc-500">Manage teaching staff and specializations.</p>
       </div>
 
       <DataTable

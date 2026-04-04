@@ -5,8 +5,9 @@ import { Toaster } from "react-hot-toast";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "mAI-school",
-  description: "Modern School Management System",
+  title: "mAI-school — School management for modern institutes",
+  description:
+    "Run attendance, fees, exams, and communication in one place. Sales-led onboarding with dedicated setup; roadmap includes self-serve and student-based pricing.",
 };
 
 export default function RootLayout({ children }) {

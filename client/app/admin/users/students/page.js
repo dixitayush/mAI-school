@@ -253,8 +253,8 @@ function StudentsContent() {
   return (
     <div className="w-full">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Student Management</h1>
-        <p className="text-gray-500">Manage student records, enrollments, and classes.</p>
+        <h1 className="text-3xl font-bold text-zinc-900 mb-2">Student Management</h1>
+        <p className="text-zinc-500">Manage student records, enrollments, and classes.</p>
       </div>
 
       <DataTable

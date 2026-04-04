@@ -81,15 +81,15 @@ export default function RecentAttendanceCard({ studentId }) {
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-[400px]"
+            className="bg-white rounded-xl shadow-sm border border-zinc-100 flex flex-col h-[400px]"
         >
-            <div className="flex items-center space-x-3 p-6 pb-4 border-b border-gray-50 shrink-0 mb-2">
+            <div className="flex items-center space-x-3 p-6 pb-4 border-b border-zinc-50 shrink-0 mb-2">
                 <div className="p-2 bg-green-100 rounded-lg">
                     <Calendar className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
-                    <h2 className="text-lg font-bold text-gray-900">Recent Attendance</h2>
-                    <p className="text-sm text-gray-500">Your presence history</p>
+                    <h2 className="text-lg font-bold text-zinc-900">Recent Attendance</h2>
+                    <p className="text-sm text-zinc-500">Your presence history</p>
                 </div>
             </div>
 
@@ -99,7 +99,7 @@ export default function RecentAttendanceCard({ studentId }) {
                         <Loader2 className="w-8 h-8 animate-spin text-green-500" />
                     </div>
                 ) : records.length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-gray-500">
+                    <div className="h-full flex items-center justify-center text-zinc-500">
                         <p className="text-sm">No attendance records found</p>
                     </div>
                 ) : (
@@ -111,7 +111,7 @@ export default function RecentAttendanceCard({ studentId }) {
                                 <div
                                     key={record.id}
                                     ref={isLastRecord ? lastRecordElementRef : null}
-                                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                                    className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg"
                                 >
                                     <div className="flex items-center space-x-3">
                                         {record.status === 'present' ? (
@@ -122,7 +122,7 @@ export default function RecentAttendanceCard({ studentId }) {
                                             <XCircle className="w-5 h-5 text-red-500 shrink-0" />
                                         )}
                                         <div>
-                                            <p className="text-sm font-medium text-gray-900">
+                                            <p className="text-sm font-medium text-zinc-900">
                                                 {new Date(record.date).toLocaleDateString('en-US', {
                                                     weekday: 'short',
                                                     year: 'numeric',
@@ -130,7 +130,7 @@ export default function RecentAttendanceCard({ studentId }) {
                                                     day: 'numeric'
                                                 })}
                                             </p>
-                                            <p className="text-xs text-gray-500 capitalize flex items-center gap-1">
+                                            <p className="text-xs text-zinc-500 capitalize flex items-center gap-1">
                                                 <span className={`font-semibold ${
                                                     record.status === 'present' ? 'text-green-600' :
                                                     record.status === 'late' ? 'text-orange-600' : 'text-red-600'
@@ -150,7 +150,7 @@ export default function RecentAttendanceCard({ studentId }) {
                             </div>
                         )}
                         {!hasNextPage && records.length > 0 && (
-                            <div className="py-2 text-center text-xs text-gray-400">
+                            <div className="py-2 text-center text-xs text-zinc-400">
                                 You've reached the end
                             </div>
                         )}

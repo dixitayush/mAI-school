@@ -191,7 +191,7 @@ function TeacherDashboardContent() {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
+            <div className="flex min-h-[50vh] items-center justify-center py-16">
                 <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
             </div>
         );
@@ -207,8 +207,8 @@ function TeacherDashboardContent() {
             {/* Welcome Section */}
             <div className="flex justify-between items-end">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Welcome Back, {user.full_name}</h1>
-                    <p className="text-gray-500 mt-1">Here's what's happening with your classes today</p>
+                    <h1 className="text-3xl font-bold text-zinc-900 tracking-tight">Welcome Back, {user.full_name}</h1>
+                    <p className="text-zinc-500 mt-1">Here's what's happening with your classes today</p>
                 </div>
                 <div className="flex space-x-3">
                     <button
@@ -274,26 +274,26 @@ function TeacherDashboardContent() {
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Today's Schedule */}
-                <motion.div variants={itemVariants} className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <motion.div variants={itemVariants} className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-zinc-100">
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center space-x-3">
                             <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
                                 <Clock className="w-5 h-5" />
                             </div>
                             <div>
-                                <h2 className="text-lg font-bold text-gray-900">Exam Schedule</h2>
-                                <p className="text-sm text-gray-500">Your upcoming & recent exams</p>
+                                <h2 className="text-lg font-bold text-zinc-900">Exam Schedule</h2>
+                                <p className="text-sm text-zinc-500">Your upcoming & recent exams</p>
                             </div>
                         </div>
                     </div>
                     <div className="space-y-3">
                         {todaySchedule.length > 0 ? todaySchedule.map((item, index) => (
-                            <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-indigo-100 transition-colors">
+                            <div key={index} className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg border border-zinc-100 hover:border-indigo-100 transition-colors">
                                 <div className="flex items-center space-x-4">
                                     <div className={`w-1 h-12 rounded-full ${item.status === 'completed' ? 'bg-green-500' : item.status === 'today' ? 'bg-amber-500' : 'bg-blue-500'}`} />
                                     <div>
-                                        <p className="font-bold text-gray-800">{item.class}</p>
-                                        <p className="text-sm text-gray-500">{item.time}</p>
+                                        <p className="font-bold text-zinc-800">{item.class}</p>
+                                        <p className="text-sm text-zinc-500">{item.time}</p>
                                     </div>
                                 </div>
                                 <span className={`px-3 py-1 ${
@@ -306,26 +306,26 @@ function TeacherDashboardContent() {
                             </div>
                         )) : (
                             <div className="text-center py-8">
-                                <Clock className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                                <p className="text-gray-500 text-sm">No exams scheduled for your classes yet</p>
+                                <Clock className="w-10 h-10 text-zinc-300 mx-auto mb-2" />
+                                <p className="text-zinc-500 text-sm">No exams scheduled for your classes yet</p>
                             </div>
                         )}
                     </div>
                 </motion.div>
 
                 {/* AI Auto-Attendance */}
-                <motion.div variants={itemVariants} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <motion.div variants={itemVariants} className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100">
                     <div className="flex items-center space-x-3 mb-6">
                         <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
                             <Camera className="w-5 h-5" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-gray-800">AI Attendance</h2>
-                            <p className="text-xs text-gray-500">Upload class photo</p>
+                            <h2 className="text-lg font-bold text-zinc-800">AI Attendance</h2>
+                            <p className="text-xs text-zinc-500">Upload class photo</p>
                         </div>
                     </div>
 
-                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:bg-gray-50 transition-colors relative">
+                    <div className="border-2 border-dashed border-zinc-200 rounded-xl p-6 text-center hover:bg-zinc-50 transition-colors relative">
                         <input
                             type="file"
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -336,13 +336,13 @@ function TeacherDashboardContent() {
                         {isUploading ? (
                             <div className="flex flex-col items-center">
                                 <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mb-3" />
-                                <p className="text-gray-600 font-medium text-sm">Analyzing...</p>
+                                <p className="text-zinc-600 font-medium text-sm">Analyzing...</p>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center">
-                                <Upload className="w-10 h-10 text-gray-400 mb-3" />
-                                <p className="text-gray-600 font-medium text-sm">Upload Photo</p>
-                                <p className="text-xs text-gray-400 mt-1">Click to browse</p>
+                                <Upload className="w-10 h-10 text-zinc-400 mb-3" />
+                                <p className="text-zinc-600 font-medium text-sm">Upload Photo</p>
+                                <p className="text-xs text-zinc-400 mt-1">Click to browse</p>
                             </div>
                         )}
                     </div>
@@ -364,15 +364,15 @@ function TeacherDashboardContent() {
             {/* Bottom Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* My Classes */}
-                <motion.div variants={itemVariants} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <motion.div variants={itemVariants} className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100">
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center space-x-3">
                             <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
                                 <BookOpen className="w-5 h-5" />
                             </div>
                             <div>
-                                <h2 className="text-lg font-bold text-gray-900">My Classes</h2>
-                                <p className="text-sm text-gray-500">Classes you're teaching</p>
+                                <h2 className="text-lg font-bold text-zinc-900">My Classes</h2>
+                                <p className="text-sm text-zinc-500">Classes you're teaching</p>
                             </div>
                         </div>
                         <button className="text-primary-600 text-sm font-medium hover:text-primary-700">
@@ -381,7 +381,7 @@ function TeacherDashboardContent() {
                     </div>
                     <div className="space-y-3">
                         {classes.slice(0, 4).map((cls) => (
-                            <div key={cls.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                            <div key={cls.id} className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
                                 onClick={() => router.push('/teacher/attendance')}
                             >
                                 <div className="flex items-center space-x-3">
@@ -389,15 +389,15 @@ function TeacherDashboardContent() {
                                         {cls.name.charAt(0)}
                                     </div>
                                     <div>
-                                        <p className="font-medium text-gray-900">{cls.name}</p>
-                                        <p className="text-xs text-gray-500">{cls.studentsByClassId.totalCount} students</p>
+                                        <p className="font-medium text-zinc-900">{cls.name}</p>
+                                        <p className="text-xs text-zinc-500">{cls.studentsByClassId.totalCount} students</p>
                                     </div>
                                 </div>
-                                <ArrowRight className="w-4 h-4 text-gray-400" />
+                                <ArrowRight className="w-4 h-4 text-zinc-400" />
                             </div>
                         ))}
                         {classes.length === 0 && (
-                            <p className="text-center text-gray-500 py-4">No classes assigned yet</p>
+                            <p className="text-center text-zinc-500 py-4">No classes assigned yet</p>
                         )}
                     </div>
                 </motion.div>

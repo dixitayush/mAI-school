@@ -153,8 +153,8 @@ function ClassesContent() {
   return (
     <div className="w-full">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Class Management</h1>
-        <p className="text-gray-500">Manage classes, sections, and class teachers.</p>
+        <h1 className="text-3xl font-bold text-zinc-900 mb-2">Class Management</h1>
+        <p className="text-zinc-500">Manage classes, sections, and class teachers.</p>
       </div>
 
       <DataTable

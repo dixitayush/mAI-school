@@ -80,7 +80,7 @@ function FeesContent() {
         };
         const Icon = icons[row.status] || Clock;
         return (
-          <span className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center w-fit gap-1 ${colors[row.status] || 'bg-gray-100'}`}>
+          <span className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center w-fit gap-1 ${colors[row.status] || 'bg-zinc-100'}`}>
             <Icon className="w-3 h-3" />
             {row.status.toUpperCase()}
           </span>
@@ -118,8 +118,8 @@ function FeesContent() {
   return (
     <div className="w-full">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Fees Management</h1>
-        <p className="text-gray-500">Track invoices, payments, and outstanding balances.</p>
+        <h1 className="text-3xl font-bold text-zinc-900 mb-2">Fees Management</h1>
+        <p className="text-zinc-500">Track invoices, payments, and outstanding balances.</p>
       </div>
 
       <DataTable

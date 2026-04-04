@@ -79,22 +79,22 @@ export default function DataTable({
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+            className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden"
         >
-            <div className="p-6 border-b border-gray-100 bg-white">
+            <div className="p-6 border-b border-zinc-100 bg-white">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                    <h2 className="text-lg font-bold text-gray-900 tracking-tight">{title}</h2>
+                    <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{title}</h2>
 
                     <div className="flex flex-col sm:flex-row items-center gap-3">
                         {searchable && (
                             <div className="relative w-full sm:w-auto group">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400 group-focus-within:text-primary-500 transition-colors" />
                                 <input
                                     type="text"
                                     placeholder="Search..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm w-full sm:w-64 bg-gray-50 focus:bg-white"
+                                    className="pl-10 pr-4 py-2 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm w-full sm:w-64 bg-zinc-50 focus:bg-white"
                                 />
                             </div>
                         )}
@@ -102,7 +102,7 @@ export default function DataTable({
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={exportToPDF}
-                                className="p-2 text-gray-500 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors border border-gray-200"
+                                className="p-2 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 rounded-xl transition-colors border border-zinc-200"
                                 title="Export PDF"
                             >
                                 <span className="text-xs font-bold px-1">PDF</span>
@@ -126,32 +126,32 @@ export default function DataTable({
 
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                    <thead className="bg-gray-50/50">
+                    <thead className="bg-zinc-50/50">
                         <tr>
                             {columns.map((col, idx) => (
-                                <th key={idx} className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                <th key={idx} className="px-6 py-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
                                     {col.header}
                                 </th>
                             ))}
                             {(onEdit || onDelete) && (
-                                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">
+                                <th className="px-6 py-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider text-right">
                                     Actions
                                 </th>
                             )}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-zinc-100">
                         {isLoading ? (
                             Array.from({ length: 5 }).map((_, idx) => (
                                 <tr key={idx} className="animate-pulse">
                                     {columns.map((_, colIdx) => (
                                         <td key={colIdx} className="px-6 py-4">
-                                            <div className="h-4 bg-gray-100 rounded-lg w-3/4"></div>
+                                            <div className="h-4 bg-zinc-100 rounded-lg w-3/4"></div>
                                         </td>
                                     ))}
                                     {(onEdit || onDelete) && (
                                         <td className="px-6 py-4">
-                                            <div className="h-4 bg-gray-100 rounded-lg w-16 ml-auto"></div>
+                                            <div className="h-4 bg-zinc-100 rounded-lg w-16 ml-auto"></div>
                                         </td>
                                     )}
                                 </tr>
@@ -159,12 +159,12 @@ export default function DataTable({
                         ) : filteredData.length === 0 ? (
                             <tr>
                                 <td colSpan={columns.length + 1} className="px-6 py-12 text-center">
-                                    <div className="text-gray-400 flex flex-col items-center">
-                                        <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3">
-                                            <Search className="w-6 h-6 text-gray-300" />
+                                    <div className="text-zinc-400 flex flex-col items-center">
+                                        <div className="w-12 h-12 bg-zinc-50 rounded-full flex items-center justify-center mb-3">
+                                            <Search className="w-6 h-6 text-zinc-300" />
                                         </div>
-                                        <p className="text-lg font-medium text-gray-900">No records found</p>
-                                        <p className="text-sm mt-1 text-gray-500">
+                                        <p className="text-lg font-medium text-zinc-900">No records found</p>
+                                        <p className="text-sm mt-1 text-zinc-500">
                                             {searchTerm ? 'Try adjusting your search terms' : 'Get started by adding a new record'}
                                         </p>
                                     </div>
@@ -177,10 +177,10 @@ export default function DataTable({
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     transition={{ delay: rowIdx * 0.03 }}
-                                    className="hover:bg-gray-50/80 transition-colors group"
+                                    className="hover:bg-zinc-50/80 transition-colors group"
                                 >
                                     {columns.map((col, colIdx) => (
-                                        <td key={colIdx} className="px-6 py-4 text-sm text-gray-700 font-medium whitespace-nowrap">
+                                        <td key={colIdx} className="px-6 py-4 text-sm text-zinc-700 font-medium whitespace-nowrap">
                                             {col.render ? col.render(row) : row[col.accessor]}
                                         </td>
                                     ))}
@@ -216,14 +216,14 @@ export default function DataTable({
             </div>
 
             {!isLoading && filteredData.length > 0 && (
-                <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
-                    <p className="text-xs text-gray-500 font-medium">
-                        Showing <span className="text-gray-900">{filteredData.length}</span> results
+                <div className="px-6 py-4 bg-zinc-50/30 border-t border-zinc-100 flex items-center justify-between">
+                    <p className="text-xs text-zinc-500 font-medium">
+                        Showing <span className="text-zinc-900">{filteredData.length}</span> results
                     </p>
                     {/* Placeholder for future pagination */}
                     <div className="flex space-x-2">
-                        <button className="px-3 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 rounded-lg disabled:opacity-50" disabled>Previous</button>
-                        <button className="px-3 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 rounded-lg disabled:opacity-50" disabled>Next</button>
+                        <button className="px-3 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 rounded-lg disabled:opacity-50" disabled>Previous</button>
+                        <button className="px-3 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 rounded-lg disabled:opacity-50" disabled>Next</button>
                     </div>
                 </div>
             )}

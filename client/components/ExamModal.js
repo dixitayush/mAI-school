@@ -33,7 +33,7 @@ export default function ExamModal({ isOpen, onClose, onSubmit, classes = [] }) {
         >
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Exam Title *
                     </label>
                     <input
@@ -42,13 +42,13 @@ export default function ExamModal({ isOpen, onClose, onSubmit, classes = [] }) {
                         value={formData.title}
                         onChange={handleChange}
                         required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                        className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                         placeholder="Mid-Term Mathematics"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Subject *
                     </label>
                     <input
@@ -57,13 +57,13 @@ export default function ExamModal({ isOpen, onClose, onSubmit, classes = [] }) {
                         value={formData.subject}
                         onChange={handleChange}
                         required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                        className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                         placeholder="Mathematics"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Class *
                     </label>
                     <select
@@ -71,7 +71,7 @@ export default function ExamModal({ isOpen, onClose, onSubmit, classes = [] }) {
                         value={formData.classId}
                         onChange={handleChange}
                         required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                        className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                     >
                         <option value="">Select a class</option>
                         {classes.map((cls) => (
@@ -84,7 +84,7 @@ export default function ExamModal({ isOpen, onClose, onSubmit, classes = [] }) {
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-zinc-700 mb-1">
                             Date *
                         </label>
                         <input
@@ -93,11 +93,11 @@ export default function ExamModal({ isOpen, onClose, onSubmit, classes = [] }) {
                             value={formData.examDate}
                             onChange={handleChange}
                             required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                            className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-zinc-700 mb-1">
                             Total Marks *
                         </label>
                         <input
@@ -107,14 +107,14 @@ export default function ExamModal({ isOpen, onClose, onSubmit, classes = [] }) {
                             onChange={handleChange}
                             required
                             min="0"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                            className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                             placeholder="100"
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Description
                     </label>
                     <textarea
@@ -122,7 +122,7 @@ export default function ExamModal({ isOpen, onClose, onSubmit, classes = [] }) {
                         value={formData.description}
                         onChange={handleChange}
                         rows="3"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                        className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                         placeholder="Topics covered..."
                     />
                 </div>
@@ -131,7 +131,7 @@ export default function ExamModal({ isOpen, onClose, onSubmit, classes = [] }) {
                     <button
                         type="button"
                         onClick={onClose}
-                        className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-200"
+                        className="flex-1 px-4 py-2 border border-zinc-300 text-zinc-700 rounded-lg hover:bg-zinc-50 transition-colors focus:outline-none focus:ring-2 focus:ring-zinc-200"
                     >
                         Cancel
                     </button>

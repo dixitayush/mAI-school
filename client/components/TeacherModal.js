@@ -55,7 +55,7 @@ export default function TeacherModal({ isOpen, onClose, onSubmit, teacher = null
         >
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Full Name *
                     </label>
                     <input
@@ -64,13 +64,13 @@ export default function TeacherModal({ isOpen, onClose, onSubmit, teacher = null
                         value={formData.fullName}
                         onChange={handleChange}
                         required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                        className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                         placeholder="Dr. Jane Smith"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Username *
                     </label>
                     <input
@@ -80,13 +80,13 @@ export default function TeacherModal({ isOpen, onClose, onSubmit, teacher = null
                         onChange={handleChange}
                         required
                         disabled={!!teacher}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 transition-all outline-none"
+                        className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-zinc-100 transition-all outline-none"
                         placeholder="jsmith"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Email *
                     </label>
                     <input
@@ -95,14 +95,14 @@ export default function TeacherModal({ isOpen, onClose, onSubmit, teacher = null
                         value={formData.email}
                         onChange={handleChange}
                         required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                        className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                         placeholder="jane@school.edu"
                     />
                 </div>
 
                 {!teacher && (
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-zinc-700 mb-1">
                             Password *
                         </label>
                         <input
@@ -111,14 +111,14 @@ export default function TeacherModal({ isOpen, onClose, onSubmit, teacher = null
                             value={formData.password}
                             onChange={handleChange}
                             required={!teacher}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                            className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                             placeholder="••••••••"
                         />
                     </div>
                 )}
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Subject Specialization *
                     </label>
                     <input
@@ -127,13 +127,13 @@ export default function TeacherModal({ isOpen, onClose, onSubmit, teacher = null
                         value={formData.subjectSpecialization}
                         onChange={handleChange}
                         required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                        className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                         placeholder="Mathematics, Physics, etc."
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Qualification *
                     </label>
                     <input
@@ -142,7 +142,7 @@ export default function TeacherModal({ isOpen, onClose, onSubmit, teacher = null
                         value={formData.qualification}
                         onChange={handleChange}
                         required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                        className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                         placeholder="M.Sc., Ph.D., B.Ed., etc."
                     />
                 </div>
@@ -151,7 +151,7 @@ export default function TeacherModal({ isOpen, onClose, onSubmit, teacher = null
                     <button
                         type="button"
                         onClick={onClose}
-                        className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-200"
+                        className="flex-1 px-4 py-2 border border-zinc-300 text-zinc-700 rounded-lg hover:bg-zinc-50 transition-colors focus:outline-none focus:ring-2 focus:ring-zinc-200"
                     >
                         Cancel
                     </button>

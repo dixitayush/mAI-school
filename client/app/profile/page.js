@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
-import Sidebar from '@/components/Sidebar';
+import DashboardLayout from '@/components/DashboardLayout';
 import { User, Mail, Phone, MapPin, Camera, Save, X, Briefcase, Calendar, GraduationCap, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
@@ -208,13 +208,13 @@ function ProfileContent() {
     };
 
     if (!userId || loading) return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+        <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50">
+            <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary-500" />
         </div>
     );
 
     if (error) return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center text-red-500">
+        <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50 text-red-600">
             Error loading profile: {error.message}
         </div>
     );
@@ -222,10 +222,10 @@ function ProfileContent() {
     const user = data?.userById;
 
     if (!user) return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50">
             <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-                <p className="text-gray-500">Session expired. Redirecting to login...</p>
+                <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-primary-500" />
+                <p className="text-zinc-500">Session expired. Redirecting to login…</p>
             </div>
         </div>
     );
@@ -233,13 +233,15 @@ function ProfileContent() {
     const roleDetails = user.role === 'student' ? user.studentsByUserId?.nodes?.[0] :
         user.role === 'teacher' ? user.teachersByUserId?.nodes?.[0] : null;
 
-    return (
-        <div className="min-h-screen bg-gray-50 flex font-sans">
-            <Sidebar userRole={userRole} />
+    const dashboardRole = ['admin', 'teacher', 'principal', 'student'].includes(userRole)
+        ? userRole
+        : 'admin';
 
-            <main className="flex-1 ml-64 relative">
+    return (
+        <DashboardLayout userRole={dashboardRole}>
+            <div className="relative -mx-4 -mt-6 sm:-mx-6 lg:-mx-8">
                 {/* Gradient Header */}
-                <div className="h-64 bg-gradient-to-r from-primary-600 via-primary-500 to-teal-400 relative overflow-hidden">
+                <div className="relative h-56 overflow-hidden bg-gradient-to-r from-primary-600 via-primary-500 to-teal-400 sm:h-64">
                     <div className="absolute inset-0 bg-black/10"></div>
                     <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
                     <div className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
@@ -281,11 +283,11 @@ function ProfileContent() {
                                                 type="text"
                                                 value={formData.fullName}
                                                 onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                                                className="text-3xl font-bold text-gray-900 bg-transparent border-b-2 border-primary-300 focus:border-primary-500 outline-none px-1 w-full md:w-auto"
+                                                className="text-3xl font-bold text-zinc-900 bg-transparent border-b-2 border-primary-300 focus:border-primary-500 outline-none px-1 w-full md:w-auto"
                                                 placeholder="Your Name"
                                             />
                                         ) : (
-                                            <h1 className="text-3xl font-bold text-gray-900">{user.fullName}</h1>
+                                            <h1 className="text-3xl font-bold text-zinc-900">{user.fullName}</h1>
                                         )}
                                         <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
                                             <span className="px-3 py-1 rounded-full bg-primary-100 text-primary-700 text-sm font-semibold uppercase tracking-wide">
@@ -306,7 +308,7 @@ function ProfileContent() {
                                         <>
                                             <button
                                                 onClick={() => setIsEditing(false)}
-                                                className="px-6 py-2.5 rounded-xl font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors flex items-center gap-2"
+                                                className="px-6 py-2.5 rounded-xl font-medium text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition-colors flex items-center gap-2"
                                             >
                                                 <X className="w-4 h-4" /> Cancel
                                             </button>
@@ -320,7 +322,7 @@ function ProfileContent() {
                                     ) : (
                                         <button
                                             onClick={() => setIsEditing(true)}
-                                            className="px-6 py-2.5 rounded-xl font-medium text-white bg-gray-900 hover:bg-gray-800 shadow-lg transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                                            className="px-6 py-2.5 rounded-xl font-medium text-white bg-zinc-900 hover:bg-zinc-800 shadow-lg transition-all hover:-translate-y-0.5 flex items-center gap-2"
                                         >
                                             <Briefcase className="w-4 h-4" /> Edit Profile
                                         </button>
@@ -329,18 +331,18 @@ function ProfileContent() {
                             </div>
 
                             {/* Tabs */}
-                            <div className="mt-10 border-b border-gray-100 flex gap-8">
+                            <div className="mt-10 border-b border-zinc-100 flex gap-8">
                                 {['personal', 'academic'].map((tab) => (
                                     <button
                                         key={tab}
                                         onClick={() => setActiveTab(tab)}
-                                        className={`pb-4 text-sm font-semibold tracking-wide uppercase transition-colors relative ${activeTab === tab ? 'text-primary-600' : 'text-gray-400 hover:text-gray-600'
+                                        className={`pb-4 text-sm font-semibold tracking-wide uppercase transition-colors relative ${activeTab === tab ? 'text-primary-600' : 'text-zinc-400 hover:text-zinc-600'
                                             }`}
                                     >
                                         {tab === 'personal' ? 'Personal Details' : 'Academic Info'}
                                         {activeTab === tab && (
                                             <motion.div
-                                                layoutId="activeTab"
+                                                layoutId="profile-settings-tab"
                                                 className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-500"
                                             />
                                         )}
@@ -350,7 +352,7 @@ function ProfileContent() {
                         </div>
 
                         {/* Tab Content */}
-                        <div className="p-8 bg-gray-50/50">
+                        <div className="p-8 bg-zinc-50/50">
                             <AnimatePresence mode="wait">
                                 {activeTab === 'personal' ? (
                                     <motion.div
@@ -362,42 +364,42 @@ function ProfileContent() {
                                         className="grid grid-cols-1 md:grid-cols-2 gap-8"
                                     >
                                         <div className="space-y-6">
-                                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-100">
+                                                <h3 className="text-lg font-bold text-zinc-900 mb-4 flex items-center gap-2">
                                                     <Mail className="w-5 h-5 text-primary-500" /> Contact Info
                                                 </h3>
                                                 <div className="space-y-4">
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">Email Address</label>
+                                                        <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">Email Address</label>
                                                         {isEditing ? (
                                                             <input
                                                                 type="email"
                                                                 value={formData.email}
                                                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                                                                className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
                                                             />
                                                         ) : (
-                                                            <p className="text-gray-700 font-medium">{formData.email || 'Not set'}</p>
+                                                            <p className="text-zinc-700 font-medium">{formData.email || 'Not set'}</p>
                                                         )}
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">Phone Number</label>
+                                                        <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">Phone Number</label>
                                                         {isEditing ? (
                                                             <input
                                                                 type="tel"
                                                                 value={formData.phone}
                                                                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                                                                className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
                                                             />
                                                         ) : (
-                                                            <p className="text-gray-700 font-medium">{formData.phone || 'Not set'}</p>
+                                                            <p className="text-zinc-700 font-medium">{formData.phone || 'Not set'}</p>
                                                         )}
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-100">
+                                                <h3 className="text-lg font-bold text-zinc-900 mb-4 flex items-center gap-2">
                                                     <MapPin className="w-5 h-5 text-primary-500" /> Address
                                                 </h3>
                                                 {isEditing ? (
@@ -405,16 +407,16 @@ function ProfileContent() {
                                                         value={formData.address}
                                                         onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                                                         rows="3"
-                                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all resize-none"
+                                                        className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all resize-none"
                                                     />
                                                 ) : (
-                                                    <p className="text-gray-700 font-medium leading-relaxed">{formData.address || 'Not set'}</p>
+                                                    <p className="text-zinc-700 font-medium leading-relaxed">{formData.address || 'Not set'}</p>
                                                 )}
                                             </div>
                                         </div>
 
-                                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-full">
-                                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-100 h-full">
+                                            <h3 className="text-lg font-bold text-zinc-900 mb-4 flex items-center gap-2">
                                                 <User className="w-5 h-5 text-primary-500" /> Bio
                                             </h3>
                                             {isEditing ? (
@@ -422,11 +424,11 @@ function ProfileContent() {
                                                     value={formData.bio}
                                                     onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                                                     rows="8"
-                                                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all resize-none"
+                                                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all resize-none"
                                                     placeholder="Tell us about yourself..."
                                                 />
                                             ) : (
-                                                <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
+                                                <p className="text-zinc-600 leading-relaxed whitespace-pre-wrap">
                                                     {formData.bio || 'No bio available yet. Click edit to add one!'}
                                                 </p>
                                             )}
@@ -443,56 +445,56 @@ function ProfileContent() {
                                     >
                                         {user.role === 'student' && roleDetails ? (
                                             <>
-                                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-100">
+                                                    <h3 className="text-lg font-bold text-zinc-900 mb-4 flex items-center gap-2">
                                                         <GraduationCap className="w-5 h-5 text-blue-500" /> Student Details
                                                     </h3>
                                                     <div className="space-y-4">
-                                                        <div className="flex justify-between border-b border-gray-50 pb-3">
-                                                            <span className="text-gray-500">Class</span>
-                                                            <span className="font-semibold text-gray-900">{roleDetails.classByClassId?.name || 'N/A'}</span>
+                                                        <div className="flex justify-between border-b border-zinc-50 pb-3">
+                                                            <span className="text-zinc-500">Class</span>
+                                                            <span className="font-semibold text-zinc-900">{roleDetails.classByClassId?.name || 'N/A'}</span>
                                                         </div>
-                                                        <div className="flex justify-between border-b border-gray-50 pb-3">
-                                                            <span className="text-gray-500">Date of Birth</span>
-                                                            <span className="font-semibold text-gray-900">{roleDetails.dob || 'N/A'}</span>
+                                                        <div className="flex justify-between border-b border-zinc-50 pb-3">
+                                                            <span className="text-zinc-500">Date of Birth</span>
+                                                            <span className="font-semibold text-zinc-900">{roleDetails.dob || 'N/A'}</span>
                                                         </div>
-                                                        <div className="flex justify-between border-b border-gray-50 pb-3">
-                                                            <span className="text-gray-500">Enrollment Date</span>
-                                                            <span className="font-semibold text-gray-900">{roleDetails.enrollmentDate || 'N/A'}</span>
+                                                        <div className="flex justify-between border-b border-zinc-50 pb-3">
+                                                            <span className="text-zinc-500">Enrollment Date</span>
+                                                            <span className="font-semibold text-zinc-900">{roleDetails.enrollmentDate || 'N/A'}</span>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-100">
+                                                    <h3 className="text-lg font-bold text-zinc-900 mb-4 flex items-center gap-2">
                                                         <Phone className="w-5 h-5 text-green-500" /> Parent Contact
                                                     </h3>
-                                                    <p className="text-gray-700 font-medium text-lg">{roleDetails.parentPhone || 'Not set'}</p>
+                                                    <p className="text-zinc-700 font-medium text-lg">{roleDetails.parentPhone || 'Not set'}</p>
                                                 </div>
                                             </>
                                         ) : user.role === 'teacher' && roleDetails ? (
                                             <>
-                                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-100">
+                                                    <h3 className="text-lg font-bold text-zinc-900 mb-4 flex items-center gap-2">
                                                         <BookOpen className="w-5 h-5 text-purple-500" /> Professional Info
                                                     </h3>
                                                     <div className="space-y-4">
-                                                        <div className="flex justify-between border-b border-gray-50 pb-3">
-                                                            <span className="text-gray-500">Specialization</span>
-                                                            <span className="font-semibold text-gray-900">{roleDetails.subjectSpecialization || 'N/A'}</span>
+                                                        <div className="flex justify-between border-b border-zinc-50 pb-3">
+                                                            <span className="text-zinc-500">Specialization</span>
+                                                            <span className="font-semibold text-zinc-900">{roleDetails.subjectSpecialization || 'N/A'}</span>
                                                         </div>
-                                                        <div className="flex justify-between border-b border-gray-50 pb-3">
-                                                            <span className="text-gray-500">Qualification</span>
-                                                            <span className="font-semibold text-gray-900">{roleDetails.qualification || 'N/A'}</span>
+                                                        <div className="flex justify-between border-b border-zinc-50 pb-3">
+                                                            <span className="text-zinc-500">Qualification</span>
+                                                            <span className="font-semibold text-zinc-900">{roleDetails.qualification || 'N/A'}</span>
                                                         </div>
-                                                        <div className="flex justify-between border-b border-gray-50 pb-3">
-                                                            <span className="text-gray-500">Joining Date</span>
-                                                            <span className="font-semibold text-gray-900">{roleDetails.joiningDate || 'N/A'}</span>
+                                                        <div className="flex justify-between border-b border-zinc-50 pb-3">
+                                                            <span className="text-zinc-500">Joining Date</span>
+                                                            <span className="font-semibold text-zinc-900">{roleDetails.joiningDate || 'N/A'}</span>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </>
                                         ) : (
-                                            <div className="col-span-2 text-center py-12 text-gray-400">
+                                            <div className="col-span-2 text-center py-12 text-zinc-400">
                                                 <Briefcase className="w-12 h-12 mx-auto mb-3 opacity-50" />
                                                 <p>No additional role-specific details available.</p>
                                             </div>
@@ -503,8 +505,8 @@ function ProfileContent() {
                         </div>
                     </motion.div>
                 </div>
-            </main>
-        </div>
+            </div>
+        </DashboardLayout>
     );
 }
 

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { useRouter } from 'next/navigation';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
-import Sidebar from '@/components/Sidebar';
+import DashboardLayout from '@/components/DashboardLayout';
 import DataTable from '@/components/DataTable';
 import ExamModal from '@/components/ExamModal';
 import { FileText, Award, Loader2 } from 'lucide-react';
@@ -79,11 +79,15 @@ function ExamsContent() {
 
   if (!mounted || !userRole) {
       return (
-          <div className="flex justify-center items-center h-screen bg-gray-50">
-              <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+          <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50">
+              <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
           </div>
       );
   }
+
+  const dashboardRole = ['admin', 'teacher', 'principal', 'student'].includes(userRole)
+      ? userRole
+      : 'admin';
 
   const columns = [
     { header: 'Title', accessor: 'title' },
@@ -119,31 +123,27 @@ function ExamsContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar userRole={userRole} />
+    <DashboardLayout userRole={dashboardRole}>
+      <div className="mb-8">
+        <h1 className="mb-2 text-3xl font-bold tracking-tight text-zinc-900">Exams &amp; results</h1>
+        <p className="text-zinc-600">Schedule exams and manage results.</p>
+      </div>
 
-      <main className="flex-1 ml-64 p-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Exams & Results</h1>
-          <p className="text-gray-500">Schedule exams and manage results.</p>
-        </div>
+      <DataTable
+        title="Scheduled Exams"
+        columns={columns}
+        data={data?.allExams?.nodes || []}
+        isLoading={loading}
+        onAdd={userRole === 'admin' || userRole === 'principal' || userRole === 'teacher' ? handleCreateExam : undefined}
+      />
 
-        <DataTable
-          title="Scheduled Exams"
-          columns={columns}
-          data={data?.allExams?.nodes || []}
-          isLoading={loading}
-          onAdd={userRole === 'admin' || userRole === 'principal' || userRole === 'teacher' ? handleCreateExam : undefined}
-        />
-
-        <ExamModal
-          isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
-          onSubmit={handleModalSubmit}
-          classes={data?.allClasses?.nodes || []}
-        />
-      </main>
-    </div>
+      <ExamModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleModalSubmit}
+        classes={data?.allClasses?.nodes || []}
+      />
+    </DashboardLayout>
   );
 }
 

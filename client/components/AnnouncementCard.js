@@ -38,7 +38,7 @@ const priorityConfig = {
     urgent: { icon: AlertTriangle, bg: 'bg-red-100', text: 'text-red-600', label: 'Urgent' },
     high: { icon: AlertCircle, bg: 'bg-orange-100', text: 'text-orange-600', label: 'High' },
     normal: { icon: Bell, bg: 'bg-blue-100', text: 'text-blue-600', label: 'Normal' },
-    low: { icon: Info, bg: 'bg-gray-100', text: 'text-gray-500', label: 'Low' },
+    low: { icon: Info, bg: 'bg-zinc-100', text: 'text-zinc-500', label: 'Low' },
 };
 
 export default function AnnouncementCard() {
@@ -90,10 +90,10 @@ export default function AnnouncementCard() {
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-[400px]"
+            className="bg-white rounded-xl shadow-sm border border-zinc-100 flex flex-col h-[400px]"
         >
-            <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-50 shrink-0">
-                <h3 className="text-lg font-semibold text-gray-900">Recent Announcements</h3>
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-zinc-50 shrink-0">
+                <h3 className="text-lg font-semibold text-zinc-900">Recent Announcements</h3>
                 {data?.allAnnouncements?.totalCount > 0 && (
                     <span className="px-2 py-0.5 bg-primary-50 text-primary-700 text-xs font-semibold rounded-full">
                         {data.allAnnouncements.totalCount} active
@@ -106,16 +106,16 @@ export default function AnnouncementCard() {
                     <div className="space-y-3">
                         {[1, 2, 3].map(i => (
                             <div key={i} className="animate-pulse flex items-start space-x-3 p-3">
-                                <div className="w-9 h-9 bg-gray-200 rounded-lg shrink-0" />
+                                <div className="w-9 h-9 bg-zinc-200 rounded-lg shrink-0" />
                                 <div className="flex-1 space-y-2">
-                                    <div className="h-4 bg-gray-200 rounded w-3/4" />
-                                    <div className="h-3 bg-gray-100 rounded w-full" />
+                                    <div className="h-4 bg-zinc-200 rounded w-3/4" />
+                                    <div className="h-3 bg-zinc-100 rounded w-full" />
                                 </div>
                             </div>
                         ))}
                     </div>
                 ) : announcements.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400 h-full flex flex-col items-center justify-center">
+                    <div className="text-center py-8 text-zinc-400 h-full flex flex-col items-center justify-center">
                         <Megaphone className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         <p className="text-sm">No active announcements</p>
                     </div>
@@ -133,7 +133,7 @@ export default function AnnouncementCard() {
                                     initial={{ opacity: 0, x: -20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: index * 0.05 }}
-                                    className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                                    className="flex items-start space-x-3 p-3 rounded-lg hover:bg-zinc-50 transition-colors"
                                 >
                                     <div className={`p-2 rounded-lg shrink-0 ${config.bg}`}>
                                         <Icon className={`w-4 h-4 ${config.text}`} />
@@ -141,21 +141,21 @@ export default function AnnouncementCard() {
 
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-start justify-between">
-                                            <h4 className="text-sm font-medium text-gray-900 truncate pr-2">
+                                            <h4 className="text-sm font-medium text-zinc-900 truncate pr-2">
                                                 {announcement.title}
                                             </h4>
-                                            <span className="text-xs text-gray-500 whitespace-nowrap shrink-0">
+                                            <span className="text-xs text-zinc-500 whitespace-nowrap shrink-0">
                                                 {formatDistanceToNow(new Date(announcement.createdAt), { addSuffix: true })}
                                             </span>
                                         </div>
-                                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                                        <p className="text-sm text-zinc-600 mt-1 line-clamp-2">
                                             {announcement.content}
                                         </p>
                                         <div className="flex items-center mt-1.5 space-x-2">
                                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${config.bg} ${config.text}`}>
                                                 {config.label}
                                             </span>
-                                            <span className="text-[10px] text-gray-400 truncate">
+                                            <span className="text-[10px] text-zinc-400 truncate">
                                                 {announcement.targetAudience === 'all' ? 'Everyone' : announcement.targetAudience}
                                             </span>
                                         </div>
@@ -169,7 +169,7 @@ export default function AnnouncementCard() {
                             </div>
                         )}
                         {!hasNextPage && announcements.length > 0 && (
-                            <div className="py-4 text-center text-xs text-gray-400">
+                            <div className="py-4 text-center text-xs text-zinc-400">
                                 You've reached the end
                             </div>
                         )}

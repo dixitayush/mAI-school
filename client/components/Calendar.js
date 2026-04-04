@@ -27,25 +27,25 @@ export default function Calendar() {
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-xl shadow-sm p-6 border border-gray-100"
+            className="bg-white rounded-xl shadow-sm p-6 border border-zinc-100"
         >
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-zinc-900">
                     {format(currentDate, 'MMMM yyyy')}
                 </h3>
                 <div className="flex space-x-2">
                     <button
                         onClick={previousMonth}
-                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        className="p-2 hover:bg-zinc-100 rounded-lg transition-colors"
                     >
-                        <ChevronLeft className="w-5 h-5 text-gray-600" />
+                        <ChevronLeft className="w-5 h-5 text-zinc-600" />
                     </button>
                     <button
                         onClick={nextMonth}
-                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        className="p-2 hover:bg-zinc-100 rounded-lg transition-colors"
                     >
-                        <ChevronRight className="w-5 h-5 text-gray-600" />
+                        <ChevronRight className="w-5 h-5 text-zinc-600" />
                     </button>
                 </div>
             </div>
@@ -53,7 +53,7 @@ export default function Calendar() {
             {/* Weekday headers */}
             <div className="grid grid-cols-7 gap-2 mb-2">
                 {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((day) => (
-                    <div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
+                    <div key={day} className="text-center text-xs font-medium text-zinc-500 py-2">
                         {day}
                     </div>
                 ))}
@@ -75,7 +75,7 @@ export default function Calendar() {
                 aspect-square flex items-center justify-center rounded-lg text-sm font-medium transition-all
                 ${today
                                     ? 'bg-primary-500 text-white shadow-sm'
-                                    : 'hover:bg-gray-100 text-gray-700'
+                                    : 'hover:bg-zinc-100 text-zinc-700'
                                 }
               `}
                         >

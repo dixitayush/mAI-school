@@ -5,7 +5,7 @@ import { X, Megaphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const priorityOptions = [
-    { value: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700' },
+    { value: 'low', label: 'Low', color: 'bg-zinc-100 text-zinc-700' },
     { value: 'normal', label: 'Normal', color: 'bg-blue-100 text-blue-700' },
     { value: 'high', label: 'High', color: 'bg-orange-100 text-orange-700' },
     { value: 'urgent', label: 'Urgent', color: 'bg-red-100 text-red-700' },
@@ -93,38 +93,38 @@ export default function AnnouncementModal({ isOpen, onClose, onSubmit, editData 
                         <form onSubmit={handleSubmit} className="p-6 space-y-5">
                             {/* Title */}
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Title</label>
+                                <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Title</label>
                                 <input
                                     type="text"
                                     value={form.title}
                                     onChange={(e) => setForm({ ...form, title: e.target.value })}
                                     required
                                     placeholder="e.g. Annual Sports Day"
-                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                                    className="w-full px-4 py-2.5 border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
                                 />
                             </div>
 
                             {/* Content */}
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Content</label>
+                                <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Content</label>
                                 <textarea
                                     value={form.content}
                                     onChange={(e) => setForm({ ...form, content: e.target.value })}
                                     required
                                     rows={4}
                                     placeholder="Write the announcement details..."
-                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all resize-none"
+                                    className="w-full px-4 py-2.5 border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all resize-none"
                                 />
                             </div>
 
                             {/* Priority & Audience Row */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Priority</label>
+                                    <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Priority</label>
                                     <select
                                         value={form.priority}
                                         onChange={(e) => setForm({ ...form, priority: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all bg-white"
+                                        className="w-full px-4 py-2.5 border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all bg-white"
                                     >
                                         {priorityOptions.map((opt) => (
                                             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -133,11 +133,11 @@ export default function AnnouncementModal({ isOpen, onClose, onSubmit, editData 
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Target Audience</label>
+                                    <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Target Audience</label>
                                     <select
                                         value={form.targetAudience}
                                         onChange={(e) => setForm({ ...form, targetAudience: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all bg-white"
+                                        className="w-full px-4 py-2.5 border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all bg-white"
                                     >
                                         {audienceOptions.map((opt) => (
                                             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -147,13 +147,13 @@ export default function AnnouncementModal({ isOpen, onClose, onSubmit, editData 
                             </div>
 
                             {/* Preview Badge */}
-                            <div className="flex items-center space-x-2 text-sm text-gray-500">
+                            <div className="flex items-center space-x-2 text-sm text-zinc-500">
                                 <span>Preview:</span>
                                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${priorityOptions.find(p => p.value === form.priority)?.color}`}>
                                     {priorityOptions.find(p => p.value === form.priority)?.label}
                                 </span>
-                                <span className="text-gray-300">•</span>
-                                <span className="text-xs text-gray-500">
+                                <span className="text-zinc-300">•</span>
+                                <span className="text-xs text-zinc-500">
                                     {audienceOptions.find(a => a.value === form.targetAudience)?.label}
                                 </span>
                             </div>
@@ -163,7 +163,7 @@ export default function AnnouncementModal({ isOpen, onClose, onSubmit, editData 
                                 <button
                                     type="button"
                                     onClick={onClose}
-                                    className="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                                    className="px-5 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100 rounded-xl transition-colors"
                                 >
                                     Cancel
                                 </button>

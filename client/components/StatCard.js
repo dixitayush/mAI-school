@@ -26,12 +26,12 @@ export default function StatCard({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay, duration: 0.3 }}
             whileHover={{ y: -4, transition: { duration: 0.2 } }}
-            className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-6 border border-gray-100"
+            className="rounded-2xl border border-zinc-200/90 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
         >
             <div className="flex items-start justify-between">
                 <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
-                    <h3 className="text-3xl font-bold text-gray-900 mb-2">{value}</h3>
+                    <p className="mb-1 text-sm font-medium text-zinc-500">{title}</p>
+                    <h3 className="mb-2 text-3xl font-bold text-zinc-900">{value}</h3>
 
                     {trend && (
                         <div className="flex items-center space-x-1">
@@ -43,7 +43,7 @@ export default function StatCard({
                             <span className={`text-sm font-medium ${trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
                                 {trendValue}
                             </span>
-                            <span className="text-sm text-gray-500">vs last month</span>
+                            <span className="text-sm text-zinc-500">vs last month</span>
                         </div>
                     )}
                 </div>
@@ -54,7 +54,7 @@ export default function StatCard({
             </div>
 
             {/* Progress bar */}
-            <div className="mt-4 h-1 bg-gray-100 rounded-full overflow-hidden">
+            <div className="mt-4 h-1 overflow-hidden rounded-full bg-zinc-100">
                 <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: '75%' }}

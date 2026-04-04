@@ -71,24 +71,24 @@ function TeacherExamsContent() {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+            <div className="flex min-h-[50vh] items-center justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 p-8">
+        <div className="space-y-8">
             {/* Header */}
             <div className="mb-8">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Exams & Assessments</h1>
-                        <p className="text-gray-500 mt-1">View and track your scheduled exams</p>
+                        <h1 className="text-3xl font-bold text-zinc-900 tracking-tight">Exams & Assessments</h1>
+                        <p className="text-zinc-500 mt-1">View and track your scheduled exams</p>
                     </div>
                     <button
                         onClick={() => router.push('/teacher')}
-                        className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                        className="bg-zinc-100 text-zinc-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-200 transition-colors"
                     >
                         Back to Dashboard
                     </button>
@@ -150,14 +150,14 @@ function TeacherExamsContent() {
 
             {/* Upcoming Exams */}
             <div className="mb-8">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100">
                     <div className="flex items-center space-x-3 mb-6">
                         <div className="p-2 bg-green-100 rounded-lg text-green-600">
                             <Calendar className="w-5 h-5" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-gray-900">Upcoming Exams</h2>
-                            <p className="text-sm text-gray-500">Scheduled assessments</p>
+                            <h2 className="text-lg font-bold text-zinc-900">Upcoming Exams</h2>
+                            <p className="text-sm text-zinc-500">Scheduled assessments</p>
                         </div>
                     </div>
 
@@ -166,20 +166,20 @@ function TeacherExamsContent() {
                             {upcomingExams.map((exam) => (
                                 <div
                                     key={exam.id}
-                                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-green-200 transition-colors"
+                                    className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg border border-zinc-100 hover:border-green-200 transition-colors"
                                 >
                                     <div className="flex items-center space-x-4">
                                         <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-lg flex items-center justify-center text-white font-bold">
                                             {exam.subject.charAt(0)}
                                         </div>
                                         <div>
-                                            <p className="font-bold text-gray-900">{exam.title}</p>
+                                            <p className="font-bold text-zinc-900">{exam.title}</p>
                                             <div className="flex items-center space-x-3 mt-1">
-                                                <span className="text-sm text-gray-500 flex items-center">
+                                                <span className="text-sm text-zinc-500 flex items-center">
                                                     <BookOpen className="w-3.5 h-3.5 mr-1" />
                                                     {exam.subject}
                                                 </span>
-                                                <span className="text-sm text-gray-500 flex items-center">
+                                                <span className="text-sm text-zinc-500 flex items-center">
                                                     <Users className="w-3.5 h-3.5 mr-1" />
                                                     {exam.classByClassId?.name}
                                                 </span>
@@ -187,14 +187,14 @@ function TeacherExamsContent() {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-sm font-bold text-gray-900">
+                                        <p className="text-sm font-bold text-zinc-900">
                                             {new Date(exam.examDate).toLocaleDateString('en-US', {
                                                 month: 'short',
                                                 day: 'numeric',
                                                 year: 'numeric'
                                             })}
                                         </p>
-                                        <p className="text-xs text-gray-500 mt-1">
+                                        <p className="text-xs text-zinc-500 mt-1">
                                             {new Date(exam.examDate).toLocaleDateString('en-US', { weekday: 'long' })}
                                         </p>
                                         <p className="text-xs text-green-600 font-medium mt-1">
@@ -206,8 +206,8 @@ function TeacherExamsContent() {
                         </div>
                     ) : (
                         <div className="text-center py-12">
-                            <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                            <p className="text-gray-500">No upcoming exams scheduled</p>
+                            <Calendar className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+                            <p className="text-zinc-500">No upcoming exams scheduled</p>
                         </div>
                     )}
                 </div>
@@ -215,14 +215,14 @@ function TeacherExamsContent() {
 
             {/* Past Exams */}
             <div>
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100">
                     <div className="flex items-center space-x-3 mb-6">
                         <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
                             <Award className="w-5 h-5" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-gray-900">Past Exams</h2>
-                            <p className="text-sm text-gray-500">Completed assessments</p>
+                            <h2 className="text-lg font-bold text-zinc-900">Past Exams</h2>
+                            <p className="text-sm text-zinc-500">Completed assessments</p>
                         </div>
                     </div>
 
@@ -231,20 +231,20 @@ function TeacherExamsContent() {
                             {pastExams.map((exam) => (
                                 <div
                                     key={exam.id}
-                                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100"
+                                    className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg border border-zinc-100"
                                 >
                                     <div className="flex items-center space-x-4">
-                                        <div className="w-12 h-12 bg-gradient-to-br from-gray-300 to-gray-400 rounded-lg flex items-center justify-center text-white font-bold">
+                                        <div className="w-12 h-12 bg-gradient-to-br from-zinc-300 to-zinc-400 rounded-lg flex items-center justify-center text-white font-bold">
                                             {exam.subject.charAt(0)}
                                         </div>
                                         <div>
-                                            <p className="font-bold text-gray-900">{exam.title}</p>
+                                            <p className="font-bold text-zinc-900">{exam.title}</p>
                                             <div className="flex items-center space-x-3 mt-1">
-                                                <span className="text-sm text-gray-500 flex items-center">
+                                                <span className="text-sm text-zinc-500 flex items-center">
                                                     <BookOpen className="w-3.5 h-3.5 mr-1" />
                                                     {exam.subject}
                                                 </span>
-                                                <span className="text-sm text-gray-500 flex items-center">
+                                                <span className="text-sm text-zinc-500 flex items-center">
                                                     <Users className="w-3.5 h-3.5 mr-1" />
                                                     {exam.classByClassId?.name}
                                                 </span>
@@ -252,17 +252,17 @@ function TeacherExamsContent() {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-sm font-medium text-gray-600">
+                                        <p className="text-sm font-medium text-zinc-600">
                                             {new Date(exam.examDate).toLocaleDateString('en-US', {
                                                 month: 'short',
                                                 day: 'numeric',
                                                 year: 'numeric'
                                             })}
                                         </p>
-                                        <p className="text-xs text-gray-400 mt-1">
+                                        <p className="text-xs text-zinc-400 mt-1">
                                             {new Date(exam.examDate).toLocaleDateString('en-US', { weekday: 'long' })}
                                         </p>
-                                        <p className="text-xs text-gray-500 mt-1">
+                                        <p className="text-xs text-zinc-500 mt-1">
                                             {exam.totalMarks} marks
                                         </p>
                                     </div>
@@ -271,8 +271,8 @@ function TeacherExamsContent() {
                         </div>
                     ) : (
                         <div className="text-center py-12">
-                            <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                            <p className="text-gray-500">No past exams</p>
+                            <Award className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+                            <p className="text-zinc-500">No past exams</p>
                         </div>
                     )}
                 </div>

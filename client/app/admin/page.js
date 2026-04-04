@@ -145,13 +145,13 @@ export default function AdminDashboard() {
             {/* Welcome Section */}
             <div className="flex justify-between items-end">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Overview</h1>
-                    <p className="text-gray-500 mt-1">Metrics and analytics for {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    <h1 className="text-3xl font-bold text-zinc-900 tracking-tight">Overview</h1>
+                    <p className="text-zinc-500 mt-1">Metrics and analytics for {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
                 <div className="flex space-x-3">
                     <button
                         onClick={handleDownloadReport}
-                        className="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex items-center space-x-2"
+                        className="bg-white border border-zinc-200 text-zinc-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-50 transition-colors flex items-center space-x-2"
                     >
                         <Download className="w-4 h-4" />
                         <span>Download Report</span>
@@ -161,13 +161,13 @@ export default function AdminDashboard() {
                             <span>Create New</span>
                             <ChevronDown className="w-4 h-4" />
                         </Menu.Button>
-                        <Menu.Items className="absolute right-0 mt-2 w-56 origin-top-right bg-white rounded-xl shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 divide-y divide-gray-100">
+                        <Menu.Items className="absolute right-0 mt-2 w-56 origin-top-right bg-white rounded-xl shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 divide-y divide-zinc-100">
                             <div className="py-1">
                                 <Menu.Item>
                                     {({ active }) => (
                                         <button
                                             onClick={() => router.push('/admin/users/students')}
-                                            className={`${active ? 'bg-primary-50 text-primary-700' : 'text-gray-700'
+                                            className={`${active ? 'bg-primary-50 text-primary-700' : 'text-zinc-700'
                                                 } group flex w-full items-center px-4 py-2 text-sm font-medium transition-colors`}
                                         >
                                             <GraduationCap className="mr-3 h-5 w-5" aria-hidden="true" />
@@ -179,7 +179,7 @@ export default function AdminDashboard() {
                                     {({ active }) => (
                                         <button
                                             onClick={() => router.push('/admin/users/teachers')}
-                                            className={`${active ? 'bg-primary-50 text-primary-700' : 'text-gray-700'
+                                            className={`${active ? 'bg-primary-50 text-primary-700' : 'text-zinc-700'
                                                 } group flex w-full items-center px-4 py-2 text-sm font-medium transition-colors`}
                                         >
                                             <BookOpen className="mr-3 h-5 w-5" aria-hidden="true" />
@@ -193,7 +193,7 @@ export default function AdminDashboard() {
                                     {({ active }) => (
                                         <button
                                             onClick={() => router.push('/admin/classes')}
-                                            className={`${active ? 'bg-primary-50 text-primary-700' : 'text-gray-700'
+                                            className={`${active ? 'bg-primary-50 text-primary-700' : 'text-zinc-700'
                                                 } group flex w-full items-center px-4 py-2 text-sm font-medium transition-colors`}
                                         >
                                             <Users className="mr-3 h-5 w-5" aria-hidden="true" />
@@ -251,14 +251,14 @@ export default function AdminDashboard() {
                 {/* Main Chart */}
                 <motion.div
                     variants={itemVariants}
-                    className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-gray-100"
+                    className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-zinc-100"
                 >
                     <div className="flex items-center justify-between mb-6">
                         <div>
-                            <h3 className="text-lg font-bold text-gray-900">Attendance Overview</h3>
-                            <p className="text-sm text-gray-500">Monthly student attendance trends</p>
+                            <h3 className="text-lg font-bold text-zinc-900">Attendance Overview</h3>
+                            <p className="text-sm text-zinc-500">Monthly student attendance trends</p>
                         </div>
-                        <div className="flex items-center space-x-2 text-sm text-gray-500">
+                        <div className="flex items-center space-x-2 text-sm text-zinc-500">
                             <TrendingUp className="w-4 h-4 text-emerald-500" />
                             <span className="font-medium text-emerald-600">+4.5%</span>
                             <span>vs last year</span>
@@ -312,10 +312,10 @@ export default function AdminDashboard() {
                 {/* Secondary Chart / Info */}
                 <motion.div
                     variants={itemVariants}
-                    className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col"
+                    className="bg-white rounded-2xl p-6 shadow-sm border border-zinc-100 flex flex-col"
                 >
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">Fee Collection</h3>
-                    <p className="text-sm text-gray-500 mb-6">Current breakdown of student fees</p>
+                    <h3 className="text-lg font-bold text-zinc-900 mb-2">Fee Collection</h3>
+                    <p className="text-sm text-zinc-500 mb-6">Current breakdown of student fees</p>
 
                     <div className="flex-1 min-h-[200px] relative">
                         <ResponsiveContainer width="100%" height="100%">
@@ -339,19 +339,19 @@ export default function AdminDashboard() {
                         </ResponsiveContainer>
                         {/* Center Text */}
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <span className="text-3xl font-bold text-gray-900">${(totalFees / 1000).toFixed(1)}k</span>
-                            <span className="text-xs text-gray-400 uppercase font-medium">Total</span>
+                            <span className="text-3xl font-bold text-zinc-900">${(totalFees / 1000).toFixed(1)}k</span>
+                            <span className="text-xs text-zinc-400 uppercase font-medium">Total</span>
                         </div>
                     </div>
 
                     <div className="mt-6 space-y-3">
                         {feeStatusData.map((item) => (
-                            <div key={item.name} className="flex items-center justify-between text-sm group cursor-pointer p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                            <div key={item.name} className="flex items-center justify-between text-sm group cursor-pointer p-2 hover:bg-zinc-50 rounded-lg transition-colors">
                                 <div className="flex items-center space-x-3">
                                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                                    <span className="text-gray-600 font-medium">{item.name}</span>
+                                    <span className="text-zinc-600 font-medium">{item.name}</span>
                                 </div>
-                                <span className="font-bold text-gray-900 font-mono">{item.value}</span>
+                                <span className="font-bold text-zinc-900 font-mono">{item.value}</span>
                             </div>
                         ))}
                     </div>

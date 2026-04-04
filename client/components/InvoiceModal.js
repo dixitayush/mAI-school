@@ -75,14 +75,14 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [] 
             <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Searchable Student Select */}
                 <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Student *
                     </label>
                     <Combobox value={selectedStudent} onChange={setSelectedStudent}>
                         <div className="relative mt-1">
-                            <div className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left border border-gray-300 focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-transparent sm:text-sm">
+                            <div className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left border border-zinc-300 focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-transparent sm:text-sm">
                                 <Combobox.Input
-                                    className="w-full border-none py-2 pl-3 pr-10 text-sm leading-5 text-gray-900 focus:ring-0 outline-none"
+                                    className="w-full border-none py-2 pl-3 pr-10 text-sm leading-5 text-zinc-900 focus:ring-0 outline-none"
                                     displayValue={(student) => student?.userByUserId?.fullName || ''}
                                     onChange={(event) => setQuery(event.target.value)}
                                     placeholder="Search for a student..."
@@ -90,7 +90,7 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [] 
                                 />
                                 <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-2">
                                     <ChevronsUpDown
-                                        className="h-5 w-5 text-gray-400"
+                                        className="h-5 w-5 text-zinc-400"
                                         aria-hidden="true"
                                     />
                                 </Combobox.Button>
@@ -104,7 +104,7 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [] 
                             >
                                 <Combobox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm z-50">
                                     {filteredStudents.length === 0 && query !== '' ? (
-                                        <div className="relative cursor-default select-none py-2 px-4 text-gray-700">
+                                        <div className="relative cursor-default select-none py-2 px-4 text-zinc-700">
                                             Nothing found.
                                         </div>
                                     ) : (
@@ -112,7 +112,7 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [] 
                                             <Combobox.Option
                                                 key={student.id}
                                                 className={({ active }) =>
-                                                    `relative cursor-default select-none py-2 pl-10 pr-4 ${active ? 'bg-primary-600 text-white' : 'text-gray-900'
+                                                    `relative cursor-default select-none py-2 pl-10 pr-4 ${active ? 'bg-primary-600 text-white' : 'text-zinc-900'
                                                     }`
                                                 }
                                                 value={student}
@@ -124,7 +124,7 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [] 
                                                                 }`}
                                                         >
                                                             {student.userByUserId?.fullName}
-                                                            <span className={`ml-2 text-xs ${active ? 'text-primary-200' : 'text-gray-500'}`}>
+                                                            <span className={`ml-2 text-xs ${active ? 'text-primary-200' : 'text-zinc-500'}`}>
                                                                 ({student.classByClassId?.name || 'No Class'})
                                                             </span>
                                                         </span>
@@ -148,12 +148,12 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [] 
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Amount *
                     </label>
                     <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <span className="text-gray-500 sm:text-sm">$</span>
+                            <span className="text-zinc-500 sm:text-sm">$</span>
                         </div>
                         <input
                             type="number"
@@ -163,14 +163,14 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [] 
                             required
                             min="0"
                             step="0.01"
-                            className="w-full pl-7 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                            className="w-full pl-7 px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                             placeholder="0.00"
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Description *
                     </label>
                     <input
@@ -179,13 +179,13 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [] 
                         value={formData.description}
                         onChange={handleChange}
                         required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                        className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                         placeholder="Tuition Fee - Term 1"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Due Date *
                     </label>
                     <input
@@ -194,7 +194,7 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [] 
                         value={formData.dueDate}
                         onChange={handleChange}
                         required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+                        className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
                     />
                 </div>
 
@@ -202,7 +202,7 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [] 
                     <button
                         type="button"
                         onClick={onClose}
-                        className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                        className="flex-1 px-4 py-2 border border-zinc-300 text-zinc-700 rounded-lg hover:bg-zinc-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500"
                     >
                         Cancel
                     </button>

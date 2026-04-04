@@ -135,7 +135,7 @@ export default function StudentDashboard() {
             <div className="flex justify-center items-center h-64">
                 <div className="text-center">
                     <Loader2 className="w-12 h-12 animate-spin text-primary-600 mx-auto mb-4" />
-                    <p className="text-gray-600 font-medium">Loading...</p>
+                    <p className="text-zinc-600 font-medium">Loading...</p>
                 </div>
             </div>
         );
@@ -146,7 +146,7 @@ export default function StudentDashboard() {
             <div className="flex justify-center items-center h-64">
                 <div className="text-center">
                     <Loader2 className="w-12 h-12 animate-spin text-primary-600 mx-auto mb-4" />
-                    <p className="text-gray-600 font-medium">Loading your dashboard...</p>
+                    <p className="text-zinc-600 font-medium">Loading your dashboard...</p>
                 </div>
             </div>
         );
@@ -157,8 +157,8 @@ export default function StudentDashboard() {
             <div className="flex justify-center items-center h-64">
                 <div className="text-center">
                     <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-                    <p className="text-gray-800 font-medium mb-2">Failed to load dashboard</p>
-                    <p className="text-gray-500 text-sm">{error.message}</p>
+                    <p className="text-zinc-800 font-medium mb-2">Failed to load dashboard</p>
+                    <p className="text-zinc-500 text-sm">{error.message}</p>
                 </div>
             </div>
         );
@@ -247,8 +247,8 @@ export default function StudentDashboard() {
             {/* Welcome Section with Download */}
             <div className="flex justify-between items-end">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Welcome Back, {user.full_name}</h1>
-                    <p className="text-gray-500 mt-1">Here&apos;s your academic overview</p>
+                    <h1 className="text-3xl font-bold text-zinc-900 tracking-tight">Welcome Back, {user.full_name}</h1>
+                    <p className="text-zinc-500 mt-1">Here&apos;s your academic overview</p>
                 </div>
                 <button
                     onClick={handleDownloadReportCard}
@@ -283,58 +283,58 @@ export default function StudentDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <motion.div
                     variants={itemVariants}
-                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+                    className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100 hover:shadow-md transition-shadow"
                 >
                     <div className="flex items-center justify-between mb-4">
                         <div className="p-3 bg-green-100 rounded-lg">
                             <CheckCircle2 className="w-6 h-6 text-green-600" />
                         </div>
                     </div>
-                    <p className="text-sm text-gray-500 font-medium">Attendance</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">{attendancePercentage}%</p>
-                    <p className="text-xs text-gray-500 mt-2">{presentDays}/{totalAttendanceDays} days present</p>
+                    <p className="text-sm text-zinc-500 font-medium">Attendance</p>
+                    <p className="text-3xl font-bold text-zinc-900 mt-1">{attendancePercentage}%</p>
+                    <p className="text-xs text-zinc-500 mt-2">{presentDays}/{totalAttendanceDays} days present</p>
                 </motion.div>
 
                 <motion.div
                     variants={itemVariants}
-                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+                    className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100 hover:shadow-md transition-shadow"
                 >
                     <div className="flex items-center justify-between mb-4">
                         <div className="p-3 bg-blue-100 rounded-lg">
                             <Award className="w-6 h-6 text-blue-600" />
                         </div>
                     </div>
-                    <p className="text-sm text-gray-500 font-medium">Average Marks</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">{averagePercentage}%</p>
-                    <p className="text-xs text-gray-500 mt-2">Grade: {calculateOverallGrade()}</p>
+                    <p className="text-sm text-zinc-500 font-medium">Average Marks</p>
+                    <p className="text-3xl font-bold text-zinc-900 mt-1">{averagePercentage}%</p>
+                    <p className="text-xs text-zinc-500 mt-2">Grade: {calculateOverallGrade()}</p>
                 </motion.div>
 
                 <motion.div
                     variants={itemVariants}
-                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+                    className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100 hover:shadow-md transition-shadow"
                 >
                     <div className="flex items-center justify-between mb-4">
                         <div className="p-3 bg-red-100 rounded-lg">
                             <TrendingUp className="w-6 h-6 text-red-600" />
                         </div>
                     </div>
-                    <p className="text-sm text-gray-500 font-medium">Fees Due</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">${pendingFees.toLocaleString()}</p>
+                    <p className="text-sm text-zinc-500 font-medium">Fees Due</p>
+                    <p className="text-3xl font-bold text-zinc-900 mt-1">${pendingFees.toLocaleString()}</p>
                     <p className="text-xs text-red-500 mt-2 font-medium">Pending payments</p>
                 </motion.div>
 
                 <motion.div
                     variants={itemVariants}
-                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+                    className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100 hover:shadow-md transition-shadow"
                 >
                     <div className="flex items-center justify-between mb-4">
                         <div className="p-3 bg-orange-100 rounded-lg">
                             <Clock className="w-6 h-6 text-orange-600" />
                         </div>
                     </div>
-                    <p className="text-sm text-gray-500 font-medium">Upcoming Exams</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">{upcomingExams.length}</p>
-                    <p className="text-xs text-gray-500 mt-2">Scheduled assessments</p>
+                    <p className="text-sm text-zinc-500 font-medium">Upcoming Exams</p>
+                    <p className="text-3xl font-bold text-zinc-900 mt-1">{upcomingExams.length}</p>
+                    <p className="text-xs text-zinc-500 mt-2">Scheduled assessments</p>
                 </motion.div>
             </div>
 
@@ -343,7 +343,7 @@ export default function StudentDashboard() {
                 {/* Academic Performance Chart */}
                 <motion.div
                     variants={itemVariants}
-                    className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100"
+                    className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-zinc-100"
                 >
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center space-x-3">
@@ -351,8 +351,8 @@ export default function StudentDashboard() {
                                 <BarChart3 className="w-5 h-5 text-indigo-600" />
                             </div>
                             <div>
-                                <h2 className="text-lg font-bold text-gray-900">Subject-wise Performance</h2>
-                                <p className="text-sm text-gray-500">Your recent exam results</p>
+                                <h2 className="text-lg font-bold text-zinc-900">Subject-wise Performance</h2>
+                                <p className="text-sm text-zinc-500">Your recent exam results</p>
                             </div>
                         </div>
                     </div>
@@ -399,9 +399,9 @@ export default function StudentDashboard() {
                             </ResponsiveContainer>
                         </div>
                     ) : (
-                        <div className="h-[300px] flex items-center justify-center text-gray-500">
+                        <div className="h-[300px] flex items-center justify-center text-zinc-500">
                             <div className="text-center">
-                                <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                                <FileText className="w-12 h-12 mx-auto mb-3 text-zinc-300" />
                                 <p>No exam results available yet</p>
                             </div>
                         </div>
@@ -419,7 +419,7 @@ export default function StudentDashboard() {
                 {/* Exam Results */}
                 <motion.div
                     variants={itemVariants}
-                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"
+                    className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100"
                 >
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center space-x-3">
@@ -427,8 +427,8 @@ export default function StudentDashboard() {
                                 <Award className="w-5 h-5 text-blue-600" />
                             </div>
                             <div>
-                                <h2 className="text-lg font-bold text-gray-900">Recent Results</h2>
-                                <p className="text-sm text-gray-500">Your exam performance</p>
+                                <h2 className="text-lg font-bold text-zinc-900">Recent Results</h2>
+                                <p className="text-sm text-zinc-500">Your exam performance</p>
                             </div>
                         </div>
                     </div>
@@ -440,14 +440,14 @@ export default function StudentDashboard() {
                             return (
                                 <div
                                     key={index}
-                                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                                    className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg hover:bg-zinc-100 transition-colors"
                                 >
                                     <div className="flex-1">
-                                        <p className="font-medium text-gray-900">{result.examByExamId?.title || 'Exam'}</p>
-                                        <p className="text-sm text-gray-500">{result.examByExamId?.subject || 'N/A'}</p>
+                                        <p className="font-medium text-zinc-900">{result.examByExamId?.title || 'Exam'}</p>
+                                        <p className="text-sm text-zinc-500">{result.examByExamId?.subject || 'N/A'}</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-lg font-bold text-gray-900">
+                                        <p className="text-lg font-bold text-zinc-900">
                                             {result.marksObtained}/{result.examByExamId?.totalMarks || 100}
                                         </p>
                                         <p className={`text-sm font-medium ${percentage >= 80 ? 'text-green-600' :
@@ -460,7 +460,7 @@ export default function StudentDashboard() {
                                 </div>
                             );
                         }) : (
-                            <p className="text-center text-gray-500 py-8">No exam results available yet</p>
+                            <p className="text-center text-zinc-500 py-8">No exam results available yet</p>
                         )}
                     </div>
                 </motion.div>
