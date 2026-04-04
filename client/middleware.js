@@ -51,11 +51,19 @@ function tenantNotFoundHtml(host, mainSiteHref) {
 </html>`;
 }
 
+/** Paths anyone can open on a tenant host (marketing + self-serve) without an institute record. */
+function isTenantPublicMarketingPath(pathname) {
+  if (pathname === "/" || pathname === "") return true;
+  if (pathname === "/onboarding" || pathname.startsWith("/onboarding/")) return true;
+  return false;
+}
+
 export async function middleware(request) {
   const host = (request.headers.get("host") || "").split(":")[0];
   const slug = institutionSlugFromHostname(host);
+  const pathname = request.nextUrl.pathname;
 
-  if (slug) {
+  if (slug && !isTenantPublicMarketingPath(pathname)) {
     let res;
     try {
       res = await fetch(
