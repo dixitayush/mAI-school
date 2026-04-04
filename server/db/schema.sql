@@ -35,6 +35,7 @@ CREATE TABLE institutions (
   slug TEXT UNIQUE NOT NULL,
   logo_url TEXT,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  estimated_students INT CHECK (estimated_students IS NULL OR (estimated_students >= 0 AND estimated_students <= 500000)),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT institutions_slug_format CHECK (slug ~ '^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$')
 );

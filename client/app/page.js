@@ -81,13 +81,13 @@ const onboardingSteps = [
   {
     step: 1,
     icon: Phone,
-    title: "Talk to sales",
+    title: "Choose how you start",
     description:
-      "Reach out to our team. We learn about your school, size, and what you want to run on mAI-school.",
+      "Start online in minutes with self-serve onboarding (name, slug, logo, student count, first admin)—or talk to sales for a guided contract and white-glove setup.",
     bullets: [
-      "Share your student count, grades served, and top priorities",
-      "See how attendance, fees, and academics fit together in one place",
-      "Ask anything—intro calls are relaxed and no-obligation",
+      "Self-serve: fixed ₹30 INR per student per month, tenant created instantly",
+      "Sales-led: same platform, with scope, commercials, and kickoff on your calendar",
+      "Either way you get a dedicated subdomain and isolated institute data",
     ],
   },
   {
@@ -418,18 +418,29 @@ export default function Home() {
             aria-label="Primary"
           >
             {[
+              ["/onboarding", "Start online"],
               ["#how-it-works", "How it works"],
               ["#features", "Features"],
               ["#pricing", "Pricing"],
-            ].map(([href, label]) => (
-              <a
-                key={href}
-                href={href}
-                className="rounded-full px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
-              >
-                {label}
-              </a>
-            ))}
+            ].map(([href, label]) =>
+              href.startsWith("/") ? (
+                <Link
+                  key={href}
+                  href={href}
+                  className="rounded-full px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
+                >
+                  {label}
+                </Link>
+              ) : (
+                <a
+                  key={href}
+                  href={href}
+                  className="rounded-full px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
+                >
+                  {label}
+                </a>
+              )
+            )}
           </nav>
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
@@ -491,7 +502,7 @@ export default function Home() {
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.12 }}
-              className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center"
+              className="mt-10 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
             >
               <a
                 href="mailto:?subject=mAI-school%20%E2%80%94%20Talk%20to%20sales"
@@ -500,6 +511,12 @@ export default function Home() {
                 Talk to sales
                 <ArrowRight className="h-5 w-5" aria-hidden />
               </a>
+              <Link
+                href="/onboarding"
+                className="inline-flex h-12 items-center justify-center rounded-full border border-primary-200 bg-primary-50/90 px-7 text-base font-semibold text-primary-900 shadow-sm transition hover:border-primary-300 hover:bg-primary-50"
+              >
+                Start online
+              </Link>
               <Link
                 href="/login"
                 className="inline-flex h-12 items-center justify-center rounded-full border border-zinc-200 bg-white px-7 text-base font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"
@@ -741,16 +758,27 @@ export default function Home() {
               <p className="text-sm font-semibold text-primary-800">Available today</p>
               <h3 className="mt-2 text-xl font-bold text-zinc-900">Sales-led onboarding</h3>
               <p className="mt-3 flex-1 text-sm leading-relaxed text-zinc-600">
-                Connect with our sales team, agree commercial terms, and we provision your
-                institute: subdomain, branded login, first admin, and a shareable URL for
-                your campus—then you roll out staff and students with confidence.
+                Use{" "}
+                <Link href="/onboarding" className="font-semibold text-primary-800 underline decoration-primary-300 underline-offset-2 hover:text-primary-900">
+                  Start online
+                </Link>{" "}
+                for instant provisioning at ₹30 per student per month—or connect with sales for
+                custom terms, subdomain, branded login, and a shareable URL for your campus.
               </p>
-              <a
-                href="mailto:?subject=mAI-school%20%E2%80%94%20Pricing%20discussion"
-                className="mt-8 inline-flex h-11 items-center justify-center rounded-full bg-primary-600 px-5 text-sm font-semibold text-white transition hover:bg-primary-700"
-              >
-                Request pricing
-              </a>
+              <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <Link
+                  href="/onboarding"
+                  className="inline-flex h-11 items-center justify-center rounded-full bg-primary-600 px-5 text-sm font-semibold text-white transition hover:bg-primary-700"
+                >
+                  Start online
+                </Link>
+                <a
+                  href="mailto:?subject=mAI-school%20%E2%80%94%20Pricing%20discussion"
+                  className="inline-flex h-11 items-center justify-center rounded-full border border-primary-200 bg-white px-5 text-sm font-semibold text-primary-900 transition hover:bg-primary-50"
+                >
+                  Request pricing
+                </a>
+              </div>
             </motion.div>
 
             <motion.div
@@ -759,16 +787,16 @@ export default function Home() {
               className="rounded-3xl border border-zinc-200 bg-zinc-50/50 p-8"
             >
               <p className="text-sm font-semibold text-zinc-500">On the roadmap</p>
-              <h3 className="mt-2 text-xl font-bold text-zinc-900">Self-serve &amp; scale</h3>
+              <h3 className="mt-2 text-xl font-bold text-zinc-900">Payments &amp; scale</h3>
               <ul className="mt-5 space-y-4 text-sm text-zinc-600">
                 <li className="flex gap-3">
                   <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-primary-700 shadow-sm ring-1 ring-zinc-200">
                     1
                   </span>
                   <span>
-                    <strong className="text-zinc-800">Self-purchase</strong> — upcoming
-                    versions will let suitable institutes subscribe on their own, without a
-                    long sales cycle when you already know what you need.
+                    <strong className="text-zinc-800">In-app billing &amp; invoices</strong> —
+                    self-serve institutes are created today; automated payments and receipts
+                    are on the way.
                   </span>
                 </li>
                 <li className="flex gap-3">
@@ -776,9 +804,9 @@ export default function Home() {
                     2
                   </span>
                   <span>
-                    <strong className="text-zinc-800">Student-based pricing</strong> — plans
-                    aligned to enrollment, so cost grows fairly with the size of your
-                    student body.
+                    <strong className="text-zinc-800">Student-based pricing</strong> — ₹30 per
+                    student per month (billable headcount is the higher of enrolled students
+                    or your declared estimate).
                   </span>
                 </li>
               </ul>

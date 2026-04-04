@@ -1,5 +1,12 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const { sendWelcomeAdminEmail } = require('../lib/welcomeAdminEmail');
+const { isValidEmail, isValidLoginUrl } = require('../lib/validateContact');
+
+function billingInrPerStudent() {
+  const n = Number(process.env.BILLING_INR_PER_STUDENT_MONTH);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 30;
+}
 
 function platformRouter(pool, jwtSecret) {
   const router = express.Router();
@@ -31,15 +38,34 @@ function platformRouter(pool, jwtSecret) {
           i.slug,
           i.is_active AS "isActive",
           i.logo_url AS "logoUrl",
+          i.estimated_students AS "estimatedStudents",
           (SELECT COUNT(*)::int FROM users u WHERE u.institution_id = i.id AND u.role = 'student') AS students,
           (SELECT COUNT(*)::int FROM users u WHERE u.institution_id = i.id AND u.role = 'teacher') AS teachers,
           (SELECT COUNT(*)::int FROM users u WHERE u.institution_id = i.id AND u.role = 'admin') AS admins,
           (SELECT COUNT(*)::int FROM users u WHERE u.institution_id = i.id AND u.role = 'principal') AS principals,
-          (SELECT COUNT(*)::int FROM classes c WHERE c.institution_id = i.id) AS classes
+          (SELECT COUNT(*)::int FROM classes c WHERE c.institution_id = i.id) AS classes,
+          GREATEST(
+            (SELECT COUNT(*)::int FROM users u WHERE u.institution_id = i.id AND u.role = 'student'),
+            COALESCE(i.estimated_students, 0)
+          ) AS "billableStudents"
         FROM institutions i
         ORDER BY i.name
       `);
-      res.json({ institutions: q.rows });
+      const rate = billingInrPerStudent();
+      const institutions = q.rows.map((row) => ({
+        ...row,
+        monthlyDueInr: row.billableStudents * rate,
+        billingInrPerStudent: rate,
+      }));
+      const totalMonthlyDueInr = institutions.reduce((s, r) => s + r.monthlyDueInr, 0);
+      res.json({
+        institutions,
+        billingSummary: {
+          currency: 'INR',
+          amountPerStudentMonth: rate,
+          totalMonthlyDueInr,
+        },
+      });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Failed to load stats' });
@@ -60,29 +86,88 @@ function platformRouter(pool, jwtSecret) {
   });
 
   router.post('/institutions', requireMaiAdmin, async (req, res) => {
-    const { name, slug, logoUrl, adminUsername, adminPassword, adminFullName } = req.body;
+    const {
+      name,
+      slug,
+      logoUrl,
+      adminUsername,
+      adminPassword,
+      adminFullName,
+      estimatedStudents,
+      adminEmail: rawAdminEmail,
+      welcomeLoginUrl: rawWelcomeLoginUrl,
+    } = req.body;
     if (!name || !slug || !adminUsername || !adminPassword || !adminFullName) {
       return res.status(400).json({
         error: 'name, slug, adminUsername, adminPassword, and adminFullName are required',
       });
     }
+    let est = null;
+    if (estimatedStudents !== undefined && estimatedStudents !== null && estimatedStudents !== '') {
+      const n = Number(estimatedStudents);
+      if (!Number.isInteger(n) || n < 0 || n > 500000) {
+        return res.status(400).json({ error: 'estimatedStudents must be an integer from 0 to 500,000' });
+      }
+      est = n;
+    }
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       const inst = await client.query(
-        `INSERT INTO institutions (name, slug, logo_url) VALUES ($1, $2, $3) RETURNING id, name, slug, logo_url AS "logoUrl", is_active AS "isActive"`,
-        [name, String(slug).toLowerCase().trim(), logoUrl || null]
+        `INSERT INTO institutions (name, slug, logo_url, estimated_students)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, name, slug, logo_url AS "logoUrl", is_active AS "isActive", estimated_students AS "estimatedStudents"`,
+        [name, String(slug).toLowerCase().trim(), logoUrl || null, est]
       );
       const institutionId = inst.rows[0].id;
-      await client.query('SELECT * FROM register_user($1, $2, $3, $4, $5)', [
+      const reg = await client.query('SELECT * FROM register_user($1, $2, $3, $4, $5)', [
         adminUsername,
         adminPassword,
         'admin',
         adminFullName,
         institutionId,
       ]);
+      const newUser = reg.rows[0];
+      const adminEmail =
+        rawAdminEmail != null && String(rawAdminEmail).trim() !== ''
+          ? String(rawAdminEmail).trim().toLowerCase()
+          : '';
+      const welcomeLoginUrl =
+        rawWelcomeLoginUrl != null && String(rawWelcomeLoginUrl).trim() !== ''
+          ? String(rawWelcomeLoginUrl).trim()
+          : '';
+      if (adminEmail && isValidEmail(adminEmail)) {
+        await client.query('UPDATE profiles SET email = $1 WHERE user_id = $2', [
+          adminEmail,
+          newUser.id,
+        ]);
+      }
       await client.query('COMMIT');
-      res.status(201).json({ institution: inst.rows[0] });
+
+      let welcomeEmailSent = false;
+      if (
+        adminEmail &&
+        isValidEmail(adminEmail) &&
+        welcomeLoginUrl &&
+        isValidLoginUrl(welcomeLoginUrl)
+      ) {
+        try {
+          const er = await sendWelcomeAdminEmail({
+            to: adminEmail,
+            fullName: adminFullName,
+            instituteName: name,
+            loginUrl: welcomeLoginUrl,
+            username: String(adminUsername).trim().toLowerCase(),
+            plainPassword: String(adminPassword),
+          });
+          welcomeEmailSent = er.ok;
+          if (!er.ok) console.warn('[platform] Welcome email not sent:', er.error);
+        } catch (e) {
+          console.warn('[platform] Welcome email error:', e.message || e);
+        }
+      }
+
+      res.status(201).json({ institution: inst.rows[0], welcomeEmailSent });
     } catch (err) {
       await client.query('ROLLBACK');
       console.error(err);

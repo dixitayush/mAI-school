@@ -3,11 +3,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Building2, Copy, Loader2, Plus, Shield, Users } from "lucide-react";
+import { Building2, Copy, IndianRupee, Loader2, Plus, Shield, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { instituteLoginPageUrl } from "@/lib/tenant";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
+function formatInr(n) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
 
 export default function MaiAdminPage() {
   const router = useRouter();
@@ -18,12 +26,15 @@ export default function MaiAdminPage() {
     name: "",
     slug: "",
     logoUrl: "",
+    estimatedStudents: "",
     adminUsername: "",
     adminPassword: "",
     adminFullName: "",
+    adminEmail: "",
   });
   const [expandedId, setExpandedId] = useState(null);
   const [instUsers, setInstUsers] = useState({});
+  const [billingSummary, setBillingSummary] = useState(null);
 
   const loadStats = useCallback(async () => {
     const t = localStorage.getItem("token");
@@ -33,6 +44,7 @@ export default function MaiAdminPage() {
     if (!res.ok) throw new Error("Failed to load stats");
     const data = await res.json();
     setStats(data.institutions || []);
+    setBillingSummary(data.billingSummary || null);
   }, []);
 
   useEffect(() => {
@@ -117,6 +129,12 @@ export default function MaiAdminPage() {
     e.preventDefault();
     try {
       const t = localStorage.getItem("token");
+      const slugClean = form.slug.trim().toLowerCase();
+      const adminEmailTrim = form.adminEmail.trim().toLowerCase();
+      const welcomeLoginUrl =
+        adminEmailTrim && /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/.test(slugClean)
+          ? instituteLoginPageUrl(slugClean)
+          : undefined;
       const res = await fetch(`${apiBase}/api/platform/institutions`, {
         method: "POST",
         headers: {
@@ -127,21 +145,31 @@ export default function MaiAdminPage() {
           name: form.name,
           slug: form.slug,
           logoUrl: form.logoUrl || undefined,
+          estimatedStudents:
+            form.estimatedStudents === "" ? undefined : Number(form.estimatedStudents),
           adminUsername: form.adminUsername,
           adminPassword: form.adminPassword,
           adminFullName: form.adminFullName,
+          adminEmail: adminEmailTrim || undefined,
+          welcomeLoginUrl: welcomeLoginUrl || undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Create failed");
-      toast.success("Institute onboarded");
+      toast.success(
+        data.welcomeEmailSent
+          ? "Institute onboarded — welcome email sent"
+          : "Institute onboarded"
+      );
       setForm({
         name: "",
         slug: "",
         logoUrl: "",
+        estimatedStudents: "",
         adminUsername: "",
         adminPassword: "",
         adminFullName: "",
+        adminEmail: "",
       });
       await loadStats();
     } catch (e) {
@@ -156,9 +184,34 @@ export default function MaiAdminPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-zinc-900">MAI platform</h1>
         <p className="mt-2 text-zinc-600">
-          Onboard institutes, control access, and review usage across tenants.
+          Onboard institutes (manual or self-serve), control access, billing visibility, and usage
+          across tenants.
         </p>
       </div>
+
+      {billingSummary && stats.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col gap-3 rounded-3xl border border-primary-200/80 bg-gradient-to-br from-primary-50/90 to-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary-600 text-white shadow-md shadow-primary-600/20">
+              <IndianRupee className="h-5 w-5" aria-hidden />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-primary-900">Estimated monthly due (all institutes)</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-zinc-900">
+                {formatInr(billingSummary.totalMonthlyDueInr)}
+              </p>
+              <p className="mt-1 text-xs text-zinc-600">
+                {formatInr(billingSummary.amountPerStudentMonth)} per student / month · billable
+                headcount = max(enrolled students, declared estimate when set)
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       <motion.section
         initial={{ opacity: 0, y: 8 }}
@@ -202,6 +255,20 @@ export default function MaiAdminPage() {
               placeholder="https://…"
             />
           </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-zinc-700">
+              Declared student headcount (optional)
+            </span>
+            <input
+              type="number"
+              min={0}
+              max={500000}
+              value={form.estimatedStudents}
+              onChange={(e) => setForm((f) => ({ ...f, estimatedStudents: e.target.value }))}
+              className="h-11 w-full rounded-xl border border-zinc-200 px-3 font-mono text-sm"
+              placeholder="For billing floor vs enrolled count"
+            />
+          </label>
           <label className="block sm:col-span-2">
             <span className="mb-1 block text-sm font-medium text-zinc-700">
               First institute admin — full name
@@ -211,6 +278,18 @@ export default function MaiAdminPage() {
               value={form.adminFullName}
               onChange={(e) => setForm((f) => ({ ...f, adminFullName: e.target.value }))}
               className="h-11 w-full rounded-xl border border-zinc-200 px-3 text-sm"
+            />
+          </label>
+          <label className="block sm:col-span-2">
+            <span className="mb-1 block text-sm font-medium text-zinc-700">
+              Admin email (optional)
+            </span>
+            <input
+              type="email"
+              value={form.adminEmail}
+              onChange={(e) => setForm((f) => ({ ...f, adminEmail: e.target.value }))}
+              className="h-11 w-full rounded-xl border border-zinc-200 px-3 text-sm"
+              placeholder="Sends branded welcome email with sign-in link & credentials"
             />
           </label>
           <label className="block">
@@ -282,7 +361,17 @@ export default function MaiAdminPage() {
                     <div className="mt-2 flex flex-wrap gap-3 text-sm text-zinc-600">
                       <span className="inline-flex items-center gap-1">
                         <Users className="h-4 w-4" aria-hidden />
-                        {row.students} students
+                        {row.students} enrolled
+                      </span>
+                      {row.estimatedStudents != null && row.estimatedStudents > 0 && (
+                        <span className="text-zinc-500">
+                          declared {row.estimatedStudents.toLocaleString("en-IN")}
+                        </span>
+                      )}
+                      <span className="font-medium text-zinc-800">
+                        Billable {row.billableStudents?.toLocaleString("en-IN") ?? row.students} ×{" "}
+                        {formatInr(row.billingInrPerStudent ?? 30)} →{" "}
+                        {formatInr(row.monthlyDueInr ?? 0)}/mo
                       </span>
                       <span>{row.teachers} teachers</span>
                       <span>{row.admins} admins</span>

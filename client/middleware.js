@@ -1,13 +1,96 @@
 import { NextResponse } from "next/server";
+import { institutionSlugFromHostname } from "@/lib/tenant";
 
-const ROOT = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost").split(":")[0];
+/** Edge middleware can read NEXT_PUBLIC_* ; set this to your API (same as client). */
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5001";
 
-export function middleware(request) {
+function apexOrigin(request) {
+  const u = request.nextUrl.clone();
+  const h = u.hostname.toLowerCase();
+  const root = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost").split(":")[0];
+  if (h.endsWith(".localhost") && h !== "localhost") {
+    u.hostname = "localhost";
+    return u.origin;
+  }
+  if (h !== root && h !== `www.${root}` && h.endsWith(`.${root}`)) {
+    u.hostname = root;
+    return u.origin;
+  }
+  return u.origin;
+}
+
+function tenantNotFoundHtml(host, mainSiteHref) {
+  const safeHost = String(host).replace(/</g, "");
+  const safeHref = String(mainSiteHref).replace(/"/g, "&quot;");
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Institute not found — mAI-school</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: ui-sans-serif, system-ui, sans-serif;
+      background: radial-gradient(900px 480px at 50% -10%, rgba(111, 163, 113, 0.18), transparent 55%), #f4f4f5;
+      color: #18181b; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .card { max-width: 420px; background: #fff; border-radius: 1.25rem; padding: 2rem;
+      box-shadow: 0 20px 50px -12px rgba(0,0,0,.12); border: 1px solid #e4e4e7; text-align: center; }
+    h1 { margin: 0 0 0.5rem; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }
+    p { margin: 0 0 1.25rem; font-size: 0.9rem; line-height: 1.55; color: #52525b; }
+    code { font-size: 0.8rem; background: #f4f4f5; padding: 0.2rem 0.45rem; border-radius: 0.35rem; }
+    a { display: inline-block; margin-top: 0.5rem; font-size: 0.875rem; font-weight: 600; color: #4d7c78; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Institute not available</h1>
+    <p>This address (<code>${safeHost}</code>) is not linked to an active institute on mAI-school. It may not be onboarded yet or may have been removed.</p>
+    <a href="${safeHref}">Go to main site</a>
+  </div>
+</body>
+</html>`;
+}
+
+export async function middleware(request) {
   const host = (request.headers.get("host") || "").split(":")[0];
-  let slug = "";
-  if (host && host !== ROOT && host !== `www.${ROOT}` && host.endsWith(`.${ROOT}`)) {
-    const sub = host.slice(0, -(ROOT.length + 1));
-    if (sub && sub !== "www") slug = sub.toLowerCase();
+  const slug = institutionSlugFromHostname(host);
+
+  if (slug) {
+    let res;
+    try {
+      res = await fetch(
+        `${API_BASE}/api/public/institution/${encodeURIComponent(slug)}`,
+        {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        }
+      );
+    } catch {
+      return new NextResponse(
+        `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Service unavailable</title></head><body style="font-family:sans-serif;padding:2rem;text-align:center"><h1>Unable to verify institute</h1><p>The app could not reach the server. Try again shortly.</p></body></html>`,
+        {
+          status: 503,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }
+      );
+    }
+
+    const mainHref = apexOrigin(request);
+
+    if (res.status === 404 || res.status === 403) {
+      return new NextResponse(tenantNotFoundHtml(host, mainHref), {
+        status: 404,
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    }
+
+    if (!res.ok) {
+      return new NextResponse(tenantNotFoundHtml(host, mainHref), {
+        status: 404,
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    }
   }
 
   const requestHeaders = new Headers(request.headers);
@@ -19,5 +102,7 @@ export function middleware(request) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: [
+    "/((?!_next/|favicon.ico|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
