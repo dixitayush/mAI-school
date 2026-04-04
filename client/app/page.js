@@ -10,6 +10,7 @@ import {
   Check,
   ChevronRight,
   ClipboardCheck,
+  Globe,
   GraduationCap,
   Headphones,
   LineChart,
@@ -57,6 +58,12 @@ const productFeatures = [
       "Share updates with the right people at the right time, tied to your school—not lost in group chats.",
   },
   {
+    icon: Globe,
+    title: "Your institute’s own sign-in",
+    description:
+      "Each school gets a dedicated subdomain and optional branding on the login page. Staff and students use your link; MAI platform operations stay on the main site.",
+  },
+  {
     icon: Users,
     title: "Spaces for every role",
     description:
@@ -98,13 +105,13 @@ const onboardingSteps = [
   {
     step: 3,
     icon: UserPlus,
-    title: "We create your admin",
+    title: "We provision your tenant",
     description:
-      "Our technical team provisions your school on the platform and creates your primary administrator account—ready for you to log in.",
+      "We create your institute on the platform—its own subdomain, isolated data, and your first institute admin. You get a shareable login URL for your school’s team.",
     bullets: [
-      "Your institute space is created and secured on our side",
-      "Primary admin credentials are issued to your designated lead",
-      "We sanity-check access before your first login",
+      "Dedicated subdomain and optional logo on the institute login page",
+      "Primary institute admin credentials go to your designated lead",
+      "MAI operations use the main platform; your campus uses your school link only",
     ],
   },
   {
@@ -112,11 +119,11 @@ const onboardingSteps = [
     icon: GraduationCap,
     title: "You roll out to campus",
     description:
-      "Your admin invites staff, configures classes and fees, and your institute is live—supported by us at go-live.",
+      "Your admin signs in at your institute’s URL, invites staff, configures classes and fees, and your tenant is live—supported by us at go-live.",
     bullets: [
+      "Everyone signs in on your subdomain—not the main marketing or platform URL",
       "Invite teachers, principals, and staff with the right roles",
-      "Configure classes, fees, and announcements at your pace",
-      "Hands-on support from us through go-live and early weeks",
+      "Configure classes, fees, and announcements at your pace with hands-on support",
     ],
   },
 ];
@@ -428,8 +435,9 @@ export default function Home() {
             <Link
               href="/login"
               className="rounded-full px-3 py-2 text-sm font-semibold text-zinc-600 transition hover:text-zinc-900 sm:px-4"
+              title="MAI platform administrators only"
             >
-              Sign in
+              Platform sign in
             </Link>
             <a
               href="mailto:?subject=mAI-school%20%E2%80%94%20Talk%20to%20sales"
@@ -456,7 +464,7 @@ export default function Home() {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-400 opacity-60" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-primary-500" />
               </span>
-              Built for schools & institutes
+              Multi-tenant · One platform, many schools
             </motion.div>
             <motion.h1
               initial={{ opacity: 0, y: 14 }}
@@ -476,8 +484,8 @@ export default function Home() {
               className="mt-6 max-w-xl text-lg leading-relaxed text-zinc-600"
             >
               mAI-school brings attendance, fees, exams, and day-to-day communication
-              together—so your team spends less time on tools and more time with students
-              and families.
+              together. Each institute gets its own subdomain, branded login, and isolated
+              data—while MAI runs onboarding and operations from the main platform.
             </motion.p>
             <motion.div
               initial={{ opacity: 0, y: 14 }}
@@ -495,15 +503,20 @@ export default function Home() {
               <Link
                 href="/login"
                 className="inline-flex h-12 items-center justify-center rounded-full border border-zinc-200 bg-white px-7 text-base font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"
+                title="For MAI platform administrators only"
               >
-                I already have access
+                Platform admin sign in
               </Link>
             </motion.div>
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-zinc-500">
+              School staff and students: use the sign-in link your institute shared with you
+              (your school’s subdomain)—not this page.
+            </p>
             <motion.ul
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2, duration: 0.5 }}
-              className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-zinc-500"
+              className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-zinc-500"
             >
               <li className="flex items-center gap-2">
                 <Headphones className="h-4 w-4 text-primary-600" aria-hidden />
@@ -512,6 +525,10 @@ export default function Home() {
               <li className="flex items-center gap-2">
                 <CalendarDays className="h-4 w-4 text-primary-600" aria-hidden />
                 Go-live with our technical team
+              </li>
+              <li className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-primary-600" aria-hidden />
+                Dedicated URL and tenant isolation
               </li>
             </motion.ul>
           </div>
@@ -530,7 +547,11 @@ export default function Home() {
                   <span className="h-2.5 w-2.5 rounded-full bg-amber-400/90" />
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/90" />
                 </div>
-                <p className="text-xs font-medium text-zinc-500">Your school dashboard</p>
+                <p className="truncate text-xs font-medium text-zinc-500">
+                  <span className="font-mono text-zinc-400">riverside</span>
+                  <span className="text-zinc-300"> · </span>
+                  institute dashboard
+                </p>
                 <Bell className="h-4 w-4 text-zinc-400" aria-hidden />
               </div>
               <div className="space-y-5 p-6 sm:p-7">
@@ -577,7 +598,7 @@ export default function Home() {
                   </div>
                 </div>
                 <p className="text-center text-xs text-zinc-400">
-                  Illustrative preview — your data and branding are yours alone
+                  Illustrative preview — each institute’s data and branding stay separate
                 </p>
               </div>
             </div>
@@ -599,8 +620,8 @@ export default function Home() {
               From first conversation to your whole campus
             </h2>
             <p className="mt-4 text-lg text-zinc-600">
-              Today, every institute starts with our sales and technical teams—so setup is
-              smooth and your first admin is ready when you are.
+              After we align on terms, we provision your tenant—subdomain, login page, and
+              first institute admin—so your team can roll out from the right URL.
             </p>
           </motion.div>
 
@@ -675,8 +696,8 @@ export default function Home() {
               },
               {
                 icon: Users,
-                title: "Your data, your school",
-                text: "Each institute operates in its own space. What happens in your school stays structured for your team.",
+                title: "Your data, your subdomain",
+                text: "Tenants are isolated end to end—your attendance, fees, and users don’t mix with other institutes. Sign-in is on your school’s host, not a shared generic portal.",
               },
               {
                 icon: Headphones,
@@ -721,8 +742,8 @@ export default function Home() {
               <h3 className="mt-2 text-xl font-bold text-zinc-900">Sales-led onboarding</h3>
               <p className="mt-3 flex-1 text-sm leading-relaxed text-zinc-600">
                 Connect with our sales team, agree commercial terms, and we provision your
-                school—including your first admin account—so you can roll out to staff and
-                students with confidence.
+                institute: subdomain, branded login, first admin, and a shareable URL for
+                your campus—then you roll out staff and students with confidence.
               </p>
               <a
                 href="mailto:?subject=mAI-school%20%E2%80%94%20Pricing%20discussion"
@@ -778,8 +799,8 @@ export default function Home() {
               Bring mAI-school to your institute
             </h2>
             <p className="mx-auto mt-4 max-w-lg text-zinc-400">
-              Start with a conversation—we handle provisioning and your admin account so
-              your team can focus on students.
+              Start with a conversation—we provision your tenant and institute admin so your
+              team can sign in on your subdomain and focus on students.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
               <a
@@ -792,10 +813,15 @@ export default function Home() {
               <Link
                 href="/login"
                 className="inline-flex h-12 w-full items-center justify-center rounded-full border border-zinc-600 bg-transparent px-8 text-base font-semibold text-white transition hover:bg-white/10 sm:w-auto"
+                title="MAI platform administrators only"
               >
-                Sign in
+                Platform admin sign in
               </Link>
             </div>
+            <p className="mx-auto mt-4 max-w-md text-center text-xs text-zinc-500">
+              Institute staff and students: use your school’s sign-in link—not the platform
+              button above.
+            </p>
           </motion.div>
         </div>
       </section>

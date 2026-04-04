@@ -15,8 +15,13 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const menuItems = {
+  mai_admin: [
+    { name: "Platform", href: "/mai-admin", icon: LayoutDashboard },
+    { name: "Profile", href: "/profile", icon: User },
+  ],
   admin: [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Students", href: "/admin/users/students", icon: GraduationCap },
@@ -60,6 +65,16 @@ export default function Sidebar({
   const router = useRouter();
   const items = menuItems[userRole] || menuItems.admin;
   const layoutId = `sidebar-active-${userRole}`;
+  const [institution, setInstitution] = useState(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("institution");
+      setInstitution(raw && raw !== "null" ? JSON.parse(raw) : null);
+    } catch {
+      setInstitution(null);
+    }
+  }, []);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -76,17 +91,54 @@ export default function Sidebar({
     >
       <div className="border-b border-zinc-100 px-5 pb-4 pt-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 shadow-md shadow-primary-500/25 ring-4 ring-white">
-            <School className="h-6 w-6 text-white" aria-hidden />
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-lg font-bold tracking-tight text-zinc-900">
-              mAI-school
-            </p>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-              Workspace
-            </p>
-          </div>
+          {userRole === "mai_admin" ? (
+            <>
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-zinc-700 to-zinc-900 shadow-md ring-4 ring-white">
+                <School className="h-6 w-6 text-white" aria-hidden />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-lg font-bold tracking-tight text-zinc-900">MAI Platform</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Technical admin
+                </p>
+              </div>
+            </>
+          ) : institution ? (
+            <>
+              {institution.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={institution.logo_url}
+                  alt=""
+                  className="h-11 w-11 shrink-0 rounded-2xl object-cover ring-4 ring-white shadow-md"
+                />
+              ) : (
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 shadow-md shadow-primary-500/25 ring-4 ring-white">
+                  <School className="h-6 w-6 text-white" aria-hidden />
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="truncate text-lg font-bold tracking-tight text-zinc-900">
+                  {institution.name}
+                </p>
+                <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                  mAI-school · {institution.slug}
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 shadow-md shadow-primary-500/25 ring-4 ring-white">
+                <School className="h-6 w-6 text-white" aria-hidden />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-lg font-bold tracking-tight text-zinc-900">mAI-school</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Workspace
+                </p>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

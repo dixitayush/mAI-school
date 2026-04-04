@@ -5,6 +5,7 @@ import { useQuery, useMutation, gql } from '@apollo/client';
 import DataTable from '@/components/DataTable';
 import AnnouncementModal from '@/components/AnnouncementModal';
 import { toast } from 'react-hot-toast';
+import { getInstitutionIdFromStorage } from '@/lib/tenant';
 import { Megaphone, Eye, EyeOff, Trash2, Edit, ToggleLeft, ToggleRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -32,6 +33,7 @@ const CREATE_ANNOUNCEMENT = gql`
   mutation CreateAnnouncement(
     $title: String!
     $content: String!
+    $institutionId: UUID!
     $priority: String
     $targetAudience: String
     $createdBy: UUID
@@ -39,6 +41,7 @@ const CREATE_ANNOUNCEMENT = gql`
     createAnnouncement(input: {
       pTitle: $title
       pContent: $content
+      pInstitutionId: $institutionId
       pPriority: $priority
       pTargetAudience: $targetAudience
       pCreatedBy: $createdBy
@@ -87,7 +90,7 @@ const UPDATE_ANNOUNCEMENT = gql`
 
 const DELETE_ANNOUNCEMENT = gql`
   mutation DeleteAnnouncement($id: UUID!) {
-    deleteAnnouncement(input: { pId: $id }) {
+    deleteAnnouncement(input: { id: $id }) {
       uuid
     }
   }
@@ -252,10 +255,16 @@ export default function AnnouncementsPage() {
                 });
                 toast.success('Announcement updated!');
             } else {
+                const institutionId = getInstitutionIdFromStorage();
+                if (!institutionId) {
+                    toast.error('Missing institute context. Sign in again from your institute subdomain.');
+                    return;
+                }
                 await createAnnouncement({
                     variables: {
                         title: formData.title,
                         content: formData.content,
+                        institutionId,
                         priority: formData.priority,
                         targetAudience: formData.targetAudience,
                         createdBy: userId,

@@ -10,19 +10,25 @@ const pool = new Pool({
 async function seedData() {
     console.log('Seeding data...');
 
-    // 1. Create Admin
-    // schema.sql might create one at the end, but let's ensure we have one or specific ones we want.
-    // The schema.sql ends with creating 'admin' user. So we might skip or overwrite.
-    // Let's create extra users.
+    const instRes = await pool.query("SELECT id FROM institutions WHERE slug = 'demo' LIMIT 1");
+    const demoInstitutionId = instRes.rows[0]?.id;
+    if (!demoInstitutionId) {
+        throw new Error('Expected demo institution (slug demo) after schema seed');
+    }
 
     // 2. Create Teachers
     console.log('Seeding Teachers...');
-    // register_teacher(username, password, full_name, email, subject, qualification)
-    const t1Sub = await pool.query("SELECT * FROM register_teacher('teacher1', 'teacher123', 'John Math', 'john@school.com', 'Mathematics', 'M.Sc. Math')");
+    const t1Sub = await pool.query(
+        "SELECT * FROM register_teacher('teacher1', 'teacher123', 'John Math', $1, 'john@school.com', 'Mathematics', 'M.Sc. Math')",
+        [demoInstitutionId]
+    );
     const teacher1 = t1Sub.rows[0]; // teachers record
     const teacher1UserId = teacher1.user_id;
 
-    const t2Sub = await pool.query("SELECT * FROM register_teacher('teacher2', 'teacher123', 'Jane Science', 'jane@school.com', 'Science', 'M.Sc. Physics')");
+    const t2Sub = await pool.query(
+        "SELECT * FROM register_teacher('teacher2', 'teacher123', 'Jane Science', $1, 'jane@school.com', 'Science', 'M.Sc. Physics')",
+        [demoInstitutionId]
+    );
     const teacher2 = t2Sub.rows[0];
     const teacher2UserId = teacher2.user_id;
 
@@ -33,13 +39,25 @@ async function seedData() {
     // schema.sql inserts 10-A, 10-B etc. with NULL teacher_id.
     // Let's update them or insert new ones.
     // Let's assign teachers to existing classes.
-    await pool.query("UPDATE classes SET teacher_id = $1 WHERE name = '10-A'", [teacher1UserId]);
-    await pool.query("UPDATE classes SET teacher_id = $1 WHERE name = '11-A'", [teacher2UserId]);
+    await pool.query(
+        "UPDATE classes SET teacher_id = $1 WHERE name = '10-A' AND institution_id = $2",
+        [teacher1UserId, demoInstitutionId]
+    );
+    await pool.query(
+        "UPDATE classes SET teacher_id = $1 WHERE name = '11-A' AND institution_id = $2",
+        [teacher2UserId, demoInstitutionId]
+    );
 
-    const class10A = await pool.query("SELECT id FROM classes WHERE name = '10-A'");
+    const class10A = await pool.query(
+        "SELECT id FROM classes WHERE name = '10-A' AND institution_id = $1",
+        [demoInstitutionId]
+    );
     const class10AId = class10A.rows[0].id;
 
-    const class11A = await pool.query("SELECT id FROM classes WHERE name = '11-A'");
+    const class11A = await pool.query(
+        "SELECT id FROM classes WHERE name = '11-A' AND institution_id = $1",
+        [demoInstitutionId]
+    );
     const class11AId = class11A.rows[0].id;
 
     // 4. Create Students
@@ -98,23 +116,23 @@ async function seedData() {
     // 8. Meetings (Principal with Student/Parent)
     console.log('Seeding Meetings...');
     // Get Admin ID as host (assuming Admin acts as Principal for now or we create a Principal user)
-    const adminUser = await pool.query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+    const adminUser = await pool.query("SELECT id FROM users WHERE role = 'admin' AND institution_id = $1 LIMIT 1", [demoInstitutionId]);
     const adminId = adminUser.rows[0].id;
 
     await pool.query(`
-        INSERT INTO meetings (host_id, guest_id, start_time, end_time, status, notes) VALUES
-        ($1, $2, CURRENT_TIMESTAMP + INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '1 day 30 minutes', 'scheduled', 'Discuss academic progress'),
-        ($1, $3, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days 30 minutes', 'completed', 'Disciplinary meeting')
-    `, [adminId, student1.user_id, student2.user_id]);
+        INSERT INTO meetings (institution_id, host_id, guest_id, start_time, end_time, status, notes) VALUES
+        ($1, $2, $3, CURRENT_TIMESTAMP + INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '1 day 30 minutes', 'scheduled', 'Discuss academic progress'),
+        ($1, $2, $4, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days 30 minutes', 'completed', 'Disciplinary meeting')
+    `, [demoInstitutionId, adminId, student1.user_id, student2.user_id]);
 
     // 9. Announcements
     console.log('Seeding Announcements...');
     await pool.query(`
-        INSERT INTO announcements (title, content, priority, target_audience, created_by, is_active) VALUES
-        ('Annual Sports Day', 'The annual sports day will be held on March 25th. All students are expected to participate in at least one event. Registration forms are available at the front office.', 'high', 'all', $1, true),
-        ('Mid-Term Exam Schedule Released', 'Mid-term examinations will begin from April 1st. Please check your class notice boards for detailed schedules and syllabus coverage.', 'urgent', 'students', $1, true),
-        ('Staff Meeting - Friday', 'Mandatory staff meeting this Friday at 3:00 PM in the conference room. Agenda: Curriculum review and upcoming events planning.', 'normal', 'teachers', $1, true)
-    `, [adminId]);
+        INSERT INTO announcements (institution_id, title, content, priority, target_audience, created_by, is_active) VALUES
+        ($1, 'Annual Sports Day', 'The annual sports day will be held on March 25th. All students are expected to participate in at least one event. Registration forms are available at the front office.', 'high', 'all', $2, true),
+        ($1, 'Mid-Term Exam Schedule Released', 'Mid-term examinations will begin from April 1st. Please check your class notice boards for detailed schedules and syllabus coverage.', 'urgent', 'students', $2, true),
+        ($1, 'Staff Meeting - Friday', 'Mandatory staff meeting this Friday at 3:00 PM in the conference room. Agenda: Curriculum review and upcoming events planning.', 'normal', 'teachers', $2, true)
+    `, [demoInstitutionId, adminId]);
 
     console.log('Data Seeding Complete.');
 }
@@ -133,6 +151,16 @@ async function initDb() {
 
         // 2. Seed Data
         await seedData();
+
+        // 3. RLS + mai_graphql (PostGraphile connects as this role)
+        const rlsPath = path.join(__dirname, 'rls_setup.sql');
+        const rlsSql = fs.readFileSync(rlsPath, 'utf8');
+        console.log('Applying rls_setup.sql (RLS + mai_graphql)...');
+        await pool.query(rlsSql);
+        const gqlPwd = process.env.MAI_GRAPHQL_DB_PASSWORD || 'mai_graphql_dev_change_me';
+        const escaped = gqlPwd.replace(/'/g, "''");
+        await pool.query(`ALTER ROLE mai_graphql WITH LOGIN PASSWORD '${escaped}'`);
+        console.log('RLS applied. Set MAI_GRAPHQL_DB_PASSWORD in production.');
 
         console.log('Database initialization complete.');
     } catch (err) {

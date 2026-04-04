@@ -6,6 +6,7 @@ import { ApolloWrapper } from '@/components/ApolloWrapper';
 import DataTable from '@/components/DataTable';
 import ClassModal from '@/components/ClassModal'; // We need to create this
 import { toast } from 'react-hot-toast';
+import { getInstitutionIdFromStorage } from '@/lib/tenant';
 
 // 1. GraphQL Queries & Mutations
 const GET_CLASSES_AND_TEACHERS = gql`
@@ -36,8 +37,12 @@ const GET_CLASSES_AND_TEACHERS = gql`
 `;
 
 const CREATE_CLASS = gql`
-  mutation CreateClass($name: String!, $gradeLevel: Int!, $teacherId: UUID) {
-    createClass(input: { name: $name, gradeLevel: $gradeLevel, teacherId: $teacherId }) {
+  mutation CreateClass($name: String!, $gradeLevel: Int!, $institutionId: UUID!, $teacherId: UUID) {
+    createClass(
+      input: {
+        class: { name: $name, gradeLevel: $gradeLevel, institutionId: $institutionId, teacherId: $teacherId }
+      }
+    ) {
       class {
         id
         name
@@ -50,7 +55,7 @@ const CREATE_CLASS = gql`
 
 const UPDATE_CLASS = gql`
   mutation UpdateClass($id: UUID!, $name: String!, $gradeLevel: Int!, $teacherId: UUID) {
-    updateClass(input: { id: $id, name: $name, gradeLevel: $gradeLevel, teacherId: $teacherId }) {
+    updateClassById(input: { id: $id, classPatch: { name: $name, gradeLevel: $gradeLevel, teacherId: $teacherId } }) {
       class {
         id
         name
@@ -64,7 +69,7 @@ const UPDATE_CLASS = gql`
 const DELETE_CLASS = gql`
   mutation DeleteClass($id: UUID!) {
     deleteClass(input: { id: $id }) {
-      clientMutationId
+      uuid
     }
   }
 `;
@@ -133,11 +138,16 @@ function ClassesContent() {
         });
         toast.success('Class updated!');
       } else {
-        // Create
+        const institutionId = getInstitutionIdFromStorage();
+        if (!institutionId) {
+          toast.error('Missing institute context. Sign in again from your institute subdomain.');
+          return;
+        }
         await createClass({
           variables: {
             name: combinedName,
             gradeLevel: parseInt(formData.gradeLevel),
+            institutionId,
             teacherId: formData.teacherId || null
           }
         });

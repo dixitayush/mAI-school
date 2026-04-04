@@ -8,6 +8,11 @@ import Sidebar from "@/components/Sidebar";
 import NotificationListener from "@/components/NotificationListener";
 
 const ROLE_META = {
+  mai_admin: {
+    searchPlaceholder: "Search institutions, users…",
+    subtitle: "MAI platform",
+    ring: "from-slate-600 to-zinc-800",
+  },
   admin: {
     searchPlaceholder: "Search students, classes, records…",
     subtitle: "Administrator",
@@ -31,6 +36,7 @@ const ROLE_META = {
 };
 
 const DISPLAY_FALLBACK = {
+  mai_admin: "MAI Admin",
   admin: "Admin",
   teacher: "Teacher",
   principal: "Principal",
@@ -40,6 +46,7 @@ const DISPLAY_FALLBACK = {
 export default function DashboardLayout({ children, userRole = "admin" }) {
   const meta = ROLE_META[userRole] || ROLE_META.admin;
   const [displayName, setDisplayName] = useState("");
+  const [institution, setInstitution] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
@@ -56,6 +63,16 @@ export default function DashboardLayout({ children, userRole = "admin" }) {
       /* ignore */
     }
     setDisplayName(DISPLAY_FALLBACK[userRole] || "User");
+    try {
+      const instRaw = localStorage.getItem("institution");
+      if (instRaw && instRaw !== "null") {
+        setInstitution(JSON.parse(instRaw));
+      } else {
+        setInstitution(null);
+      }
+    } catch {
+      setInstitution(null);
+    }
   }, [userRole]);
 
   useEffect(() => {
@@ -120,6 +137,26 @@ export default function DashboardLayout({ children, userRole = "admin" }) {
             </button>
 
             <div className="flex min-w-0 flex-1 items-center gap-3">
+              {institution && userRole !== "mai_admin" && (
+                <div className="hidden min-w-0 shrink-0 items-center gap-2 rounded-2xl border border-zinc-200/90 bg-white/90 px-3 py-1.5 sm:flex">
+                  {institution.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={institution.logo_url}
+                      alt=""
+                      className="h-8 w-8 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-100 text-xs font-bold text-primary-800">
+                      {institution.name?.slice(0, 1) || "I"}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-zinc-900">{institution.name}</p>
+                    <p className="truncate text-[10px] text-zinc-500">{institution.slug}</p>
+                  </div>
+                </div>
+              )}
               <div className="relative hidden min-w-0 flex-1 md:block md:max-w-md lg:max-w-xl">
                 <Search
                   className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"

@@ -6,6 +6,7 @@ import { ApolloWrapper } from '@/components/ApolloWrapper';
 import DataTable from '@/components/DataTable';
 import TeacherModal from '@/components/TeacherModal';
 import { toast } from 'react-hot-toast';
+import { getInstitutionIdFromStorage } from '@/lib/tenant';
 
 const GET_TEACHERS = gql`
   query GetTeachers {
@@ -28,12 +29,13 @@ const GET_TEACHERS = gql`
 `;
 
 const CREATE_TEACHER = gql`
-  mutation CreateTeacher($fullName: String!, $username: String!, $email: String!, $password: String!, $subjectSpecialization: String!, $qualification: String!) {
+  mutation CreateTeacher($fullName: String!, $username: String!, $email: String!, $password: String!, $pInstitutionId: UUID!, $subjectSpecialization: String!, $qualification: String!) {
     registerTeacher(input: {
       fullName: $fullName
       username: $username
       email: $email
       password: $password
+      pInstitutionId: $pInstitutionId
       subjectSpecialization: $subjectSpecialization
       qualification: $qualification
     }) {
@@ -156,12 +158,18 @@ function TeachersContent() {
         setModalOpen(false);
         refetch();
       } else {
+        const institutionId = getInstitutionIdFromStorage();
+        if (!institutionId) {
+          toast.error('Missing institute context. Sign in again from your institute subdomain.');
+          return;
+        }
         await createTeacher({
           variables: {
             fullName: formData.fullName,
             username: formData.username,
             email: formData.email,
             password: formData.password,
+            pInstitutionId: institutionId,
             subjectSpecialization: formData.subjectSpecialization,
             qualification: formData.qualification
           }
