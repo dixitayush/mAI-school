@@ -9,6 +9,7 @@ import DataTable from '@/components/DataTable';
 import ExamModal from '@/components/ExamModal';
 import { FileText, Award, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { resolveSignInPath } from '@/lib/tenant';
 
 const GET_EXAMS_AND_CLASSES = gql`
   query GetExamsAndClasses {
@@ -71,7 +72,7 @@ function ExamsContent() {
       const role = localStorage.getItem('role');
 
       if (!storedUser || !role) {
-          router.push('/login');
+          router.push(resolveSignInPath());
       } else {
           setUserRole(role);
       }

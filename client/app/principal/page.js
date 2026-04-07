@@ -11,6 +11,8 @@ import {
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { resolveSignInPath } from '@/lib/tenant';
+import { useTenantPaths } from '@/lib/useTenantPaths';
 
 const GET_PRINCIPAL_DASHBOARD = gql`
   query GetPrincipalDashboard {
@@ -40,6 +42,7 @@ const GET_PRINCIPAL_DASHBOARD = gql`
 
 function PrincipalDashboardContent() {
     const router = useRouter();
+    const { to } = useTenantPaths();
     const [user, setUser] = useState(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [report, setReport] = useState(null);
@@ -50,7 +53,7 @@ function PrincipalDashboardContent() {
         const role = localStorage.getItem('role');
 
         if (!storedUser || role !== 'principal') {
-            router.push('/login');
+            router.push(resolveSignInPath());
         } else {
             setUser(JSON.parse(storedUser));
         }
@@ -148,22 +151,24 @@ function PrincipalDashboardContent() {
             className="space-y-8"
         >
             {/* Welcome Section */}
-            <div className="flex justify-between items-end">
-                <div>
-                    <h1 className="text-3xl font-bold text-zinc-900 tracking-tight">Principal's Office</h1>
-                    <p className="text-zinc-500 mt-1">School-wide overview and analytics for {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="min-w-0">
+                    <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">Principal&apos;s Office</h1>
+                    <p className="mt-1 text-sm text-zinc-500 sm:text-base">School-wide overview and analytics for {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
                 </div>
-                <div className="flex space-x-3">
+                <div className="flex flex-wrap gap-2 sm:gap-3">
                     <button
-                        onClick={() => router.push('/principal/calendar')}
-                        className="bg-white border border-zinc-200 text-zinc-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-50 transition-colors"
+                        type="button"
+                        onClick={() => router.push(to('/principal/calendar'))}
+                        className="min-h-11 rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
                     >
                         View Calendar
                     </button>
                     <button
+                        type="button"
                         onClick={() => handleGenerateReport('monthly')}
                         disabled={isGenerating}
-                        className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm disabled:opacity-50"
+                        className="min-h-11 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700 disabled:opacity-50"
                     >
                         {isGenerating ? <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> : <Download className="w-4 h-4 inline mr-2" />}
                         Generate Report
@@ -172,7 +177,7 @@ function PrincipalDashboardContent() {
             </div>
 
             {/* Executive Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
                 <motion.div variants={itemVariants} className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200 shadow-sm">
                     <div className="flex items-center justify-between mb-2">
                         <div className="p-2 bg-blue-200 rounded-lg">
@@ -232,7 +237,7 @@ function PrincipalDashboardContent() {
                             <p className="text-sm text-zinc-500">Attendance rate by class</p>
                         </div>
                     </div>
-                    <div className="h-[300px] w-full">
+                    <div className="h-[min(300px,55vw)] min-h-[220px] w-full min-w-0 sm:h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={classPerformanceData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
@@ -316,7 +321,7 @@ function PrincipalDashboardContent() {
                     </div>
                     <div className="space-y-3">
                         <div
-                            onClick={() => router.push('/principal/calendar')}
+                            onClick={() => router.push(to('/principal/calendar'))}
                             className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
                         >
                             <div className="flex items-center space-x-3">
@@ -342,7 +347,7 @@ function PrincipalDashboardContent() {
                             <ArrowRight className="w-4 h-4 text-zinc-400" />
                         </div>
                         <div
-                            onClick={() => router.push('/admin/users/teachers')}
+                            onClick={() => router.push(to('/admin/users/teachers'))}
                             className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
                         >
                             <div className="flex items-center space-x-3">

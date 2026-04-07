@@ -11,6 +11,8 @@ import {
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import AnnouncementCard from '@/components/AnnouncementCard';
+import { resolveSignInPath } from '@/lib/tenant';
+import { useTenantPaths } from '@/lib/useTenantPaths';
 
 const GET_TEACHER_DASHBOARD = gql`
   query GetTeacherDashboard($teacherId: UUID!) {
@@ -41,6 +43,7 @@ const GET_TEACHER_DASHBOARD = gql`
 
 function TeacherDashboardContent() {
     const router = useRouter();
+    const { to } = useTenantPaths();
     const [user, setUser] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
     const [aiResult, setAiResult] = useState(null);
@@ -50,7 +53,7 @@ function TeacherDashboardContent() {
         const role = localStorage.getItem('role');
 
         if (!storedUser || role !== 'teacher') {
-            router.push('/login');
+            router.push(resolveSignInPath());
         } else {
             setUser(JSON.parse(storedUser));
         }
@@ -205,15 +208,18 @@ function TeacherDashboardContent() {
             className="space-y-8"
         >
             {/* Welcome Section */}
-            <div className="flex justify-between items-end">
-                <div>
-                    <h1 className="text-3xl font-bold text-zinc-900 tracking-tight">Welcome Back, {user.full_name}</h1>
-                    <p className="text-zinc-500 mt-1">Here's what's happening with your classes today</p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="min-w-0">
+                    <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
+                        <span className="break-words">Welcome back, {user.full_name}</span>
+                    </h1>
+                    <p className="mt-1 text-sm text-zinc-500 sm:text-base">Here&apos;s what&apos;s happening with your classes today</p>
                 </div>
-                <div className="flex space-x-3">
+                <div className="flex shrink-0 flex-wrap gap-2 sm:gap-3">
                     <button
-                        onClick={() => router.push('/teacher/attendance')}
-                        className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
+                        type="button"
+                        onClick={() => router.push(to('/teacher/attendance'))}
+                        className="min-h-11 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700"
                     >
                         Mark Attendance
                     </button>
@@ -221,8 +227,8 @@ function TeacherDashboardContent() {
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <motion.div variants={itemVariants} className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200 shadow-sm">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4">
+                <motion.div variants={itemVariants} className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-4 shadow-sm sm:p-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-blue-600 text-sm font-medium mb-1">My Classes</p>
@@ -234,7 +240,7 @@ function TeacherDashboardContent() {
                     </div>
                 </motion.div>
 
-                <motion.div variants={itemVariants} className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200 shadow-sm">
+                <motion.div variants={itemVariants} className="rounded-xl border border-green-200 bg-gradient-to-br from-green-50 to-green-100 p-4 shadow-sm sm:p-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-green-600 text-sm font-medium mb-1">My Students</p>
@@ -246,7 +252,7 @@ function TeacherDashboardContent() {
                     </div>
                 </motion.div>
 
-                <motion.div variants={itemVariants} className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200 shadow-sm">
+                <motion.div variants={itemVariants} className="rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-4 shadow-sm sm:p-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-purple-600 text-sm font-medium mb-1">Scheduled</p>
@@ -258,7 +264,7 @@ function TeacherDashboardContent() {
                     </div>
                 </motion.div>
 
-                <motion.div variants={itemVariants} className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200 shadow-sm">
+                <motion.div variants={itemVariants} className="rounded-xl border border-orange-200 bg-gradient-to-br from-orange-50 to-orange-100 p-4 shadow-sm sm:p-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-orange-600 text-sm font-medium mb-1">Upcoming Exams</p>
@@ -272,9 +278,9 @@ function TeacherDashboardContent() {
             </div>
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 {/* Today's Schedule */}
-                <motion.div variants={itemVariants} className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-zinc-100">
+                <motion.div variants={itemVariants} className="rounded-xl border border-zinc-100 bg-white p-4 shadow-sm sm:p-6 lg:col-span-2">
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center space-x-3">
                             <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
@@ -288,15 +294,15 @@ function TeacherDashboardContent() {
                     </div>
                     <div className="space-y-3">
                         {todaySchedule.length > 0 ? todaySchedule.map((item, index) => (
-                            <div key={index} className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg border border-zinc-100 hover:border-indigo-100 transition-colors">
-                                <div className="flex items-center space-x-4">
-                                    <div className={`w-1 h-12 rounded-full ${item.status === 'completed' ? 'bg-green-500' : item.status === 'today' ? 'bg-amber-500' : 'bg-blue-500'}`} />
-                                    <div>
-                                        <p className="font-bold text-zinc-800">{item.class}</p>
+                            <div key={index} className="flex flex-col gap-3 rounded-lg border border-zinc-100 bg-zinc-50 p-3 transition-colors hover:border-indigo-100 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                                <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                                    <div className={`h-10 w-1 shrink-0 rounded-full sm:h-12 ${item.status === 'completed' ? 'bg-green-500' : item.status === 'today' ? 'bg-amber-500' : 'bg-blue-500'}`} />
+                                    <div className="min-w-0">
+                                        <p className="break-words font-bold text-zinc-800">{item.class}</p>
                                         <p className="text-sm text-zinc-500">{item.time}</p>
                                     </div>
                                 </div>
-                                <span className={`px-3 py-1 ${
+                                <span className={`shrink-0 self-start px-3 py-1 sm:self-center ${
                                     item.status === 'completed' ? 'bg-green-100 text-green-700' :
                                     item.status === 'today' ? 'bg-amber-100 text-amber-700' :
                                     'bg-blue-100 text-blue-700'
@@ -314,7 +320,7 @@ function TeacherDashboardContent() {
                 </motion.div>
 
                 {/* AI Auto-Attendance */}
-                <motion.div variants={itemVariants} className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100">
+                <motion.div variants={itemVariants} className="rounded-xl border border-zinc-100 bg-white p-4 shadow-sm sm:p-6">
                     <div className="flex items-center space-x-3 mb-6">
                         <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
                             <Camera className="w-5 h-5" />
@@ -362,9 +368,9 @@ function TeacherDashboardContent() {
             </div>
 
             {/* Bottom Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 {/* My Classes */}
-                <motion.div variants={itemVariants} className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100">
+                <motion.div variants={itemVariants} className="rounded-xl border border-zinc-100 bg-white p-4 shadow-sm sm:p-6">
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center space-x-3">
                             <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
@@ -382,7 +388,7 @@ function TeacherDashboardContent() {
                     <div className="space-y-3">
                         {classes.slice(0, 4).map((cls) => (
                             <div key={cls.id} className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
-                                onClick={() => router.push('/teacher/attendance')}
+                                onClick={() => router.push(to('/teacher/attendance'))}
                             >
                                 <div className="flex items-center space-x-3">
                                     <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-indigo-500 rounded-lg flex items-center justify-center text-white font-bold">
@@ -409,26 +415,50 @@ function TeacherDashboardContent() {
             </div>
 
             {/* Quick Actions */}
-            <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <motion.div variants={itemVariants} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div
-                    onClick={() => router.push('/teacher/attendance')}
-                    className="bg-gradient-to-r from-primary-500 to-primary-600 p-6 rounded-xl text-white cursor-pointer hover:shadow-lg transition-shadow"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            router.push(to('/teacher/attendance'));
+                        }
+                    }}
+                    onClick={() => router.push(to('/teacher/attendance'))}
+                    className="min-h-[44px] cursor-pointer rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 p-5 text-white transition-shadow hover:shadow-lg sm:p-6"
                 >
                     <CheckSquare className="w-8 h-8 mb-3" />
                     <h3 className="font-bold text-lg mb-1">Mark Attendance</h3>
                     <p className="text-sm text-primary-100">Track student presence</p>
                 </div>
                 <div
-                    onClick={() => router.push('/teacher/exams')}
-                    className="bg-gradient-to-r from-purple-500 to-purple-600 p-6 rounded-xl text-white cursor-pointer hover:shadow-lg transition-shadow"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            router.push(to('/teacher/exams'));
+                        }
+                    }}
+                    onClick={() => router.push(to('/teacher/exams'))}
+                    className="min-h-[44px] cursor-pointer rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 p-5 text-white transition-shadow hover:shadow-lg sm:p-6"
                 >
                     <FileText className="w-8 h-8 mb-3" />
                     <h3 className="font-bold text-lg mb-1">Exams</h3>
                     <p className="text-sm text-purple-100">View and manage exams</p>
                 </div>
                 <div
-                    onClick={() => router.push('/profile')}
-                    className="bg-gradient-to-r from-orange-500 to-orange-600 p-6 rounded-xl text-white cursor-pointer hover:shadow-lg transition-shadow"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            router.push(to('/profile'));
+                        }
+                    }}
+                    onClick={() => router.push(to('/profile'))}
+                    className="min-h-[44px] cursor-pointer rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 p-5 text-white transition-shadow hover:shadow-lg sm:col-span-2 sm:p-6 lg:col-span-1"
                 >
                     <BarChart3 className="w-8 h-8 mb-3" />
                     <h3 className="font-bold text-lg mb-1">My Profile</h3>

@@ -5,6 +5,9 @@
 /** Query key for institute login on apex hosts (Netlify/Vercel/Render have no TLS for `slug.apex`). */
 export const TENANT_LOGIN_QUERY_KEY = "i";
 
+/** Path prefix so institute is visible on every URL: `/i/{slug}/login`, `/i/{slug}/admin`, … */
+export const INSTITUTE_PATH_SEGMENT = "i";
+
 export function getRootDomain() {
   return (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost").split(":")[0];
 }
@@ -119,12 +122,100 @@ export function institutionSlugFromHostname(hostname) {
   return "";
 }
 
-/** Resolve tenant slug: real subdomain wins, then `?i=` on apex (production platforms). */
-export function resolveTenantSlugForLogin(hostname, searchString) {
+/**
+ * Slug from pathname `/i/{slug}/…` (canonical institute URLs).
+ */
+export function parseSlugFromInstitutePath(pathname) {
+  if (!pathname || typeof pathname !== "string") return "";
+  const m = pathname.match(
+    new RegExp(
+      `^\\/${INSTITUTE_PATH_SEGMENT}\\/([a-z0-9][a-z0-9-]*)(?:\\/|$)`,
+      "i"
+    )
+  );
+  return m ? m[1].toLowerCase() : "";
+}
+
+/**
+ * `/i/slug/rest` → `{ slug, rest: "/rest" }` or `null`. Empty rest becomes `/login`.
+ */
+export function splitInstitutePrefixedPath(pathname) {
+  if (!pathname) return null;
+  const m = pathname.match(
+    new RegExp(
+      `^\\/${INSTITUTE_PATH_SEGMENT}\\/([a-z0-9][a-z0-9-]*)(\\/.*)?$`,
+      "i"
+    )
+  );
+  if (!m) return null;
+  const slug = m[1].toLowerCase();
+  let rest = m[2];
+  if (!rest || rest === "" || rest === "/") rest = "/login";
+  return { slug, rest };
+}
+
+export function tenantLoginPath(slug) {
+  if (!slug) return "/login";
+  return `/${INSTITUTE_PATH_SEGMENT}/${slug}/login`;
+}
+
+/**
+ * Path under an institute, e.g. `/admin` → `/i/slug/admin`. Empty slug returns `path` unchanged.
+ */
+export function tenantAppPath(slug, path) {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  if (!slug) return p;
+  return `/${INSTITUTE_PATH_SEGMENT}/${slug}${p}`;
+}
+
+/** Dashboard routes that should be prefixed when the user is on a tenant host. */
+export function instituteAppPathNeedsCanonicalPrefix(pathname) {
+  if (!pathname || pathname === "/") return false;
+  const prefixes = [
+    "/admin",
+    "/teacher",
+    "/principal",
+    "/student",
+    "/exams",
+    "/profile",
+  ];
+  return prefixes.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
+/**
+ * Resolve tenant slug: `/i/slug` in pathname, then subdomain, then `?i=` on apex.
+ */
+export function resolveTenantSlugForLogin(hostname, searchString, pathname) {
+  const fromPath = pathname ? parseSlugFromInstitutePath(pathname) : "";
+  if (fromPath) return fromPath;
   const fromHost = institutionSlugFromHostname(hostname);
   if (fromHost) return fromHost;
   const q = new URLSearchParams(searchString || "").get(TENANT_LOGIN_QUERY_KEY);
   return sanitizeTenantSlugParam(q);
+}
+
+/**
+ * Where to send the user to sign in (platform `/login` vs `/i/{slug}/login`).
+ */
+export function resolveSignInPath() {
+  if (typeof window === "undefined") return "/login";
+  const fromPath = parseSlugFromInstitutePath(window.location.pathname);
+  if (fromPath) return tenantLoginPath(fromPath);
+  const fromCtx = resolveTenantSlugForLogin(
+    window.location.hostname,
+    window.location.search,
+    window.location.pathname
+  );
+  if (fromCtx) return tenantLoginPath(fromCtx);
+  try {
+    const inst = getInstitutionFromStorage();
+    if (inst?.slug) return tenantLoginPath(inst.slug);
+  } catch {
+    /* ignore */
+  }
+  return "/login";
 }
 
 export function getInstitutionFromStorage() {
@@ -152,17 +243,17 @@ export function getInstitutionIdFromStorage() {
  */
 export function instituteLoginPageUrl(slug) {
   if (!slug) return "";
-  const q = `${TENANT_LOGIN_QUERY_KEY}=${encodeURIComponent(slug)}`;
+  const path = tenantLoginPath(slug);
   const base = process.env.NEXT_PUBLIC_INSTITUTE_LOGIN_BASE_URL?.trim();
   if (base) {
     try {
       const u = new URL(base.replace(/\/$/, ""));
       if (tenantLoginUsesQueryForApex(u.hostname)) {
-        return `${u.origin}/login?${q}`;
+        return `${u.origin}${path}`;
       }
       const host = `${slug}.${u.hostname}`;
       const port = u.port ? `:${u.port}` : "";
-      return `${u.protocol}//${host}${port}/login`;
+      return `${u.protocol}//${host}${port}${path}`;
     } catch {
       /* fall through */
     }
@@ -175,20 +266,20 @@ export function instituteLoginPageUrl(slug) {
     const { protocol, port } = window.location;
     if (apex === "localhost" || apex === "127.0.0.1") {
       const p = port ? `:${port}` : "";
-      return `http://${slug}.localhost${p}/login`;
+      return `http://${slug}.localhost${p}${path}`;
     }
     if (tenantLoginUsesQueryForApex(apex)) {
       const p =
         port && port !== "" && port !== "80" && port !== "443"
           ? `:${port}`
           : "";
-      return `${protocol}//${apex}${p}/login?${q}`;
+      return `${protocol}//${apex}${p}${path}`;
     }
     const p =
       port && port !== "" && port !== "80" && port !== "443"
         ? `:${port}`
         : "";
-    return `${protocol}//${slug}.${apex}${p}/login`;
+    return `${protocol}//${slug}.${apex}${p}${path}`;
   }
   if (apex === "localhost" || apex === "127.0.0.1") {
     const portRaw =
@@ -197,7 +288,7 @@ export function instituteLoginPageUrl(slug) {
       "3000";
     const portNum = String(portRaw).replace(/^:/, "");
     const portPart = portNum ? `:${portNum}` : "";
-    return `http://${slug}.localhost${portPart}/login`;
+    return `http://${slug}.localhost${portPart}${path}`;
   }
   if (tenantLoginUsesQueryForApex(apex)) {
     const proto = process.env.NEXT_PUBLIC_INSTITUTE_LOGIN_PROTOCOL || "https:";
@@ -209,7 +300,7 @@ export function instituteLoginPageUrl(slug) {
           ? portEnv
           : `:${portEnv}`
         : "";
-    return `${normProto}//${apex}${p}/login?${q}`;
+    return `${normProto}//${apex}${p}${path}`;
   }
   const proto = process.env.NEXT_PUBLIC_INSTITUTE_LOGIN_PROTOCOL || "https:";
   const normProto = proto.endsWith(":") ? proto : `${proto}:`;
@@ -220,5 +311,5 @@ export function instituteLoginPageUrl(slug) {
         ? portEnv
         : `:${portEnv}`
       : "";
-  return `${normProto}//${slug}.${apex}${p}/login`;
+  return `${normProto}//${slug}.${apex}${p}${path}`;
 }

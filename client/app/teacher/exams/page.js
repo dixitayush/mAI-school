@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useQuery, gql } from '@apollo/client';
 import { FileText, Award, Loader2, Calendar, BookOpen, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { resolveSignInPath } from '@/lib/tenant';
+import { useTenantPaths } from '@/lib/useTenantPaths';
 
 const GET_TEACHER_EXAMS = gql`
   query GetTeacherExams($teacherId: UUID!) {
@@ -33,6 +35,7 @@ const GET_TEACHER_EXAMS = gql`
 
 function TeacherExamsContent() {
     const router = useRouter();
+    const { to } = useTenantPaths();
     const [user, setUser] = useState(null);
 
     useEffect(() => {
@@ -40,7 +43,7 @@ function TeacherExamsContent() {
         const role = localStorage.getItem('role');
 
         if (!storedUser || role !== 'teacher') {
-            router.push('/login');
+            router.push(resolveSignInPath());
         } else {
             setUser(JSON.parse(storedUser));
         }
@@ -87,7 +90,7 @@ function TeacherExamsContent() {
                         <p className="text-zinc-500 mt-1">View and track your scheduled exams</p>
                     </div>
                     <button
-                        onClick={() => router.push('/teacher')}
+                        onClick={() => router.push(to('/teacher'))}
                         className="bg-zinc-100 text-zinc-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-200 transition-colors"
                     >
                         Back to Dashboard

@@ -15,6 +15,7 @@ import {
   Headphones,
   LineChart,
   Mail,
+  Menu,
   MessageSquare,
   PenLine,
   Phone,
@@ -23,7 +24,15 @@ import {
   UserPlus,
   Users,
   Wallet,
+  X,
 } from "lucide-react";
+
+const LANDING_NAV_LINKS = [
+  ["/onboarding", "Start online"],
+  ["#how-it-works", "How it works"],
+  ["#features", "Features"],
+  ["#pricing", "Pricing"],
+];
 
 const fadeUp = {
   initial: { opacity: 0, y: 20 },
@@ -386,8 +395,24 @@ function HowItWorksInteractive() {
 }
 
 export default function Home() {
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setMobileNavOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [mobileNavOpen]);
+
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900 antialiased">
+    <div className="min-h-dvh bg-zinc-50 ps-[env(safe-area-inset-left)] pe-[env(safe-area-inset-right)] text-zinc-900 antialiased">
       {/* Subtle page background */}
       <div
         className="pointer-events-none fixed inset-0 -z-10"
@@ -398,36 +423,35 @@ export default function Home() {
         }}
       />
 
-      <header className="sticky top-0 z-50 border-b border-zinc-200/80 bg-white/75 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60">
-        <div className="mx-auto flex h-[4.25rem] max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 shadow-md shadow-primary-500/25 ring-4 ring-white">
+      <header className="sticky top-0 z-50 border-b border-zinc-200/80 bg-white/75 pt-[env(safe-area-inset-top)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/60">
+        <div className="mx-auto flex min-h-[3.5rem] max-w-6xl items-center justify-between gap-2 px-3 py-2 sm:min-h-[4.25rem] sm:gap-4 sm:px-6 sm:py-0 lg:px-8">
+          <Link
+            href="/"
+            className="flex min-w-0 shrink items-center gap-2 sm:gap-2.5"
+            onClick={() => setMobileNavOpen(false)}
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 shadow-md shadow-primary-500/25 ring-4 ring-white">
               <School className="h-5 w-5 text-white" aria-hidden />
             </span>
-            <div className="leading-tight">
-              <span className="block text-base font-semibold tracking-tight text-zinc-900">
+            <div className="min-w-0 leading-tight">
+              <span className="block truncate text-sm font-semibold tracking-tight text-zinc-900 sm:text-base">
                 mAI-school
               </span>
-              <span className="hidden text-xs font-medium text-zinc-500 sm:block">
+              <span className="hidden text-xs font-medium text-zinc-500 xs:block">
                 School management
               </span>
             </div>
           </Link>
           <nav
-            className="hidden items-center gap-1 rounded-full border border-zinc-200/80 bg-white/90 p-1 shadow-sm md:flex"
+            className="hidden items-center gap-0.5 rounded-full border border-zinc-200/80 bg-white/90 p-1 shadow-sm lg:flex xl:gap-1"
             aria-label="Primary"
           >
-            {[
-              ["/onboarding", "Start online"],
-              ["#how-it-works", "How it works"],
-              ["#features", "Features"],
-              ["#pricing", "Pricing"],
-            ].map(([href, label]) =>
+            {LANDING_NAV_LINKS.map(([href, label]) =>
               href.startsWith("/") ? (
                 <Link
                   key={href}
                   href={href}
-                  className="rounded-full px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
+                  className="rounded-full px-3 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 xl:px-4"
                 >
                   {label}
                 </Link>
@@ -435,36 +459,112 @@ export default function Home() {
                 <a
                   key={href}
                   href={href}
-                  className="rounded-full px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
+                  className="rounded-full px-3 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 xl:px-4"
                 >
                   {label}
                 </a>
               )
             )}
           </nav>
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="hidden items-center gap-2 lg:flex lg:gap-3">
             <Link
               href="/login"
-              className="rounded-full px-3 py-2 text-sm font-semibold text-zinc-600 transition hover:text-zinc-900 sm:px-4"
+              className="rounded-full px-3 py-2.5 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 lg:px-4"
               title="MAI platform administrators only"
             >
               Platform sign in
             </Link>
             <a
               href="mailto:?subject=mAI-school%20%E2%80%94%20Talk%20to%20sales"
-              className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-zinc-900/15 transition hover:bg-zinc-800"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-zinc-900/15 transition hover:bg-zinc-800"
             >
               Contact sales
-              <ArrowRight className="h-4 w-4 opacity-90" aria-hidden />
+              <ArrowRight className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
             </a>
           </div>
+
+          <div className="flex shrink-0 items-center gap-2 lg:hidden">
+            <a
+              href="mailto:?subject=mAI-school%20%E2%80%94%20Talk%20to%20sales"
+              className="inline-flex min-h-[44px] max-w-[44vw] items-center justify-center gap-1 rounded-full bg-zinc-900 px-3 text-xs font-semibold text-white shadow-md shadow-zinc-900/20 transition hover:bg-zinc-800 xs:max-w-none xs:gap-1.5 xs:px-4 xs:text-sm md:min-h-[48px] md:px-5 md:text-base"
+            >
+              <span className="truncate xs:max-w-none">
+                <span className="xs:hidden">Sales</span>
+                <span className="hidden xs:inline">Contact sales</span>
+              </span>
+              <ArrowRight className="h-3.5 w-3.5 shrink-0 opacity-90 xs:h-4 xs:w-4" aria-hidden />
+            </a>
+            <button
+              type="button"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-zinc-200/90 bg-white text-zinc-800 shadow-sm transition hover:bg-zinc-50 active:bg-zinc-100 md:h-12 md:w-12"
+              aria-expanded={mobileNavOpen}
+              aria-controls="landing-mobile-nav"
+              aria-label={mobileNavOpen ? "Close menu" : "Open menu"}
+              onClick={() => setMobileNavOpen((o) => !o)}
+            >
+              {mobileNavOpen ? (
+                <X className="h-5 w-5" aria-hidden />
+              ) : (
+                <Menu className="h-5 w-5" aria-hidden />
+              )}
+            </button>
+          </div>
         </div>
+
+        <AnimatePresence initial={false}>
+          {mobileNavOpen && (
+            <motion.div
+              key="mobile-nav"
+              id="landing-mobile-nav"
+              role="navigation"
+              aria-label="Mobile primary"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className="overflow-hidden border-t border-zinc-200/80 bg-white/95 lg:hidden [&:focus-within]:outline-none"
+            >
+              <div className="max-h-[min(32rem,calc(100dvh-5rem))] space-y-0.5 overflow-y-auto overscroll-contain px-3 py-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:space-y-1 sm:px-5 sm:py-4 md:max-h-[min(36rem,calc(100dvh-4rem))]">
+                {LANDING_NAV_LINKS.map(([href, label]) =>
+                  href.startsWith("/") ? (
+                    <Link
+                      key={href}
+                      href={href}
+                      className="flex min-h-[48px] items-center rounded-xl px-4 text-base font-medium text-zinc-800 transition hover:bg-zinc-100 active:bg-zinc-200 sm:min-h-[52px] sm:px-5 md:text-lg"
+                      onClick={() => setMobileNavOpen(false)}
+                    >
+                      {label}
+                    </Link>
+                  ) : (
+                    <a
+                      key={href}
+                      href={href}
+                      className="flex min-h-[48px] items-center rounded-xl px-4 text-base font-medium text-zinc-800 transition hover:bg-zinc-100 active:bg-zinc-200 sm:min-h-[52px] sm:px-5 md:text-lg"
+                      onClick={() => setMobileNavOpen(false)}
+                    >
+                      {label}
+                    </a>
+                  )
+                )}
+                <div className="my-2 border-t border-zinc-100 sm:my-3" aria-hidden />
+                <Link
+                  href="/login"
+                  className="flex min-h-[48px] items-center rounded-xl px-4 text-base font-semibold text-zinc-700 transition hover:bg-zinc-100 active:bg-zinc-200 sm:min-h-[52px] sm:px-5 md:text-lg"
+                  title="MAI platform administrators only"
+                  onClick={() => setMobileNavOpen(false)}
+                >
+                  Platform sign in
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
       {/* Hero */}
       <section className="relative overflow-hidden border-b border-zinc-200/80 bg-white">
-        <div className="mx-auto grid max-w-6xl gap-12 px-4 pb-20 pt-16 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:px-8 lg:pb-24 lg:pt-20">
-          <div className="flex flex-col justify-center">
+        <div className="mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-14 sm:px-6 md:grid-cols-2 md:items-center md:gap-10 md:pb-20 md:pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:px-8 lg:pb-24 lg:pt-20">
+          <div className="flex min-w-0 flex-col justify-center">
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -554,7 +654,7 @@ export default function Home() {
             initial={{ opacity: 0, scale: 0.98, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-            className="relative lg:pt-4"
+            className="relative min-w-0 md:mt-2 lg:mt-0 lg:pt-4"
           >
             <div className="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-primary-100/50 via-white to-violet-100/40 blur-2xl" />
             <div className="relative overflow-hidden rounded-[1.75rem] border border-zinc-200/90 bg-white shadow-2xl shadow-zinc-200/60 ring-1 ring-zinc-100">

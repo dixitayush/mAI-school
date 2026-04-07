@@ -15,7 +15,13 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTenantPaths } from "@/lib/useTenantPaths";
+import {
+  getInstitutionFromStorage,
+  tenantLoginPath,
+  tenantAppPath,
+} from "@/lib/tenant";
 
 const menuItems = {
   mai_admin: [
@@ -63,7 +69,15 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const items = menuItems[userRole] || menuItems.admin;
+  const { slug: pathTenantSlug } = useTenantPaths();
+  const items = useMemo(() => {
+    const raw = menuItems[userRole] || menuItems.admin;
+    if (userRole === "mai_admin") return raw;
+    return raw.map((item) => ({
+      ...item,
+      href: tenantAppPath(pathTenantSlug, item.href),
+    }));
+  }, [userRole, pathTenantSlug]);
   const layoutId = `sidebar-active-${userRole}`;
   const [institution, setInstitution] = useState(null);
 
@@ -77,19 +91,26 @@ export default function Sidebar({
   }, []);
 
   const handleLogout = () => {
+    const inst = getInstitutionFromStorage();
+    const effectiveSlug =
+      userRole === "mai_admin" ? "" : pathTenantSlug || inst?.slug || "";
+    const dest =
+      userRole === "mai_admin"
+        ? "/login"
+        : tenantLoginPath(effectiveSlug) || "/login";
     localStorage.clear();
-    router.push("/login");
+    router.push(dest);
     onNavigate?.();
   };
 
   return (
     <aside
       id="app-sidebar"
-      className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-zinc-200/80 bg-white shadow-sm shadow-zinc-200/40 transition-transform duration-200 ease-out md:translate-x-0 ${
+      className={`fixed inset-y-0 left-0 z-40 flex h-dvh max-h-dvh w-[min(18rem,calc(100vw-2.5rem))] flex-col border-r border-zinc-200/80 bg-white pt-[env(safe-area-inset-top)] shadow-sm shadow-zinc-200/40 transition-transform duration-200 ease-out sm:w-64 lg:translate-x-0 ${
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       }`}
     >
-      <div className="border-b border-zinc-100 px-5 pb-4 pt-6">
+      <div className="border-b border-zinc-100 px-4 pb-4 pt-5 sm:px-5 sm:pt-6">
         <div className="flex items-center gap-3">
           {userRole === "mai_admin" ? (
             <>
@@ -143,11 +164,12 @@ export default function Sidebar({
       </div>
 
       <nav
-        className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4"
+        className="sidebar-nav-scroll flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2 py-3 sm:px-3 sm:py-4"
         aria-label="Main navigation"
       >
         {items.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive =
+            pathname === item.href || pathname.startsWith(`${item.href}/`);
           const Icon = item.icon;
           return (
             <motion.a
@@ -156,7 +178,7 @@ export default function Sidebar({
               onClick={() => onNavigate?.()}
               whileHover={{ x: 2 }}
               whileTap={{ scale: 0.99 }}
-              className={`group relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 transition-colors ${
+              className={`group relative flex min-h-[44px] items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 transition-colors ${
                 isActive
                   ? "bg-primary-50 text-primary-800 shadow-sm ring-1 ring-primary-500/10"
                   : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
@@ -184,11 +206,11 @@ export default function Sidebar({
         })}
       </nav>
 
-      <div className="border-t border-zinc-100 p-3">
+      <div className="border-t border-zinc-100 p-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-3">
         <button
           type="button"
           onClick={handleLogout}
-          className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-zinc-600 transition-colors hover:bg-red-50 hover:text-red-700"
+          className="group flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 py-2.5 text-zinc-600 transition-colors hover:bg-red-50 hover:text-red-700"
         >
           <LogOut
             className="h-5 w-5 transition-transform group-hover:-translate-x-0.5"

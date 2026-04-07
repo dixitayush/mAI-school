@@ -14,6 +14,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { generateReportCard } from '@/lib/generateReportCard';
 import AnnouncementCard from '@/components/AnnouncementCard';
 import RecentAttendanceCard from '@/components/RecentAttendanceCard';
+import { resolveSignInPath } from '@/lib/tenant';
 
 const GET_STUDENT_DASHBOARD = gql`
   query GetStudentDashboard($userId: UUID!) {
@@ -83,7 +84,7 @@ export default function StudentDashboard() {
         const role = localStorage.getItem('role');
 
         if (!storedUser || (role !== 'student' && role !== 'admin')) {
-            router.push('/login');
+            router.push(resolveSignInPath());
         } else {
             const parsedUser = JSON.parse(storedUser);
             setUser(parsedUser);
@@ -245,16 +246,19 @@ export default function StudentDashboard() {
             className="space-y-8"
         >
             {/* Welcome Section with Download */}
-            <div className="flex justify-between items-end">
-                <div>
-                    <h1 className="text-3xl font-bold text-zinc-900 tracking-tight">Welcome Back, {user.full_name}</h1>
-                    <p className="text-zinc-500 mt-1">Here&apos;s your academic overview</p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="min-w-0">
+                    <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
+                        <span className="break-words">Welcome back, {user.full_name}</span>
+                    </h1>
+                    <p className="mt-1 text-sm text-zinc-500 sm:text-base">Here&apos;s your academic overview</p>
                 </div>
                 <button
+                    type="button"
                     onClick={handleDownloadReportCard}
-                    className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm flex items-center space-x-2"
+                    className="flex min-h-11 shrink-0 items-center space-x-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700"
                 >
-                    <Download className="w-4 h-4" />
+                    <Download className="h-4 w-4 shrink-0" />
                     <span>Download Report Card</span>
                 </button>
             </div>
@@ -262,15 +266,14 @@ export default function StudentDashboard() {
             {/* Welcome Banner */}
             <motion.div
                 variants={itemVariants}
-                className="bg-gradient-to-r from-primary-600 to-indigo-600 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden"
+                className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary-600 to-indigo-600 p-5 text-white shadow-xl sm:p-8"
             >
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mr-32 -mt-32"></div>
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-white opacity-5 rounded-full -ml-24 -mb-24"></div>
                 <div className="relative z-10">
-                    <h2 className="text-3xl font-bold mb-2">Hello, {user.full_name.split(' ')[0]}! 👋</h2>
-                    <p className="text-primary-100 mb-4">
-                        Class: {studentData?.classByClassId?.name || 'N/A'} |
-                        You have {upcomingExams.length} upcoming exam{upcomingExams.length !== 1 ? 's' : ''}
+                    <h2 className="mb-2 text-2xl font-bold sm:text-3xl">Hello, {user.full_name.split(' ')[0]}! 👋</h2>
+                    <p className="mb-4 text-sm text-primary-100 sm:text-base">
+                        Class: {studentData?.classByClassId?.name || 'N/A'} · {upcomingExams.length} upcoming exam{upcomingExams.length !== 1 ? 's' : ''}
                     </p>
                     <div className="flex items-center space-x-2">
                         <Target className="w-5 h-5" />
@@ -280,7 +283,7 @@ export default function StudentDashboard() {
             </motion.div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4">
                 <motion.div
                     variants={itemVariants}
                     className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100 hover:shadow-md transition-shadow"
@@ -339,11 +342,11 @@ export default function StudentDashboard() {
             </div>
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 {/* Academic Performance Chart */}
                 <motion.div
                     variants={itemVariants}
-                    className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-zinc-100"
+                    className="min-w-0 rounded-xl border border-zinc-100 bg-white p-4 shadow-sm sm:p-6 lg:col-span-2"
                 >
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center space-x-3">
@@ -357,7 +360,7 @@ export default function StudentDashboard() {
                         </div>
                     </div>
                     {performanceData.length > 0 ? (
-                        <div className="h-[300px] w-full">
+                        <div className="h-[min(300px,55vw)] min-h-[220px] w-full min-w-0 sm:h-[300px]">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={performanceData}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
@@ -415,11 +418,11 @@ export default function StudentDashboard() {
             </div>
 
             {/* Bottom Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 {/* Exam Results */}
                 <motion.div
                     variants={itemVariants}
-                    className="bg-white p-6 rounded-xl shadow-sm border border-zinc-100"
+                    className="min-w-0 rounded-xl border border-zinc-100 bg-white p-4 shadow-sm sm:p-6"
                 >
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center space-x-3">

@@ -8,6 +8,11 @@ import DashboardLayout from '@/components/DashboardLayout';
 import { User, Mail, Phone, MapPin, Camera, Save, X, Briefcase, Calendar, GraduationCap, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import {
+    getInstitutionFromStorage,
+    resolveSignInPath,
+    tenantLoginPath,
+} from '@/lib/tenant';
 
 const GET_USER_PROFILE = gql`
   query GetUserProfile($id: UUID!) {
@@ -102,7 +107,7 @@ function ProfileContent() {
         const storedUser = localStorage.getItem('user');
         const storedRole = localStorage.getItem('role');
         if (!storedUser) {
-            router.push('/login');
+            router.push(resolveSignInPath());
         } else {
             const parsedUser = JSON.parse(storedUser);
             setUserId(parsedUser.id);
@@ -139,10 +144,13 @@ function ProfileContent() {
     // Clear auth data and redirect to login.
     useEffect(() => {
         if (!loading && !error && data && !data.userById) {
+            const inst = getInstitutionFromStorage();
+            const dest = inst?.slug ? tenantLoginPath(inst.slug) : resolveSignInPath();
             localStorage.removeItem('token');
             localStorage.removeItem('role');
             localStorage.removeItem('user');
-            router.push('/login');
+            localStorage.removeItem('institution');
+            router.push(dest);
         }
     }, [loading, error, data, router]);
 

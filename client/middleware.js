@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import {
   institutionSlugFromHostname,
+  instituteAppPathNeedsCanonicalPrefix,
   sanitizeTenantSlugParam,
+  splitInstitutePrefixedPath,
   tenantApexForHostname,
+  tenantAppPath,
+  tenantLoginPath,
   TENANT_LOGIN_QUERY_KEY,
 } from "@/lib/tenant";
 
@@ -63,54 +67,112 @@ function isTenantPublicMarketingPath(pathname) {
   return false;
 }
 
+async function validateInstituteOrError(slug, host, request) {
+  let res;
+  try {
+    res = await fetch(
+      `${API_BASE}/api/public/institution/${encodeURIComponent(slug)}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      }
+    );
+  } catch {
+    return new NextResponse(
+      `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Service unavailable</title></head><body style="font-family:sans-serif;padding:2rem;text-align:center"><h1>Unable to verify institute</h1><p>The app could not reach the server. Try again shortly.</p></body></html>`,
+      {
+        status: 503,
+        headers: { "content-type": "text/html; charset=utf-8" },
+      }
+    );
+  }
+
+  const mainHref = apexOrigin(request);
+
+  if (res.status === 404 || res.status === 403 || !res.ok) {
+    return new NextResponse(tenantNotFoundHtml(host, mainHref), {
+      status: 404,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+  return null;
+}
+
 export async function middleware(request) {
   const host = (request.headers.get("host") || "").split(":")[0];
+  const url = request.nextUrl.clone();
+  const pathname = url.pathname;
   const slugFromQuery = sanitizeTenantSlugParam(
-    request.nextUrl.searchParams.get(TENANT_LOGIN_QUERY_KEY)
+    url.searchParams.get(TENANT_LOGIN_QUERY_KEY)
   );
-  const slug = institutionSlugFromHostname(host) || slugFromQuery;
-  const pathname = request.nextUrl.pathname;
+  const slugFromHost = institutionSlugFromHostname(host);
+  const tenantSlug = slugFromHost || slugFromQuery;
 
-  if (slug && !isTenantPublicMarketingPath(pathname)) {
-    let res;
-    try {
-      res = await fetch(
-        `${API_BASE}/api/public/institution/${encodeURIComponent(slug)}`,
-        {
-          method: "GET",
-          headers: { Accept: "application/json" },
-          cache: "no-store",
-        }
-      );
-    } catch {
-      return new NextResponse(
-        `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Service unavailable</title></head><body style="font-family:sans-serif;padding:2rem;text-align:center"><h1>Unable to verify institute</h1><p>The app could not reach the server. Try again shortly.</p></body></html>`,
-        {
-          status: 503,
-          headers: { "content-type": "text/html; charset=utf-8" },
-        }
-      );
-    }
+  if (slugFromHost && slugFromQuery && slugFromHost !== slugFromQuery) {
+    return new NextResponse(tenantNotFoundHtml(host, apexOrigin(request)), {
+      status: 404,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
 
-    const mainHref = apexOrigin(request);
-
-    if (res.status === 404 || res.status === 403) {
-      return new NextResponse(tenantNotFoundHtml(host, mainHref), {
+  const split = splitInstitutePrefixedPath(pathname);
+  if (split) {
+    if (slugFromHost && split.slug !== slugFromHost) {
+      return new NextResponse(tenantNotFoundHtml(host, apexOrigin(request)), {
         status: 404,
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     }
-
-    if (!res.ok) {
-      return new NextResponse(tenantNotFoundHtml(host, mainHref), {
+    if (slugFromQuery && split.slug !== slugFromQuery) {
+      return new NextResponse(tenantNotFoundHtml(host, apexOrigin(request)), {
         status: 404,
         headers: { "content-type": "text/html; charset=utf-8" },
       });
+    }
+    const err = await validateInstituteOrError(split.slug, host, request);
+    if (err) return err;
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-tenant-slug", split.slug);
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = split.rest;
+    return NextResponse.rewrite(rewriteUrl, {
+      request: { headers: requestHeaders },
+    });
+  }
+
+  if (
+    tenantSlug &&
+    (pathname === "/login" || pathname.startsWith("/login/"))
+  ) {
+    const dest = request.nextUrl.clone();
+    dest.pathname = tenantLoginPath(tenantSlug);
+    dest.searchParams.delete(TENANT_LOGIN_QUERY_KEY);
+    return NextResponse.redirect(dest);
+  }
+
+  if (
+    tenantSlug &&
+    instituteAppPathNeedsCanonicalPrefix(pathname)
+  ) {
+    const dest = request.nextUrl.clone();
+    dest.pathname = tenantAppPath(tenantSlug, pathname);
+    return NextResponse.redirect(dest);
+  }
+
+  let headerSlug = "";
+  if (tenantSlug) {
+    if (isTenantPublicMarketingPath(pathname)) {
+      headerSlug = tenantSlug;
+    } else {
+      const err = await validateInstituteOrError(tenantSlug, host, request);
+      if (err) return err;
+      headerSlug = tenantSlug;
     }
   }
 
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-tenant-slug", slug);
+  requestHeaders.set("x-tenant-slug", headerSlug);
 
   return NextResponse.next({
     request: { headers: requestHeaders },

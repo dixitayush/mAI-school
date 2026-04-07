@@ -81,11 +81,11 @@ export default function DataTable({
             animate={{ opacity: 1, y: 0 }}
             className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden"
         >
-            <div className="p-6 border-b border-zinc-100 bg-white">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                    <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{title}</h2>
+            <div className="border-b border-zinc-100 bg-white p-4 sm:p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <h2 className="text-base font-bold tracking-tight text-zinc-900 sm:text-lg">{title}</h2>
 
-                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                    <div className="flex flex-col items-stretch gap-3 xs:flex-row xs:flex-wrap xs:items-center">
                         {searchable && (
                             <div className="relative w-full sm:w-auto group">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400 group-focus-within:text-primary-500 transition-colors" />
@@ -124,17 +124,17 @@ export default function DataTable({
                 </div>
             </div>
 
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
+            <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1 sm:mx-0 sm:px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <table className="w-full min-w-[640px] text-left sm:min-w-0">
                     <thead className="bg-zinc-50/50">
                         <tr>
                             {columns.map((col, idx) => (
-                                <th key={idx} className="px-6 py-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                                <th key={idx} className="whitespace-nowrap px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-500 sm:px-6 sm:py-4 sm:text-xs">
                                     {col.header}
                                 </th>
                             ))}
                             {(onEdit || onDelete) && (
-                                <th className="px-6 py-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider text-right">
+                                <th className="sticky right-0 whitespace-nowrap bg-zinc-50/95 px-3 py-3 text-right text-[10px] font-semibold uppercase tracking-wider text-zinc-500 backdrop-blur-sm sm:static sm:bg-transparent sm:px-6 sm:py-4 sm:text-xs">
                                     Actions
                                 </th>
                             )}
@@ -145,13 +145,13 @@ export default function DataTable({
                             Array.from({ length: 5 }).map((_, idx) => (
                                 <tr key={idx} className="animate-pulse">
                                     {columns.map((_, colIdx) => (
-                                        <td key={colIdx} className="px-6 py-4">
-                                            <div className="h-4 bg-zinc-100 rounded-lg w-3/4"></div>
+                                        <td key={colIdx} className="px-3 py-3 sm:px-6 sm:py-4">
+                                            <div className="h-4 w-3/4 rounded-lg bg-zinc-100"></div>
                                         </td>
                                     ))}
                                     {(onEdit || onDelete) && (
-                                        <td className="px-6 py-4">
-                                            <div className="h-4 bg-zinc-100 rounded-lg w-16 ml-auto"></div>
+                                        <td className="px-3 py-3 sm:px-6 sm:py-4">
+                                            <div className="ml-auto h-4 w-16 rounded-lg bg-zinc-100"></div>
                                         </td>
                                     )}
                                 </tr>
@@ -180,13 +180,13 @@ export default function DataTable({
                                     className="hover:bg-zinc-50/80 transition-colors group"
                                 >
                                     {columns.map((col, colIdx) => (
-                                        <td key={colIdx} className="px-6 py-4 text-sm text-zinc-700 font-medium whitespace-nowrap">
+                                        <td key={colIdx} className="max-w-[200px] px-3 py-3 text-sm font-medium text-zinc-700 sm:max-w-none sm:whitespace-nowrap sm:px-6 sm:py-4">
                                             {col.render ? col.render(row) : row[col.accessor]}
                                         </td>
                                     ))}
                                     {(onEdit || onDelete) && (
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <td className="sticky right-0 bg-white/95 px-3 py-3 text-right backdrop-blur-sm sm:static sm:bg-transparent sm:px-6 sm:py-4">
+                                            <div className="flex items-center justify-end space-x-1 opacity-100 transition-opacity sm:space-x-2 sm:opacity-0 sm:group-hover:opacity-100">
                                                 {onEdit && (
                                                     <button
                                                         onClick={() => onEdit(row)}
@@ -217,13 +217,13 @@ export default function DataTable({
 
             {!isLoading && filteredData.length > 0 && (
                 <div className="px-6 py-4 bg-zinc-50/30 border-t border-zinc-100 flex items-center justify-between">
-                    <p className="text-xs text-zinc-500 font-medium">
+                    <p className="text-xs font-medium text-zinc-500">
                         Showing <span className="text-zinc-900">{filteredData.length}</span> results
                     </p>
                     {/* Placeholder for future pagination */}
-                    <div className="flex space-x-2">
-                        <button className="px-3 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 rounded-lg disabled:opacity-50" disabled>Previous</button>
-                        <button className="px-3 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 rounded-lg disabled:opacity-50" disabled>Next</button>
+                    <div className="flex flex-wrap gap-2">
+                        <button type="button" className="min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-500 hover:bg-zinc-100 disabled:opacity-50" disabled>Previous</button>
+                        <button type="button" className="min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-500 hover:bg-zinc-100 disabled:opacity-50" disabled>Next</button>
                     </div>
                 </div>
             )}

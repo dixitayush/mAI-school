@@ -26,12 +26,12 @@ export default function StatCard({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay, duration: 0.3 }}
             whileHover={{ y: -4, transition: { duration: 0.2 } }}
-            className="rounded-2xl border border-zinc-200/90 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+            className="rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-6"
         >
-            <div className="flex items-start justify-between">
-                <div className="flex-1">
-                    <p className="mb-1 text-sm font-medium text-zinc-500">{title}</p>
-                    <h3 className="mb-2 text-3xl font-bold text-zinc-900">{value}</h3>
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <p className="mb-1 text-xs font-medium text-zinc-500 sm:text-sm">{title}</p>
+                    <h3 className="mb-2 break-words text-2xl font-bold tabular-nums text-zinc-900 sm:text-3xl">{value}</h3>
 
                     {trend && (
                         <div className="flex items-center space-x-1">

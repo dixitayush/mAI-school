@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   AnimatePresence,
   motion,
@@ -20,7 +20,10 @@ import {
   Sparkles,
   User,
 } from "lucide-react";
-import { resolveTenantSlugForLogin } from "@/lib/tenant";
+import {
+  resolveTenantSlugForLogin,
+  tenantAppPath,
+} from "@/lib/tenant";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 const easeOut = [0.22, 1, 0.36, 1];
@@ -49,6 +52,7 @@ const tipVariants = {
 
 export default function LoginPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const reduceMotion = useReducedMotion();
   const [formData, setFormData] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
@@ -62,7 +66,8 @@ export default function LoginPage() {
   useEffect(() => {
     const slug = resolveTenantSlugForLogin(
       window.location.hostname,
-      window.location.search
+      window.location.search,
+      pathname || ""
     );
     setTenantSlug(slug);
     if (!slug) {
@@ -101,7 +106,7 @@ export default function LoginPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [pathname]);
 
   const isMaiLoginHost = !tenantSlug;
 
@@ -114,7 +119,8 @@ export default function LoginPage() {
       const institution_slug =
         resolveTenantSlugForLogin(
           window.location.hostname,
-          window.location.search
+          window.location.search,
+          pathname || ""
         ) || null;
       const res = await fetch(`${apiBase}/login`, {
         method: "POST",
@@ -137,16 +143,17 @@ export default function LoginPage() {
           localStorage.removeItem("institution");
         }
 
+        const navSlug = data.institution?.slug || institution_slug || "";
         if (data.role === "mai_admin") {
           router.push("/mai-admin");
         } else if (data.role === "admin") {
-          router.push("/admin");
+          router.push(tenantAppPath(navSlug, "/admin"));
         } else if (data.role === "teacher") {
-          router.push("/teacher");
+          router.push(tenantAppPath(navSlug, "/teacher"));
         } else if (data.role === "principal") {
-          router.push("/principal");
+          router.push(tenantAppPath(navSlug, "/principal"));
         } else if (data.role === "student") {
-          router.push("/student");
+          router.push(tenantAppPath(navSlug, "/student"));
         }
       } else {
         setError(data.error || "Login failed");
@@ -159,7 +166,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen bg-zinc-50 text-zinc-900 antialiased">
+    <div className="relative min-h-dvh bg-zinc-50 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] text-zinc-900 antialiased">
       <div
         className="pointer-events-none fixed inset-0 -z-10"
         aria-hidden
@@ -184,8 +191,8 @@ export default function LoginPage() {
         </div>
       )}
 
-      <header className="sticky top-0 z-40 border-b border-zinc-200/60 bg-white/70 backdrop-blur-xl supports-[backdrop-filter]:bg-white/55">
-        <div className="mx-auto flex h-[3.75rem] max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-40 border-b border-zinc-200/60 bg-white/70 pt-[env(safe-area-inset-top)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/55">
+        <div className="mx-auto flex min-h-[3.75rem] max-w-6xl items-center justify-between gap-3 px-3 py-2 sm:gap-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex min-w-0 items-center gap-2.5 rounded-xl py-1 pr-2 transition hover:bg-zinc-100/80">
             {isMaiLoginHost ? (
               <>
@@ -232,7 +239,7 @@ export default function LoginPage() {
         className={
           isMaiLoginHost
             ? "mx-auto grid max-w-6xl gap-10 px-4 py-10 sm:px-6 sm:py-14 lg:grid-cols-[1fr_minmax(0,440px)] lg:items-center lg:gap-14 lg:px-8 lg:py-16"
-            : "mx-auto flex min-h-[calc(100vh-3.75rem)] max-w-[440px] flex-col justify-center px-4 py-12 sm:px-6"
+            : "mx-auto flex min-h-[calc(100dvh-4.5rem)] max-w-[440px] flex-col justify-center px-4 py-10 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-12"
         }
       >
         {isMaiLoginHost && (

@@ -12,6 +12,8 @@ import { Users, GraduationCap, BookOpen, DollarSign, Activity, TrendingUp, Chevr
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { motion } from 'framer-motion';
 import { generateDashboardReport } from '@/lib/generateReport';
+import { resolveSignInPath } from '@/lib/tenant';
+import { useTenantPaths } from '@/lib/useTenantPaths';
 
 const GET_STATS = gql`
   query GetStats {
@@ -41,6 +43,7 @@ const GET_STATS = gql`
 
 export default function AdminDashboard() {
     const router = useRouter();
+    const { to } = useTenantPaths();
     const { loading, error, data } = useQuery(GET_STATS);
     const [user, setUser] = useState(null);
 
@@ -49,7 +52,7 @@ export default function AdminDashboard() {
         const role = localStorage.getItem('role');
 
         if (!storedUser || role !== 'admin') {
-            router.push('/login');
+            router.push(resolveSignInPath());
         } else {
             setUser(JSON.parse(storedUser));
         }
@@ -143,30 +146,31 @@ export default function AdminDashboard() {
             className="space-y-8"
         >
             {/* Welcome Section */}
-            <div className="flex justify-between items-end">
-                <div>
-                    <h1 className="text-3xl font-bold text-zinc-900 tracking-tight">Overview</h1>
-                    <p className="text-zinc-500 mt-1">Metrics and analytics for {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="min-w-0">
+                    <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">Overview</h1>
+                    <p className="mt-1 text-sm text-zinc-500 sm:text-base">Metrics and analytics for {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
-                <div className="flex space-x-3">
+                <div className="flex flex-wrap gap-2 sm:gap-3">
                     <button
+                        type="button"
                         onClick={handleDownloadReport}
-                        className="bg-white border border-zinc-200 text-zinc-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-50 transition-colors flex items-center space-x-2"
+                        className="flex min-h-11 items-center space-x-2 rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
                     >
-                        <Download className="w-4 h-4" />
+                        <Download className="h-4 w-4 shrink-0" />
                         <span>Download Report</span>
                     </button>
                     <Menu as="div" className="relative inline-block text-left">
-                        <Menu.Button className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm shadow-primary-500/30 flex items-center space-x-2">
+                        <Menu.Button className="flex min-h-11 items-center space-x-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm shadow-primary-500/30 transition-colors hover:bg-primary-700">
                             <span>Create New</span>
-                            <ChevronDown className="w-4 h-4" />
+                            <ChevronDown className="h-4 w-4" />
                         </Menu.Button>
-                        <Menu.Items className="absolute right-0 mt-2 w-56 origin-top-right bg-white rounded-xl shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 divide-y divide-zinc-100">
+                        <Menu.Items className="absolute right-0 z-[60] mt-2 max-h-[min(24rem,70vh)] w-[min(18rem,calc(100vw-2rem))] origin-top-right divide-y divide-zinc-100 overflow-auto rounded-xl bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:w-56">
                             <div className="py-1">
                                 <Menu.Item>
                                     {({ active }) => (
                                         <button
-                                            onClick={() => router.push('/admin/users/students')}
+                                            onClick={() => router.push(to('/admin/users/students'))}
                                             className={`${active ? 'bg-primary-50 text-primary-700' : 'text-zinc-700'
                                                 } group flex w-full items-center px-4 py-2 text-sm font-medium transition-colors`}
                                         >
@@ -178,7 +182,7 @@ export default function AdminDashboard() {
                                 <Menu.Item>
                                     {({ active }) => (
                                         <button
-                                            onClick={() => router.push('/admin/users/teachers')}
+                                            onClick={() => router.push(to('/admin/users/teachers'))}
                                             className={`${active ? 'bg-primary-50 text-primary-700' : 'text-zinc-700'
                                                 } group flex w-full items-center px-4 py-2 text-sm font-medium transition-colors`}
                                         >
@@ -192,7 +196,7 @@ export default function AdminDashboard() {
                                 <Menu.Item>
                                     {({ active }) => (
                                         <button
-                                            onClick={() => router.push('/admin/classes')}
+                                            onClick={() => router.push(to('/admin/classes'))}
                                             className={`${active ? 'bg-primary-50 text-primary-700' : 'text-zinc-700'
                                                 } group flex w-full items-center px-4 py-2 text-sm font-medium transition-colors`}
                                         >
@@ -208,7 +212,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Stats Bento Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-4">
                 <StatCard
                     title="Total Students"
                     value={data?.allStudents?.totalCount || 0}
