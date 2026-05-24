@@ -294,10 +294,17 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 COMMENT ON FUNCTION register_teacher(TEXT, TEXT, TEXT, UUID, TEXT, TEXT, TEXT) IS E'@name registerTeacher\nRegister a new teacher';
 
 -- Permissions for PostGraphile to work smoothly
-GRANT USAGE ON SCHEMA public TO postgres;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO postgres;
+-- Safely grant to postgres role if it exists (local dev), otherwise skip (Neon DB)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'postgres') THEN
+    GRANT USAGE ON SCHEMA public TO postgres;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres;
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO postgres;
+  END IF;
+END
+$$;
 
 -- Explicitly allow anonymous access (if we were using a different role, but we use postgres so it's fine)
 -- But ensuring RLS doesn't block if we accidentally enable it later
