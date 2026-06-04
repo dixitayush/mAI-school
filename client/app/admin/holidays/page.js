@@ -225,7 +225,7 @@ export default function HolidaysPage() {
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                 className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none"
               />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-zinc-500">Start</label>
                   <input

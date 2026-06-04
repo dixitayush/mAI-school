@@ -21,8 +21,8 @@ import { fetchFileObjectUrl } from "@/lib/api";
 import FileUpload from "@/components/FileUpload";
 
 const GET_TEACHER_ASSIGNMENTS = gql`
-  query TeacherAssignments($teacherId: UUID!) {
-    allClasses(condition: { teacherId: $teacherId }) {
+  query TeacherAssignments {
+    allClasses(orderBy: NAME_ASC) {
       nodes {
         id
         name
@@ -137,18 +137,14 @@ function TeacherAssignmentsContent() {
   }, [router]);
 
   const { data, loading, refetch } = useQuery(GET_TEACHER_ASSIGNMENTS, {
-    variables: { teacherId: user?.id },
-    skip: !user?.id,
+    skip: !user,
     fetchPolicy: "cache-and-network",
   });
   const [createAssignment] = useMutation(CREATE_ASSIGNMENT);
   const [gradeSubmission] = useMutation(GRADE_SUBMISSION);
 
   const classes = useMemo(() => data?.allClasses?.nodes || [], [data]);
-  const classIds = useMemo(() => new Set(classes.map((c) => c.id)), [classes]);
-  const assignments = (data?.allAssignments?.nodes || []).filter((a) =>
-    classIds.size === 0 ? true : classIds.has(a.classId)
-  );
+  const assignments = data?.allAssignments?.nodes || [];
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ classId: "", title: "", description: "", dueDate: "", section: "" });
@@ -189,7 +185,7 @@ function TeacherAssignmentsContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-50 text-primary-700">
             <ClipboardList className="h-6 w-6" />

@@ -39,8 +39,8 @@ function CalendarContent() {
     }
 
     return (
-        <div className="container mx-auto p-8 max-w-6xl">
-            <div className="mb-8 flex items-center justify-between">
+        <div className="container mx-auto p-4 sm:p-8 max-w-6xl">
+            <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-zinc-900 mb-2">Principal's Schedule</h1>
                     <p className="text-zinc-500">Manage meetings with students, teachers, and parents.</p>

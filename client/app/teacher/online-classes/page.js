@@ -20,5 +20,5 @@ export default function TeacherOnlineClassesPage() {
   }, [router]);
 
   if (!user) return null;
-  return <OnlineClassManager teacherId={user.id} />;
+  return <OnlineClassManager />;
 }

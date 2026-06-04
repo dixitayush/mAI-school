@@ -40,6 +40,14 @@ const GET_PRINCIPAL_DASHBOARD = gql`
   }
 `;
 
+// Static class maps — Tailwind's JIT only generates classes it can see as
+// complete strings in source, so colors must NOT be built via interpolation
+// (e.g. `bg-${color}-50`), which silently produces no styling.
+const ALERT_STYLES = {
+    yellow: { box: 'bg-yellow-50 border-yellow-500', title: 'text-yellow-800', message: 'text-yellow-600' },
+    red: { box: 'bg-red-50 border-red-500', title: 'text-red-800', message: 'text-red-600' },
+};
+
 function PrincipalDashboardContent() {
     const router = useRouter();
     const { to } = useTenantPaths();
@@ -294,12 +302,15 @@ function PrincipalDashboardContent() {
                         </div>
                     </div>
                     <div className="space-y-3">
-                        {alerts.length > 0 ? alerts.map((alert, index) => (
-                            <div key={index} className={`p-4 bg-${alert.color}-50 border-l-4 border-${alert.color}-500 rounded-r-lg`}>
-                                <p className={`font-medium text-${alert.color}-800`}>{alert.title}</p>
-                                <p className={`text-sm text-${alert.color}-600 mt-1`}>{alert.message}</p>
-                            </div>
-                        )) : (
+                        {alerts.length > 0 ? alerts.map((alert, index) => {
+                            const styles = ALERT_STYLES[alert.color] || ALERT_STYLES.yellow;
+                            return (
+                                <div key={index} className={`p-4 border-l-4 rounded-r-lg ${styles.box}`}>
+                                    <p className={`font-medium ${styles.title}`}>{alert.title}</p>
+                                    <p className={`text-sm mt-1 ${styles.message}`}>{alert.message}</p>
+                                </div>
+                            );
+                        }) : (
                             <div className="p-4 bg-green-50 border-l-4 border-green-500 rounded-r-lg">
                                 <p className="font-medium text-green-800">All Clear!</p>
                                 <p className="text-sm text-green-600 mt-1">No critical alerts at this time</p>

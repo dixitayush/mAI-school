@@ -144,20 +144,17 @@ const providerStyle = {
   custom: "bg-zinc-100 text-zinc-600",
 };
 
-export default function OnlineClassManager({ teacherId = null }) {
+export default function OnlineClassManager() {
   const { data: cData } = useQuery(GET_CLASSES);
-  const classes = useMemo(() => {
-    const all = cData?.allClasses?.nodes || [];
-    return teacherId ? all.filter((c) => c.teacherId === teacherId) : all;
-  }, [cData, teacherId]);
-  const classIds = useMemo(() => new Set(classes.map((c) => c.id)), [classes]);
+  // Online classes are a school-wide resource; show every class in the tenant
+  // (RLS already scopes to the user's institution). Filtering to a teacher's
+  // own class left non-class-teachers unable to schedule anything.
+  const classes = useMemo(() => cData?.allClasses?.nodes || [], [cData]);
 
   const { data, loading, refetch } = useQuery(GET_ONLINE_CLASSES, {
     fetchPolicy: "cache-and-network",
   });
-  const sessions = (data?.allOnlineClasses?.nodes || []).filter((s) =>
-    teacherId ? classIds.has(s.classId) : true
-  );
+  const sessions = data?.allOnlineClasses?.nodes || [];
 
   const [createOnlineClass] = useMutation(CREATE);
   const [updateOnlineClass] = useMutation(UPDATE);

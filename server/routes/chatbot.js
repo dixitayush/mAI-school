@@ -103,7 +103,7 @@ async function buildContext(auth) {
     ctx.timetable = tt.rows;
   } else if (role === 'teacher') {
     const classes = await pool.query(
-      `SELECT id, name, section, grade_level FROM classes
+      `SELECT id, name, grade_level FROM classes
         WHERE institution_id = $1 AND teacher_id = $2`,
       [institution_id, user_id]
     );

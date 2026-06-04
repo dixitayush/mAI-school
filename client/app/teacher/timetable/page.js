@@ -20,5 +20,5 @@ export default function TeacherTimetablePage() {
   }, [router]);
 
   if (!user) return null;
-  return <TimetableManager teacherId={user.id} />;
+  return <TimetableManager />;
 }

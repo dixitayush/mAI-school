@@ -249,12 +249,12 @@ function AttendanceContent() {
         <div className="w-full">
             {/* Header Section */}
             <div className="mb-8">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-2">
                     <div>
-                        <h1 className="text-3xl font-bold text-zinc-900">Attendance Management</h1>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900">Attendance Management</h1>
                         <p className="text-zinc-500 mt-1">Track, manage, and analyze student attendance</p>
                     </div>
-                    <div className="flex items-center space-x-3">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         <button
                             onClick={() => setImportOpen(true)}
                             className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium shadow-sm"
@@ -391,7 +391,7 @@ function AttendanceContent() {
                     </div>
 
                     {/* Filters and Date Selection */}
-                    <div className="flex flex-col md:flex-row items-start md:items-center space-y-3 md:space-y-0 md:space-x-4">
+                    <div className="flex flex-col md:flex-row md:flex-wrap items-stretch md:items-center gap-3">
                         <div className="flex items-center space-x-2">
                             <Calendar className="w-5 h-5 text-zinc-400" />
                             <input
@@ -503,15 +503,15 @@ function AttendanceContent() {
                                                 key={student.id}
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
-                                                className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg border border-zinc-100 hover:border-primary-100 hover:shadow-sm transition-all"
+                                                className="flex flex-col gap-3 p-4 bg-zinc-50 rounded-lg border border-zinc-100 hover:border-primary-100 hover:shadow-sm transition-all sm:flex-row sm:items-center sm:justify-between"
                                             >
-                                                <div className="flex items-center space-x-4 flex-1">
-                                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-indigo-500 flex items-center justify-center text-white font-bold shadow-sm">
+                                                <div className="flex items-center space-x-4 flex-1 min-w-0">
+                                                    <div className="w-12 h-12 shrink-0 rounded-full bg-gradient-to-br from-primary-400 to-indigo-500 flex items-center justify-center text-white font-bold shadow-sm">
                                                         {student.userByUserId.fullName.charAt(0)}
                                                     </div>
-                                                    <div className="flex-1">
+                                                    <div className="flex-1 min-w-0">
                                                         <div className="flex items-center space-x-2">
-                                                            <p className="font-medium text-zinc-900">{student.userByUserId.fullName}</p>
+                                                            <p className="font-medium text-zinc-900 truncate">{student.userByUserId.fullName}</p>
                                                             {isLowAttendance && (
                                                                 <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-medium flex items-center">
                                                                     <AlertCircle className="w-3 h-3 mr-1" />
@@ -519,8 +519,8 @@ function AttendanceContent() {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div className="flex items-center text-xs text-zinc-500 space-x-2 mt-1">
-                                                            <span>{student.userByUserId.profileByUserId?.email || 'No email'}</span>
+                                                        <div className="flex flex-wrap items-center gap-x-2 text-xs text-zinc-500 mt-1">
+                                                            <span className="truncate">{student.userByUserId.profileByUserId?.email || 'No email'}</span>
                                                             <span className="text-zinc-300">|</span>
                                                             <span className={`font-medium ${isLowAttendance ? 'text-red-500' : 'text-green-600'}`}>
                                                                 {stats.percentage}% Overall Attendance
@@ -529,7 +529,7 @@ function AttendanceContent() {
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-center space-x-4">
+                                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                                                     <div className="flex bg-white rounded-lg p-1 border border-zinc-200 shadow-sm">
                                                         {['present', 'absent', 'late'].map((status) => (
                                                             <button
@@ -554,7 +554,7 @@ function AttendanceContent() {
                                                         placeholder="Remarks (optional)"
                                                         value={attendanceData[student.id]?.remarks || ''}
                                                         onChange={(e) => handleRemarksChange(student.id, e.target.value)}
-                                                        className="px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-primary-500 w-48"
+                                                        className="px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-primary-500 w-full sm:w-48"
                                                     />
                                                 </div>
                                             </motion.div>
@@ -564,7 +564,7 @@ function AttendanceContent() {
                             )}
 
                             {filteredStudents.length > 0 && (
-                                <div className="mt-8 flex items-center justify-between pt-6 border-t border-zinc-100">
+                                <div className="mt-8 flex flex-wrap items-center justify-between gap-3 pt-6 border-t border-zinc-100">
                                     <div className="text-sm text-zinc-500">
                                         {Object.keys(attendanceData).length} of {filteredStudents.length} students marked
                                     </div>

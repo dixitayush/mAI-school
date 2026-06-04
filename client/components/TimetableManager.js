@@ -150,12 +150,12 @@ const emptyForm = {
   section: "",
 };
 
-export default function TimetableManager({ teacherId = null }) {
+export default function TimetableManager() {
   const { data: cData, loading: cLoading } = useQuery(GET_CLASSES);
-  const classes = useMemo(() => {
-    const all = cData?.allClasses?.nodes || [];
-    return teacherId ? all.filter((c) => c.teacherId === teacherId) : all;
-  }, [cData, teacherId]);
+  // Timetables are a school-wide resource; show every class in the tenant
+  // (RLS already scopes this to the user's institution). Filtering to only a
+  // teacher's "own" class left non-class-teachers with an empty dropdown.
+  const classes = useMemo(() => cData?.allClasses?.nodes || [], [cData]);
   const teachers = cData?.allTeachers?.nodes?.map((t) => t.userByUserId).filter(Boolean) || [];
 
   const [classId, setClassId] = useState("");
