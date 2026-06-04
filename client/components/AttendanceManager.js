@@ -7,10 +7,12 @@ import {
     Calendar, CheckCircle, Save, Loader2, History,
     Download, TrendingUp, Users, UserCheck, UserX,
     Clock, BarChart3, Filter, Search, ChevronDown,
-    FileText, Printer, AlertCircle
+    FileText, Printer, AlertCircle, Sparkles
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import AttendanceImportModal from '@/components/AttendanceImportModal';
+import ClassAttendanceSummary from '@/components/ClassAttendanceSummary';
 
 const GET_CLASSES_AND_STUDENTS = gql`
   query GetClassesAndStudents {
@@ -20,10 +22,12 @@ const GET_CLASSES_AND_STUDENTS = gql`
         name
       }
     }
-    allStudents {
+    allStudents(orderBy: ROLL_NUMBER_ASC) {
       nodes {
         id
         classId
+        section
+        rollNumber
         userByUserId {
           id
           fullName
@@ -40,6 +44,7 @@ function AttendanceContent() {
     const { loading, error, data } = useQuery(GET_CLASSES_AND_STUDENTS);
     const [activeTab, setActiveTab] = useState('mark');
     const [selectedClass, setSelectedClass] = useState('');
+    const [selectedSection, setSelectedSection] = useState('');
     const [attendanceData, setAttendanceData] = useState({});
     const [submitting, setSubmitting] = useState(false);
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -49,13 +54,23 @@ function AttendanceContent() {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [showFilters, setShowFilters] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     const classes = data?.allClasses?.nodes || [];
     const students = data?.allStudents?.nodes || [];
 
-    const filteredStudents = selectedClass
+    const classStudents = selectedClass
         ? students.filter(s => s.classId === selectedClass)
         : [];
+
+    const sections = Array.from(
+        new Set(classStudents.map(s => s.section).filter(Boolean))
+    ).sort();
+
+    const filteredStudents = selectedSection
+        ? classStudents.filter(s => (s.section || '') === selectedSection)
+        : classStudents;
 
     // Calculate statistics for dashboard
     const todayStats = {
@@ -86,7 +101,7 @@ function AttendanceContent() {
                     setAttendanceData({});
                 });
         }
-    }, [selectedClass, date, activeTab]);
+    }, [selectedClass, date, activeTab, refreshKey]);
 
     // Fetch Stats when students are loaded or class changes
     useEffect(() => {
@@ -241,6 +256,13 @@ function AttendanceContent() {
                     </div>
                     <div className="flex items-center space-x-3">
                         <button
+                            onClick={() => setImportOpen(true)}
+                            className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium shadow-sm"
+                        >
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Upload Register (AI)
+                        </button>
+                        <button
                             onClick={handleExportCSV}
                             className="flex items-center px-4 py-2 bg-white border border-zinc-200 text-zinc-700 rounded-lg hover:bg-zinc-50 transition-colors font-medium shadow-sm"
                         >
@@ -381,7 +403,10 @@ function AttendanceContent() {
                         </div>
                         <select
                             value={selectedClass}
-                            onChange={(e) => setSelectedClass(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedClass(e.target.value);
+                                setSelectedSection('');
+                            }}
                             className="px-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white min-w-[200px]"
                         >
                             <option value="">Select Class</option>
@@ -389,6 +414,19 @@ function AttendanceContent() {
                                 <option key={cls.id} value={cls.id}>{cls.name}</option>
                             ))}
                         </select>
+
+                        {selectedClass && sections.length > 0 && (
+                            <select
+                                value={selectedSection}
+                                onChange={(e) => setSelectedSection(e.target.value)}
+                                className="px-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white min-w-[150px]"
+                            >
+                                <option value="">All Sections</option>
+                                {sections.map(sec => (
+                                    <option key={sec} value={sec}>Section {sec}</option>
+                                ))}
+                            </select>
+                        )}
 
                         {activeTab === 'mark' && selectedClass && (
                             <>
@@ -586,32 +624,22 @@ function AttendanceContent() {
                             )}
                         </div>
                     ) : (
-                        // Analytics Tab
-                        <div className="text-center py-20">
-                            <BarChart3 className="w-16 h-16 text-primary-400 mx-auto mb-4" />
-                            <h3 className="text-lg font-medium text-zinc-900">Analytics Dashboard</h3>
-                            <p className="text-zinc-500 mt-1">Advanced analytics and trends coming soon!</p>
-                            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
-                                <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200">
-                                    <TrendingUp className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-                                    <p className="text-sm font-medium text-zinc-700">Attendance Trends</p>
-                                    <p className="text-xs text-zinc-500 mt-1">Weekly and monthly patterns</p>
-                                </div>
-                                <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200">
-                                    <BarChart3 className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                                    <p className="text-sm font-medium text-zinc-700">Class Comparison</p>
-                                    <p className="text-xs text-zinc-500 mt-1">Compare across classes</p>
-                                </div>
-                                <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200">
-                                    <Calendar className="w-8 h-8 text-purple-500 mx-auto mb-2" />
-                                    <p className="text-sm font-medium text-zinc-700">Calendar View</p>
-                                    <p className="text-xs text-zinc-500 mt-1">Visual attendance calendar</p>
-                                </div>
-                            </div>
-                        </div>
+                        // Analytics Tab — working-day-aware class summary + eligibility
+                        <ClassAttendanceSummary classId={selectedClass} />
                     )}
                 </div>
             </div>
+
+            <AttendanceImportModal
+                open={importOpen}
+                onClose={() => setImportOpen(false)}
+                classes={classes}
+                defaultClassId={selectedClass}
+                onCommitted={() => {
+                    setActiveTab('mark');
+                    setRefreshKey((k) => k + 1);
+                }}
+            />
         </div>
     );
 }

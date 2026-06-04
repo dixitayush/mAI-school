@@ -90,7 +90,7 @@ const UPDATE_ANNOUNCEMENT = gql`
 
 const DELETE_ANNOUNCEMENT = gql`
   mutation DeleteAnnouncement($id: UUID!) {
-    deleteAnnouncement(input: { id: $id }) {
+    deleteAnnouncement(input: { pId: $id }) {
       uuid
     }
   }

@@ -19,7 +19,7 @@ export function generateReportCard(studentData) {
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(26);
     doc.setFont(undefined, 'bold');
-    doc.text('MAI School', pageWidth / 2, 20, { align: 'center' });
+    doc.text(studentData.schoolName || 'MAI School', pageWidth / 2, 20, { align: 'center' });
 
     doc.setFontSize(18);
     doc.text('Student Report Card', pageWidth / 2, 35, { align: 'center' });

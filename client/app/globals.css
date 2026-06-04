@@ -307,6 +307,25 @@ html {
   color: var(--text-tertiary);
 }
 
+/* Themed native <select> across the whole app — replaces the inconsistent
+   browser arrow with a single chevron and reserves room for it, so every
+   dropdown matches the design system regardless of its utility classes. */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2371717a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 1.05rem;
+  /* !important so the utility px-* classes can't steal the chevron's gutter */
+  padding-right: 2.25rem !important;
+}
+
+select:disabled {
+  opacity: 1;
+}
+
 /* Badge styles */
 .badge {
   display: inline-flex;

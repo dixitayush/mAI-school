@@ -12,6 +12,11 @@ import {
   Megaphone,
   DollarSign,
   School,
+  Settings,
+  IdCard,
+  ClipboardList,
+  CalendarClock,
+  Video,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
@@ -36,13 +41,21 @@ const menuItems = {
     { name: "Attendance", href: "/admin/attendance", icon: CheckCircle },
     { name: "Fees", href: "/admin/fees", icon: DollarSign },
     { name: "Announcements", href: "/admin/announcements", icon: Megaphone },
+    { name: "Holidays", href: "/admin/holidays", icon: Calendar },
     { name: "Exams", href: "/exams", icon: FileText },
+    { name: "Admit Cards", href: "/admin/admit-cards", icon: IdCard },
+    { name: "Timetable", href: "/admin/timetable", icon: CalendarClock },
+    { name: "Online Classes", href: "/admin/online-classes", icon: Video },
+    { name: "Settings", href: "/admin/settings", icon: Settings },
     { name: "Profile", href: "/profile", icon: User },
   ],
   teacher: [
     { name: "Dashboard", href: "/teacher", icon: LayoutDashboard },
     { name: "Attendance", href: "/teacher/attendance", icon: CheckCircle },
     { name: "Exams", href: "/teacher/exams", icon: FileText },
+    { name: "Assignments", href: "/teacher/assignments", icon: ClipboardList },
+    { name: "Timetable", href: "/teacher/timetable", icon: CalendarClock },
+    { name: "Online Classes", href: "/teacher/online-classes", icon: Video },
     { name: "Profile", href: "/profile", icon: User },
   ],
   principal: [
@@ -52,12 +65,19 @@ const menuItems = {
     { name: "Teachers", href: "/admin/users/teachers", icon: BookOpen },
     { name: "Fees", href: "/admin/fees", icon: DollarSign },
     { name: "Announcements", href: "/admin/announcements", icon: Megaphone },
+    { name: "Holidays", href: "/admin/holidays", icon: Calendar },
     { name: "Exams", href: "/exams", icon: FileText },
+    { name: "Admit Cards", href: "/admin/admit-cards", icon: IdCard },
+    { name: "Timetable", href: "/admin/timetable", icon: CalendarClock },
+    { name: "Online Classes", href: "/admin/online-classes", icon: Video },
     { name: "Profile", href: "/profile", icon: User },
   ],
   student: [
     { name: "Dashboard", href: "/student", icon: LayoutDashboard },
     { name: "Exams", href: "/exams", icon: FileText },
+    { name: "Assignments", href: "/student/assignments", icon: ClipboardList },
+    { name: "Timetable", href: "/student/timetable", icon: CalendarClock },
+    { name: "Online Classes", href: "/student/online-classes", icon: Video },
     { name: "Profile", href: "/profile", icon: User },
   ],
 };

@@ -6,6 +6,7 @@ import { Bell, Menu, Search, User, X } from "lucide-react";
 import { motion } from "framer-motion";
 import Sidebar from "@/components/Sidebar";
 import NotificationListener from "@/components/NotificationListener";
+import ChatWidget from "@/components/ChatWidget";
 import { useTenantPaths } from "@/lib/useTenantPaths";
 
 const ROLE_META = {
@@ -217,6 +218,8 @@ export default function DashboardLayout({ children, userRole = "admin" }) {
           </motion.div>
         </main>
       </div>
+
+      {userRole !== "mai_admin" && <ChatWidget userRole={userRole} />}
     </div>
   );
 }

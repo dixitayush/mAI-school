@@ -79,17 +79,21 @@ app.use('/uploads', express.static('uploads')); // Serve uploaded files
 
 // Import Routes
 const aiRoutes = require('./routes/ai');
+const chatbotRoutes = require('./routes/chatbot');
 const emailRoutes = require('./routes/email');
 const uploadRoutes = require('./routes/upload');
 const attendanceRoutes = require('./routes/attendance');
+const { filesRouter } = require('./routes/files');
 const { platformRouter } = require('./routes/platform');
 const { publicRouter } = require('./routes/public');
 
 // Use Routes
 app.use('/api/ai', aiRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/files', filesRouter);
 
 // Database Pool for Auth
 const pool = new Pool({

@@ -14,6 +14,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { generateReportCard } from '@/lib/generateReportCard';
 import AnnouncementCard from '@/components/AnnouncementCard';
 import RecentAttendanceCard from '@/components/RecentAttendanceCard';
+import AttendanceAnalytics from '@/components/AttendanceAnalytics';
 import { resolveSignInPath } from '@/lib/tenant';
 
 const GET_STUDENT_DASHBOARD = gql`
@@ -104,7 +105,14 @@ export default function StudentDashboard() {
                 return;
             }
 
+            let schoolName;
+            try {
+                const inst = JSON.parse(localStorage.getItem('institution') || 'null');
+                schoolName = inst?.name;
+            } catch { /* ignore */ }
+
             const reportData = {
+                schoolName,
                 name: studentData.userByUserId?.fullName || 'Student',
                 class: studentData.classByClassId?.name || 'N/A',
                 rollNumber: studentData.userByUserId?.username || 'N/A',
@@ -340,6 +348,22 @@ export default function StudentDashboard() {
                     <p className="text-xs text-zinc-500 mt-2">Scheduled assessments</p>
                 </motion.div>
             </div>
+
+            {/* Attendance Analytics (working-day aware) */}
+            {studentData?.id && (
+                <motion.div variants={itemVariants}>
+                    <div className="mb-3 flex items-center space-x-3">
+                        <div className="p-2 bg-primary-100 rounded-lg">
+                            <BarChart3 className="w-5 h-5 text-primary-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-zinc-900">Attendance & Exam Eligibility</h2>
+                            <p className="text-sm text-zinc-500">Accounts for holidays and weekends</p>
+                        </div>
+                    </div>
+                    <AttendanceAnalytics studentId={studentData.id} />
+                </motion.div>
+            )}
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
