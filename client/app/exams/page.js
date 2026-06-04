@@ -7,7 +7,8 @@ import { ApolloWrapper } from '@/components/ApolloWrapper';
 import DashboardLayout from '@/components/DashboardLayout';
 import DataTable from '@/components/DataTable';
 import ExamModal from '@/components/ExamModal';
-import { FileText, Award, Loader2 } from 'lucide-react';
+import MarksEntryModal from '@/components/MarksEntryModal';
+import { FileText, Award, Loader2, ClipboardEdit } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { resolveSignInPath } from '@/lib/tenant';
 
@@ -20,6 +21,7 @@ const GET_EXAMS_AND_CLASSES = gql`
         subject
         examDate
         totalMarks
+        classId
         classByClassId {
           name
         }
@@ -36,7 +38,7 @@ const GET_EXAMS_AND_CLASSES = gql`
 
 const CREATE_EXAM = gql`
   mutation CreateExam($classId: UUID!, $title: String!, $subject: String!, $examDate: Date!, $totalMarks: Int!, $description: String) {
-    createExam(input: {
+    registerExam(input: {
       classId: $classId
       title: $title
       subject: $subject
@@ -63,6 +65,7 @@ function ExamsContent() {
   const { loading, error, data, refetch } = useQuery(GET_EXAMS_AND_CLASSES);
   const [createExam] = useMutation(CREATE_EXAM);
   const [modalOpen, setModalOpen] = useState(false);
+  const [marksExam, setMarksExam] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [mounted, setMounted] = useState(false);
 
@@ -90,12 +93,30 @@ function ExamsContent() {
       ? userRole
       : 'admin';
 
+  const canEnterMarks = ['admin', 'principal', 'teacher'].includes(userRole);
+
   const columns = [
     { header: 'Title', accessor: 'title' },
     { header: 'Subject', accessor: 'subject' },
     { header: 'Class', accessor: 'classByClassId.name', render: (row) => row.classByClassId?.name },
     { header: 'Date', accessor: 'examDate' },
     { header: 'Total Marks', accessor: 'totalMarks' },
+    ...(canEnterMarks
+      ? [{
+          header: 'Marks',
+          accessor: 'id',
+          render: (row) => (
+            <button
+              type="button"
+              onClick={() => setMarksExam(row)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+            >
+              <ClipboardEdit className="h-3.5 w-3.5" />
+              Enter Marks
+            </button>
+          ),
+        }]
+      : []),
   ];
 
   const handleCreateExam = () => {
@@ -143,6 +164,13 @@ function ExamsContent() {
         onClose={() => setModalOpen(false)}
         onSubmit={handleModalSubmit}
         classes={data?.allClasses?.nodes || []}
+      />
+
+      <MarksEntryModal
+        open={Boolean(marksExam)}
+        exam={marksExam}
+        onClose={() => setMarksExam(null)}
+        onSaved={() => refetch()}
       />
     </DashboardLayout>
   );

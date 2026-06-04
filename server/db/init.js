@@ -78,6 +78,36 @@ async function seedData() {
         )
     `, [class11AId]);
     const student2 = s2Sub.rows[0];
+    // roll_number/section columns are added by migration 001 (runs AFTER this),
+    // so we record intended values here and apply the UPDATEs in seedFeatureData.
+    student1.section = 'A'; student1.roll = '1';
+    student2.section = 'A'; student2.roll = '1';
+
+    // Bulk roster so the new class/section dropdowns + search are demonstrable.
+    // Spread across two sections (A, B) in class 10-A and 11-A.
+    // Roll numbers are unique per class (constraint students_roll_per_class),
+    // so number sequentially within each class across sections.
+    const extraStudents = [
+        ['Charlie Brown', 'charlie', class10AId, 'A', '2'],
+        ['Diana Prince', 'diana', class10AId, 'A', '3'],
+        ['Ethan Hunt', 'ethan', class10AId, 'A', '4'],
+        ['Fiona Gallagher', 'fiona', class10AId, 'B', '5'],
+        ['George Miller', 'george', class10AId, 'B', '6'],
+        ['Hannah Lee', 'hannah', class10AId, 'B', '7'],
+        ['Ian Curtis', 'ian', class11AId, 'A', '2'],
+        ['Julia Roberts', 'julia', class11AId, 'A', '3'],
+        ['Kevin Hart', 'kevin', class11AId, 'B', '4'],
+        ['Laura Palmer', 'laura', class11AId, 'B', '5'],
+    ];
+    const rosterStudents = [];
+    for (const [fullName, uname, classId, section, roll] of extraStudents) {
+        const r = await pool.query(
+            `SELECT * FROM register_student($1, 'student123', $2, $3, $4, $5, $6, '555-0000', 'Demo Address')`,
+            [uname, fullName, `${uname}@student.com`, classId, `${fullName} Parent`, `${uname}.parent@example.com`]
+        );
+        const stu = r.rows[0];
+        rosterStudents.push({ ...stu, section, roll, classId });
+    }
 
     // 5. Attendance
     console.log('Seeding Attendance...');
@@ -135,6 +165,112 @@ async function seedData() {
     `, [demoInstitutionId, adminId]);
 
     console.log('Data Seeding Complete.');
+
+    return {
+        demoInstitutionId,
+        adminId,
+        teacher1UserId,
+        teacher2UserId,
+        class10AId,
+        class11AId,
+        student1,
+        student2,
+        rosterStudents,
+        exam1Id,
+    };
+}
+
+// ------------------------------------------------------------------
+// Seed the feature tables created by migrations (holidays, timetable,
+// online classes, assignments). Runs AFTER runMigrations so the tables
+// exist. Idempotent: wipes the demo institution's feature rows first so
+// re-running every boot does not accumulate duplicates/orphans.
+// ------------------------------------------------------------------
+async function seedFeatureData(ids) {
+    if (!ids) return;
+    const {
+        demoInstitutionId, adminId, teacher1UserId, teacher2UserId,
+        class10AId, class11AId, student1, student2, rosterStudents,
+    } = ids;
+    console.log('Seeding feature tables (holidays, timetable, online classes, assignments)...');
+
+    // Apply roll_number/section now that migration 001 has added the columns.
+    for (const s of [student1, student2, ...rosterStudents]) {
+        await pool.query('UPDATE students SET roll_number = $1, section = $2 WHERE id = $3',
+            [s.roll, s.section, s.id]);
+    }
+
+    // --- Wipe existing demo feature rows (idempotent) ---
+    await pool.query('DELETE FROM holidays WHERE institution_id = $1', [demoInstitutionId]);
+    await pool.query('DELETE FROM timetable_periods WHERE institution_id = $1', [demoInstitutionId]);
+    await pool.query('DELETE FROM online_classes WHERE institution_id = $1', [demoInstitutionId]);
+    // assignment_submissions cascade-delete with assignments.
+    await pool.query('DELETE FROM assignments WHERE institution_id = $1', [demoInstitutionId]);
+
+    // --- Holidays ---
+    await pool.query(`
+        INSERT INTO holidays (institution_id, title, start_date, end_date, type, description, created_by) VALUES
+        ($1, 'Independence Day', CURRENT_DATE + 20, CURRENT_DATE + 20, 'national', 'National holiday', $2),
+        ($1, 'Founders Day', CURRENT_DATE + 5, CURRENT_DATE + 5, 'school', 'School foundation celebration', $2),
+        ($1, 'Winter Break', CURRENT_DATE + 45, CURRENT_DATE + 55, 'school', 'Year-end winter vacation', $2),
+        ($1, 'Diwali', CURRENT_DATE - 10, CURRENT_DATE - 8, 'festival', 'Festival of lights', $2)
+    `, [demoInstitutionId, adminId]);
+
+    // --- Timetable (class 10-A, section A: Mon-Fri, 4 periods each) ---
+    const subjectsByTeacher = [
+        ['Mathematics', teacher1UserId, '101'],
+        ['Science', teacher2UserId, '102'],
+        ['English', teacher1UserId, '103'],
+        ['History', teacher2UserId, '104'],
+    ];
+    const periodTimes = [
+        ['09:00', '09:45'],
+        ['09:50', '10:35'],
+        ['10:50', '11:35'],
+        ['11:40', '12:25'],
+    ];
+    for (let day = 1; day <= 5; day++) {
+        for (let p = 0; p < 4; p++) {
+            const [subject, tId, room] = subjectsByTeacher[(day + p) % 4];
+            const [st, et] = periodTimes[p];
+            await pool.query(`
+                INSERT INTO timetable_periods
+                  (institution_id, class_id, section, day_of_week, period_no, subject, teacher_id, start_time, end_time, room)
+                VALUES ($1, $2, 'A', $3, $4, $5, $6, $7, $8, $9)
+            `, [demoInstitutionId, class10AId, day, p + 1, subject, tId, st, et, room]);
+        }
+    }
+
+    // --- Online classes (upcoming) ---
+    await pool.query(`
+        INSERT INTO online_classes
+          (institution_id, class_id, section, teacher_id, title, description, class_date, start_time, end_time, meeting_link, provider) VALUES
+        ($1, $2, 'A', $3, 'Algebra Revision', 'Live revision before the unit test', CURRENT_DATE + 1, '15:00', '16:00', 'https://meet.google.com/demo-algebra', 'meet'),
+        ($1, $2, 'A', $4, 'Physics Doubt Session', 'Open Q&A on motion & forces', CURRENT_DATE + 3, '14:00', '15:00', 'https://zoom.us/j/demo-physics', 'zoom'),
+        ($1, $5, 'A', $4, 'Chemistry Lab Walkthrough', 'Virtual lab demo', CURRENT_DATE + 2, '11:00', '12:00', 'https://meet.google.com/demo-chem', 'meet')
+    `, [demoInstitutionId, class10AId, teacher1UserId, teacher2UserId, class11AId]);
+
+    // --- Assignments + a sample submission ---
+    const asgMath = await pool.query(`
+        INSERT INTO assignments (institution_id, class_id, section, teacher_id, title, description, due_date)
+        VALUES ($1, $2, 'A', $3, 'Algebra Worksheet 1', 'Solve problems 1-20 from chapter 3.', CURRENT_DATE + 7)
+        RETURNING id
+    `, [demoInstitutionId, class10AId, teacher1UserId]);
+    await pool.query(`
+        INSERT INTO assignments (institution_id, class_id, section, teacher_id, title, description, due_date) VALUES
+        ($1, $2, 'A', $3, 'Science Project', 'Prepare a model on renewable energy.', CURRENT_DATE + 14),
+        ($1, $4, 'A', $5, 'Essay: My Role Model', 'Write a 500-word essay.', CURRENT_DATE + 5)
+    `, [demoInstitutionId, class10AId, teacher2UserId, class11AId, teacher1UserId]);
+
+    // Sample submission from the primary student on the math assignment.
+    await pool.query(`
+        INSERT INTO assignment_submissions (assignment_id, student_id, comment, status)
+        VALUES ($1, $2, 'Completed all problems.', 'submitted')
+        ON CONFLICT (assignment_id, student_id) DO NOTHING
+    `, [asgMath.rows[0].id, student1.id]);
+
+    void rosterStudents;
+    console.log('Feature table seeding complete.');
 }
 
 async function initDb() {
@@ -150,7 +286,7 @@ async function initDb() {
         console.log('Schema applied successfully.');
 
         // 2. Seed Data
-        await seedData();
+        const seedIds = await seedData();
 
         // 3. RLS + mai_graphql (PostGraphile connects as this role)
         const rlsPath = path.join(__dirname, 'rls_setup.sql');
@@ -161,6 +297,14 @@ async function initDb() {
         const escaped = gqlPwd.replace(/'/g, "''");
         await pool.query(`ALTER ROLE mai_graphql WITH LOGIN PASSWORD '${escaped}'`);
         console.log('RLS applied. Set MAI_GRAPHQL_DB_PASSWORD in production.');
+
+        // 4. Additive feature migrations (idempotent; create new tables + RLS).
+        const { runMigrations } = require('./migrate');
+        console.log('Running feature migrations...');
+        await runMigrations(pool);
+
+        // 5. Seed feature tables (must run after migrations create them).
+        await seedFeatureData(seedIds);
 
         console.log('Database initialization complete.');
     } catch (err) {

@@ -68,8 +68,8 @@ const UPDATE_CLASS = gql`
 
 const DELETE_CLASS = gql`
   mutation DeleteClass($id: UUID!) {
-    deleteClass(input: { id: $id }) {
-      uuid
+    deleteClassById(input: { id: $id }) {
+      deletedClassId
     }
   }
 `;

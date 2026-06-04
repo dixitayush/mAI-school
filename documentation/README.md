@@ -10,6 +10,7 @@ This folder contains architecture and design documentation for the **mAI-school*
 | [SEQUENCE_DIAGRAMS.md](./SEQUENCE_DIAGRAMS.md) | Key interaction sequences (auth, onboarding, GraphQL, middleware) |
 | [FLOW_DIAGRAMS.md](./FLOW_DIAGRAMS.md) | Process and navigation flows |
 | [DATA_AND_CONFIG_INVENTORY.md](./DATA_AND_CONFIG_INVENTORY.md) | Domains, env vars, storage keys, reserved slugs |
+| [FEATURE_ENHANCEMENTS.md](./FEATURE_ENHANCEMENTS.md) | 9-feature release: AI OCR, analytics, exams/report cards, admit cards, assignments, timetable, online classes, holidays, AI chatbot — architecture, migrations, APIs, deployment |
 
 **Stack (summary):**
 
