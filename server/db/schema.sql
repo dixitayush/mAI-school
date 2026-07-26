@@ -1,7 +1,31 @@
 -- Enable pgcrypto for UUID generation
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Clean up existing schema
+-- Clean up existing schema (core + feature tables from migrations)
+DROP TABLE IF EXISTS chat_messages CASCADE;
+DROP TABLE IF EXISTS chat_sessions CASCADE;
+DROP TABLE IF EXISTS online_classes CASCADE;
+DROP TABLE IF EXISTS timetable_periods CASCADE;
+DROP TABLE IF EXISTS assignment_submissions CASCADE;
+DROP TABLE IF EXISTS assignments CASCADE;
+DROP TABLE IF EXISTS admit_cards CASCADE;
+DROP TABLE IF EXISTS attendance_import_rows CASCADE;
+DROP TABLE IF EXISTS attendance_imports CASCADE;
+DROP TABLE IF EXISTS holidays CASCADE;
+DROP TABLE IF EXISTS payslips CASCADE;
+DROP TABLE IF EXISTS payroll_runs CASCADE;
+DROP TABLE IF EXISTS staff_attendance CASCADE;
+DROP TABLE IF EXISTS salary_components CASCADE;
+DROP TABLE IF EXISTS salary_structures CASCADE;
+DROP TABLE IF EXISTS staff_bank_accounts CASCADE;
+DROP TABLE IF EXISTS expenses CASCADE;
+DROP TABLE IF EXISTS expense_categories CASCADE;
+DROP TABLE IF EXISTS fee_payments CASCADE;
+DROP TABLE IF EXISTS fee_plan_items CASCADE;
+DROP TABLE IF EXISTS student_fee_overrides CASCADE;
+DROP TABLE IF EXISTS fee_invoices CASCADE;
+DROP TABLE IF EXISTS fee_plans CASCADE;
+DROP TABLE IF EXISTS fee_heads CASCADE;
 DROP TABLE IF EXISTS announcements CASCADE;
 DROP TABLE IF EXISTS meetings CASCADE;
 DROP TABLE IF EXISTS reports CASCADE;
@@ -12,14 +36,17 @@ DROP TABLE IF EXISTS attendance CASCADE;
 DROP TABLE IF EXISTS teachers CASCADE;
 DROP TABLE IF EXISTS students CASCADE;
 DROP TABLE IF EXISTS classes CASCADE;
+DROP TABLE IF EXISTS academic_sessions CASCADE;
+DROP TABLE IF EXISTS institution_settings CASCADE;
+DROP TABLE IF EXISTS audit_log CASCADE;
+DROP TABLE IF EXISTS files CASCADE;
 DROP TABLE IF EXISTS profiles CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS institutions CASCADE;
 DROP TYPE IF EXISTS user_role CASCADE;
 
 -- 0. Tenants (institutes)
--- 'opsadmin' runs fees, payroll and expenses. Existing databases get it from
--- migration 016, which must stay in sync with this list.
+-- 'opsadmin' runs fees, payroll and expenses.
 CREATE TYPE user_role AS ENUM ('mai_admin', 'admin', 'principal', 'opsadmin', 'teacher', 'student');
 
 -- JWT helpers for RLS + SECURITY DEFINER checks (set by PostGraphile pgSettings per request)
@@ -89,8 +116,16 @@ CREATE TABLE students (
   parent_phone TEXT,
   parent_address TEXT,
   dob DATE,
-  enrollment_date DATE DEFAULT CURRENT_DATE
+  enrollment_date DATE DEFAULT CURRENT_DATE,
+  roll_number TEXT,
+  section TEXT,
+  -- FK to files(id) is added in migration 001 after files exists.
+  photo_file_id UUID
 );
+
+CREATE UNIQUE INDEX students_roll_per_class
+  ON students (class_id, roll_number)
+  WHERE roll_number IS NOT NULL;
 
 CREATE TABLE teachers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -111,17 +146,33 @@ CREATE TABLE attendance (
   UNIQUE(student_id, date)
 );
 
--- 4. Fees Management
+-- 4. Fees Management (final shape; FKs to fee_invoices / fee_heads /
+-- academic_sessions are attached in migration 013 once those tables exist)
 CREATE TABLE fees (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id UUID REFERENCES students(id),
-  amount DECIMAL(10, 2) NOT NULL,
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  invoice_id UUID,
+  fee_head_id UUID,
+  academic_session_id UUID,
+  amount NUMERIC(12, 2) NOT NULL,
+  discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  paid_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  balance NUMERIC(12, 2) GENERATED ALWAYS AS (amount - COALESCE(discount_amount, 0) - COALESCE(paid_amount, 0)) STORED,
   description TEXT,
+  period_label TEXT,
   due_date DATE NOT NULL,
-  status TEXT CHECK (status IN ('paid', 'pending', 'overdue')) DEFAULT 'pending',
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'partial', 'paid', 'overdue', 'waived', 'cancelled')),
   payment_date DATE,
-  invoice_number TEXT UNIQUE
+  invoice_number TEXT UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX fees_institution_idx ON fees (institution_id, status);
+CREATE INDEX fees_invoice_idx ON fees (invoice_id);
+CREATE INDEX fees_head_idx ON fees (fee_head_id);
 
 -- 5. Exams & Results
 CREATE TABLE exams (
@@ -131,7 +182,9 @@ CREATE TABLE exams (
   title TEXT NOT NULL,
   exam_date DATE NOT NULL,
   total_marks INT NOT NULL,
-  description TEXT
+  description TEXT,
+  exam_type TEXT NOT NULL DEFAULT 'custom',
+  passing_marks INT
 );
 
 CREATE TABLE results (
@@ -140,7 +193,8 @@ CREATE TABLE results (
   student_id UUID REFERENCES students(id),
   marks_obtained INT NOT NULL,
   grade TEXT,
-  feedback TEXT
+  feedback TEXT,
+  CONSTRAINT results_exam_student_uniq UNIQUE (exam_id, student_id)
 );
 
 -- 6. Reports

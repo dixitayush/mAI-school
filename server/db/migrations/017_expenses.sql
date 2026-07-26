@@ -7,9 +7,12 @@
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 1. Expense categories.
+-- 1–2. Expense tables (DROP + CREATE)
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS expense_categories (
+DROP TABLE IF EXISTS expenses CASCADE;
+DROP TABLE IF EXISTS expense_categories CASCADE;
+
+CREATE TABLE expense_categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -20,16 +23,12 @@ CREATE TABLE IF NOT EXISTS expense_categories (
   sort_order INT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS expense_categories_code_uniq
+CREATE UNIQUE INDEX expense_categories_code_uniq
   ON expense_categories (institution_id, lower(code));
-CREATE INDEX IF NOT EXISTS expense_categories_inst_idx
+CREATE INDEX expense_categories_inst_idx
   ON expense_categories (institution_id, is_active);
 
--- ------------------------------------------------------------
--- 2. Expenses.
---    total_amount is derived so no caller can post an inconsistent bill.
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS expenses (
+CREATE TABLE expenses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   expense_category_id UUID REFERENCES expense_categories(id) ON DELETE SET NULL,
@@ -56,10 +55,10 @@ CREATE TABLE IF NOT EXISTS expenses (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS expenses_inst_date_idx
+CREATE INDEX expenses_inst_date_idx
   ON expenses (institution_id, expense_date DESC);
-CREATE INDEX IF NOT EXISTS expenses_status_idx ON expenses (institution_id, status);
-CREATE INDEX IF NOT EXISTS expenses_category_idx ON expenses (expense_category_id);
+CREATE INDEX expenses_status_idx ON expenses (institution_id, status);
+CREATE INDEX expenses_category_idx ON expenses (expense_category_id);
 
 -- Stamp the tenant and requester from the JWT so the client cannot post to
 -- another institution, mirroring the fees trigger in 013.

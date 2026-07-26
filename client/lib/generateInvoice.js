@@ -1,41 +1,17 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatAmount } from "./currency";
-import { safeFileName } from "./pdfUtils";
-
-const BRAND = [79, 70, 229];
-const MUTED = [120, 120, 120];
-
-function header(doc, schoolName, title) {
-  const pageWidth = doc.internal.pageSize.width;
-  doc.setFillColor(...BRAND);
-  doc.rect(0, 0, pageWidth, 34, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  doc.setFont(undefined, "bold");
-  doc.text(schoolName || "MAI School", 14, 15);
-  doc.setFontSize(11);
-  doc.setFont(undefined, "normal");
-  doc.text(title, pageWidth - 14, 15, { align: "right" });
-  doc.setTextColor(0, 0, 0);
-  return pageWidth;
-}
-
-function metaBlock(doc, left, right, startY) {
-  autoTable(doc, {
-    startY,
-    body: left.map((row, i) => [...row, ...(right[i] || ["", ""])]),
-    theme: "plain",
-    styles: { fontSize: 9.5, cellPadding: 1.6 },
-    columnStyles: {
-      0: { fontStyle: "bold", cellWidth: 26, textColor: MUTED },
-      1: { cellWidth: 62 },
-      2: { fontStyle: "bold", cellWidth: 26, textColor: MUTED },
-      3: { cellWidth: "auto" },
-    },
-  });
-  return doc.lastAutoTable.finalY;
-}
+import {
+  PDF_THEME,
+  drawDocumentFooters,
+  drawDocumentHeader,
+  drawMetaBlock,
+  drawSectionTitle,
+  formatPdfDate,
+  resolveSchoolBrand,
+  safeFileName,
+  tableThemeStyles,
+} from "./pdfUtils";
 
 function totalsBlock(doc, rows, startY) {
   const pageWidth = doc.internal.pageSize.width;
@@ -44,22 +20,24 @@ function totalsBlock(doc, rows, startY) {
     margin: { left: pageWidth / 2 },
     body: rows,
     theme: "plain",
-    styles: { fontSize: 10, cellPadding: 2 },
+    styles: { fontSize: 10, cellPadding: 2, textColor: PDF_THEME.text },
     columnStyles: {
-      0: { fontStyle: "bold", cellWidth: 45 },
+      0: { fontStyle: "bold", cellWidth: 45, textColor: PDF_THEME.muted },
       1: { halign: "right", cellWidth: "auto" },
     },
   });
   return doc.lastAutoTable.finalY;
 }
 
-function footerNote(doc, note) {
+function signatory(doc, y) {
   const pageWidth = doc.internal.pageSize.width;
-  const pageHeight = doc.internal.pageSize.height;
-  doc.setFontSize(8);
-  doc.setTextColor(...MUTED);
-  doc.text(note, 14, pageHeight - 14, { maxWidth: pageWidth - 28 });
-  doc.setTextColor(0, 0, 0);
+  doc.setDrawColor(...PDF_THEME.border);
+  doc.setLineWidth(0.4);
+  doc.line(pageWidth - 75, y + 24, pageWidth - 14, y + 24);
+  doc.setFontSize(9);
+  doc.setTextColor(...PDF_THEME.muted);
+  doc.text("Authorised Signatory", pageWidth - 75, y + 29);
+  doc.setTextColor(...PDF_THEME.text);
 }
 
 /**
@@ -77,21 +55,34 @@ function footerNote(doc, note) {
  */
 export function generateFeeInvoice(data) {
   const doc = new jsPDF();
-  const pageWidth = header(doc, data.schoolName, "FEE INVOICE");
+  const brand = resolveSchoolBrand(data);
+  const pageWidth = doc.internal.pageSize.width;
 
-  let y = metaBlock(
+  let y = drawDocumentHeader(doc, {
+    title: "FEE INVOICE",
+    subtitle: data.invoiceNumber || "",
+    schoolName: brand.name,
+    schoolSlug: brand.slug,
+  });
+
+  y = drawSectionTitle(doc, "Billing Details", y);
+
+  y = drawMetaBlock(
     doc,
     [
       ["Invoice", data.invoiceNumber || "-"],
       ["Student", data.studentName || "-"],
       ["Class", data.className || "-"],
+      ["Roll No.", data.rollNumber || "-"],
     ],
     [
-      ["Issued", data.issueDate ? new Date(data.issueDate).toLocaleDateString("en-IN") : "-"],
-      ["Due", data.dueDate ? new Date(data.dueDate).toLocaleDateString("en-IN") : "-"],
+      ["Issued", formatPdfDate(data.issueDate)],
+      ["Due", formatPdfDate(data.dueDate)],
       ["Period", data.periodLabel || "-"],
+      ["School", brand.name],
     ],
-    44
+    y,
+    autoTable
   );
 
   const lines = data.lines || [];
@@ -100,8 +91,10 @@ export function generateFeeInvoice(data) {
   const paid = lines.reduce((s, l) => s + Number(l.paid || 0), 0);
   const total = subtotal - discount;
 
+  y = drawSectionTitle(doc, "Charges", y + 10);
+
   autoTable(doc, {
-    startY: y + 6,
+    startY: y,
     head: [["#", "Fee Head", "Description", "Amount (Rs.)", "Discount (Rs.)", "Payable (Rs.)"]],
     body: lines.map((l, i) => [
       i + 1,
@@ -111,16 +104,13 @@ export function generateFeeInvoice(data) {
       formatAmount(l.discount),
       formatAmount(Number(l.amount || 0) - Number(l.discount || 0)),
     ]),
-    theme: "grid",
-    headStyles: { fillColor: BRAND, fontSize: 9.5, fontStyle: "bold" },
-    styles: { fontSize: 9.5, cellPadding: 3 },
+    ...tableThemeStyles(),
     columnStyles: {
       0: { cellWidth: 10, halign: "center" },
       3: { halign: "right" },
       4: { halign: "right" },
       5: { halign: "right" },
     },
-    alternateRowStyles: { fillColor: [249, 250, 251] },
   });
 
   y = totalsBlock(
@@ -135,15 +125,24 @@ export function generateFeeInvoice(data) {
     doc.lastAutoTable.finalY + 6
   );
 
-  doc.setDrawColor(220, 220, 220);
-  doc.line(pageWidth - 75, y + 24, pageWidth - 14, y + 24);
-  doc.setFontSize(9);
-  doc.text("Authorised Signatory", pageWidth - 75, y + 29);
+  // Highlight balance
+  doc.setFillColor(...PDF_THEME.primarySoft);
+  doc.roundedRect(pageWidth / 2, y + 4, pageWidth / 2 - 14, 12, 1.5, 1.5, "F");
+  doc.setFont(undefined, "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(...PDF_THEME.primaryDeep);
+  doc.text("Balance Due", pageWidth / 2 + 4, y + 12);
+  doc.text(`Rs. ${formatAmount(total - paid)}`, pageWidth - 18, y + 12, { align: "right" });
+  doc.setFont(undefined, "normal");
+  doc.setTextColor(...PDF_THEME.text);
 
-  footerNote(
-    doc,
-    "This is a computer-generated invoice. Please quote the invoice number when making payment."
-  );
+  signatory(doc, y + 10);
+
+  drawDocumentFooters(doc, {
+    schoolName: brand.name,
+    schoolSlug: brand.slug,
+    note: "Computer-generated invoice. Quote the invoice number when making payment.",
+  });
 
   doc.save(safeFileName(`invoice-${data.invoiceNumber || data.studentName || "fee"}`));
   return doc;
@@ -156,9 +155,19 @@ export function generateFeeInvoice(data) {
  */
 export function generateFeeReceipt(data) {
   const doc = new jsPDF();
-  const pageWidth = header(doc, data.schoolName, "FEE RECEIPT");
+  const brand = resolveSchoolBrand(data);
+  const pageWidth = doc.internal.pageSize.width;
 
-  let y = metaBlock(
+  let y = drawDocumentHeader(doc, {
+    title: "FEE RECEIPT",
+    subtitle: data.receiptNumber || "",
+    schoolName: brand.name,
+    schoolSlug: brand.slug,
+  });
+
+  y = drawSectionTitle(doc, "Receipt Details", y);
+
+  y = drawMetaBlock(
     doc,
     [
       ["Receipt", data.receiptNumber || "-"],
@@ -166,18 +175,21 @@ export function generateFeeReceipt(data) {
       ["Class", data.className || "-"],
     ],
     [
-      ["Date", data.paidOn ? new Date(data.paidOn).toLocaleDateString("en-IN") : "-"],
+      ["Date", formatPdfDate(data.paidOn)],
       ["Invoice", data.invoiceNumber || "-"],
       ["Received By", data.collectedBy || "-"],
     ],
-    44
+    y,
+    autoTable
   );
 
   const payments = data.payments || [];
   const total = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
 
+  y = drawSectionTitle(doc, "Payments Received", y + 10);
+
   autoTable(doc, {
-    startY: y + 6,
+    startY: y,
     head: [["#", "Fee Head", "Mode", "Reference", "Amount (Rs.)"]],
     body: payments.map((p, i) => [
       i + 1,
@@ -186,11 +198,8 @@ export function generateFeeReceipt(data) {
       p.reference || "-",
       formatAmount(p.amount),
     ]),
-    theme: "grid",
-    headStyles: { fillColor: BRAND, fontSize: 9.5, fontStyle: "bold" },
-    styles: { fontSize: 9.5, cellPadding: 3 },
+    ...tableThemeStyles(),
     columnStyles: { 0: { cellWidth: 10, halign: "center" }, 4: { halign: "right" } },
-    alternateRowStyles: { fillColor: [249, 250, 251] },
   });
 
   y = totalsBlock(
@@ -204,17 +213,23 @@ export function generateFeeReceipt(data) {
     doc.lastAutoTable.finalY + 6
   );
 
+  doc.setFillColor(...PDF_THEME.successBg);
+  doc.setDrawColor(...PDF_THEME.successBorder);
+  doc.roundedRect(14, y + 6, pageWidth - 28, 14, 2, 2, "FD");
   doc.setFontSize(10);
   doc.setFont(undefined, "bold");
-  doc.text(`Received with thanks: Rs. ${formatAmount(total)}`, 14, y + 14);
+  doc.setTextColor(...PDF_THEME.successText);
+  doc.text(`Received with thanks: Rs. ${formatAmount(total)}`, 20, y + 15);
   doc.setFont(undefined, "normal");
+  doc.setTextColor(...PDF_THEME.text);
 
-  doc.setDrawColor(220, 220, 220);
-  doc.line(pageWidth - 75, y + 28, pageWidth - 14, y + 28);
-  doc.setFontSize(9);
-  doc.text("Authorised Signatory", pageWidth - 75, y + 33);
+  signatory(doc, y + 14);
 
-  footerNote(doc, "This is a computer-generated receipt and is valid without a physical signature.");
+  drawDocumentFooters(doc, {
+    schoolName: brand.name,
+    schoolSlug: brand.slug,
+    note: "Computer-generated receipt — valid without a physical signature.",
+  });
 
   doc.save(safeFileName(`receipt-${data.receiptNumber || data.studentName || "payment"}`));
   return doc;

@@ -1,7 +1,7 @@
 -- ============================================================
 -- Migration 001 — Foundations (cross-cutting building blocks)
--- Idempotent & additive: safe to run repeatedly.
--- Run AFTER schema.sql + rls_setup.sql (see db/init.js / db/migrate.js).
+-- DROP + CREATE: safe on fresh / DB_RESET boots (see db/init.js).
+-- Run AFTER schema.sql + rls_setup.sql.
 -- ============================================================
 
 -- ---- JWT helpers (extend the ones in schema.sql) ----
@@ -17,7 +17,8 @@ $$ LANGUAGE sql STABLE;
 -- 1. files — binary storage in Postgres (tenant-isolated)
 --    Served only via REST /api/files/:id (never over GraphQL).
 -- ============================================================
-CREATE TABLE IF NOT EXISTS files (
+DROP TABLE IF EXISTS files CASCADE;
+CREATE TABLE files (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   owner_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -29,12 +30,19 @@ CREATE TABLE IF NOT EXISTS files (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 COMMENT ON TABLE files IS E'@omit';
-CREATE INDEX IF NOT EXISTS files_institution_idx ON files (institution_id);
+CREATE INDEX files_institution_idx ON files (institution_id);
+
+-- photo_file_id was created without an FK in schema.sql (files did not exist yet).
+ALTER TABLE students DROP CONSTRAINT IF EXISTS students_photo_file_id_fkey;
+ALTER TABLE students
+  ADD CONSTRAINT students_photo_file_id_fkey
+  FOREIGN KEY (photo_file_id) REFERENCES files(id) ON DELETE SET NULL;
 
 -- ============================================================
 -- 2. audit_log — critical-action trail (admin/principal read)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS audit_log (
+DROP TABLE IF EXISTS audit_log CASCADE;
+CREATE TABLE audit_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -45,10 +53,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 COMMENT ON TABLE audit_log IS E'@omit create,update,delete';
-CREATE INDEX IF NOT EXISTS audit_log_institution_idx ON audit_log (institution_id, created_at DESC);
+CREATE INDEX audit_log_institution_idx ON audit_log (institution_id, created_at DESC);
 
--- SECURITY DEFINER audit writer for GraphQL/definer contexts (uses JWT claims).
--- REST routes insert directly with explicit institution_id (see lib/audit.js).
 CREATE OR REPLACE FUNCTION log_audit(
   p_action TEXT,
   p_entity_type TEXT DEFAULT NULL,
@@ -63,7 +69,8 @@ COMMENT ON FUNCTION log_audit(TEXT, TEXT, UUID, JSONB) IS E'@omit';
 -- ============================================================
 -- 3. institution_settings — per-tenant configuration
 -- ============================================================
-CREATE TABLE IF NOT EXISTS institution_settings (
+DROP TABLE IF EXISTS institution_settings CASCADE;
+CREATE TABLE institution_settings (
   institution_id UUID PRIMARY KEY REFERENCES institutions(id) ON DELETE CASCADE,
   attendance_threshold NUMERIC NOT NULL DEFAULT 75,
   fee_block_enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -75,7 +82,6 @@ CREATE TABLE IF NOT EXISTS institution_settings (
   extra JSONB,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
--- Writes only via upsert fn (role-checked); GraphQL exposes read + the fn.
 COMMENT ON TABLE institution_settings IS E'@omit create,update,delete';
 
 CREATE OR REPLACE FUNCTION upsert_institution_settings(
@@ -124,7 +130,8 @@ COMMENT ON FUNCTION upsert_institution_settings(UUID, NUMERIC, BOOLEAN, NUMERIC,
 -- ============================================================
 -- 4. academic_sessions — academic years/terms per tenant
 -- ============================================================
-CREATE TABLE IF NOT EXISTS academic_sessions (
+DROP TABLE IF EXISTS academic_sessions CASCADE;
+CREATE TABLE academic_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -174,35 +181,24 @@ COMMENT ON FUNCTION upsert_academic_session(UUID, TEXT, DATE, DATE, BOOLEAN, UUI
   IS E'@name upsertAcademicSession\nCreate or update an academic session';
 
 -- ============================================================
--- 5. students — roll number, section, photo
+-- RLS + grants
 -- ============================================================
-ALTER TABLE students ADD COLUMN IF NOT EXISTS roll_number TEXT;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS section TEXT;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS photo_file_id UUID REFERENCES files(id) ON DELETE SET NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS students_roll_per_class
-  ON students (class_id, roll_number)
-  WHERE roll_number IS NOT NULL;
+ALTER TABLE files ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE institution_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academic_sessions ENABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- RLS + grants for new tenant tables
--- ============================================================
-DO $$
-DECLARE t text;
-BEGIN
-  FOREACH t IN ARRAY ARRAY['files', 'audit_log', 'institution_settings', 'academic_sessions']
-  LOOP
-    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
-    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO mai_graphql', t);
-    EXECUTE format('DROP POLICY IF EXISTS mai_tenant_all ON public.%I', t);
-  END LOOP;
-END $$;
+GRANT SELECT, INSERT, UPDATE, DELETE ON files TO mai_graphql;
+GRANT SELECT, INSERT, UPDATE, DELETE ON audit_log TO mai_graphql;
+GRANT SELECT, INSERT, UPDATE, DELETE ON institution_settings TO mai_graphql;
+GRANT SELECT, INSERT, UPDATE, DELETE ON academic_sessions TO mai_graphql;
 
--- files: tenant-scoped (mutated only via REST as table owner; policy still set for safety)
+DROP POLICY IF EXISTS mai_tenant_all ON files;
 CREATE POLICY mai_tenant_all ON files FOR ALL TO mai_graphql
   USING (rls_is_mai_admin() OR institution_id = rls_jwt_institution_id())
   WITH CHECK (rls_is_mai_admin() OR institution_id = rls_jwt_institution_id());
 
--- audit_log: read for admin/principal of the tenant only
+DROP POLICY IF EXISTS mai_tenant_all ON audit_log;
 CREATE POLICY mai_tenant_all ON audit_log FOR ALL TO mai_graphql
   USING (
     rls_is_mai_admin()
@@ -213,17 +209,18 @@ CREATE POLICY mai_tenant_all ON audit_log FOR ALL TO mai_graphql
     OR (institution_id = rls_jwt_institution_id() AND rls_jwt_role() IN ('admin', 'principal'))
   );
 
--- institution_settings: any tenant member may read; writes via fn only
+DROP POLICY IF EXISTS mai_tenant_all ON institution_settings;
 CREATE POLICY mai_tenant_all ON institution_settings FOR ALL TO mai_graphql
   USING (rls_is_mai_admin() OR institution_id = rls_jwt_institution_id())
   WITH CHECK (rls_is_mai_admin() OR institution_id = rls_jwt_institution_id());
 
+DROP POLICY IF EXISTS mai_tenant_all ON academic_sessions;
 CREATE POLICY mai_tenant_all ON academic_sessions FOR ALL TO mai_graphql
   USING (rls_is_mai_admin() OR institution_id = rls_jwt_institution_id())
   WITH CHECK (rls_is_mai_admin() OR institution_id = rls_jwt_institution_id());
 
 -- ============================================================
--- Seed: default settings row for every existing institution
+-- Seed: default settings row for every institution
 -- ============================================================
 INSERT INTO institution_settings (institution_id)
 SELECT id FROM institutions

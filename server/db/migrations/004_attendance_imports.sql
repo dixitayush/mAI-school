@@ -6,7 +6,9 @@
 -- read via PostGraphile so the UI can list import history.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS attendance_imports (
+DROP TABLE IF EXISTS attendance_import_rows CASCADE;
+DROP TABLE IF EXISTS attendance_imports CASCADE;
+CREATE TABLE attendance_imports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   class_id UUID REFERENCES classes(id) ON DELETE SET NULL,
@@ -21,10 +23,10 @@ CREATE TABLE IF NOT EXISTS attendance_imports (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 COMMENT ON TABLE attendance_imports IS E'@omit create,update,delete';
-CREATE INDEX IF NOT EXISTS attendance_imports_inst_idx
+CREATE INDEX attendance_imports_inst_idx
   ON attendance_imports (institution_id, created_at DESC);
 
-CREATE TABLE IF NOT EXISTS attendance_import_rows (
+CREATE TABLE attendance_import_rows (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   import_id UUID NOT NULL REFERENCES attendance_imports(id) ON DELETE CASCADE,
   matched_student_id UUID REFERENCES students(id) ON DELETE SET NULL,
@@ -35,7 +37,7 @@ CREATE TABLE IF NOT EXISTS attendance_import_rows (
   accepted BOOLEAN NOT NULL DEFAULT TRUE
 );
 COMMENT ON TABLE attendance_import_rows IS E'@omit create,update,delete';
-CREATE INDEX IF NOT EXISTS attendance_import_rows_import_idx
+CREATE INDEX attendance_import_rows_import_idx
   ON attendance_import_rows (import_id);
 
 -- ---- RLS: tenant-scoped read (writes go through SECURITY DEFINER REST) ----

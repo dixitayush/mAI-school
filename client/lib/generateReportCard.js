@@ -1,240 +1,191 @@
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { safeFileName } from './pdfUtils';
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import {
+  PDF_THEME,
+  academicYearLabel,
+  drawDocumentFooters,
+  drawDocumentHeader,
+  drawSectionTitle,
+  drawSignaturePair,
+  formatPdfDate,
+  resolveSchoolBrand,
+  safeFileName,
+  tableThemeStyles,
+} from "./pdfUtils";
 
 /**
  * Generate a comprehensive student report card as PDF
  * @param {Object} studentData - Student data including personal info, marks, and attendance
- * @returns {void} - Downloads the PDF file
  */
 export function generateReportCard(studentData) {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.width;
-    const pageHeight = doc.internal.pageSize.height;
+  const doc = new jsPDF();
+  const brand = resolveSchoolBrand(studentData);
+  const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+  const yearLabel = academicYearLabel();
 
-    // Header with school branding
-    doc.setFillColor(79, 70, 229); // Primary color
-    doc.rect(0, 0, pageWidth, 50, 'F');
+  let y = drawDocumentHeader(doc, {
+    title: "STUDENT REPORT CARD",
+    subtitle: `Academic Year ${yearLabel}`,
+    schoolName: brand.name,
+    schoolSlug: brand.slug,
+  });
 
-    // School Name
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(26);
-    doc.setFont(undefined, 'bold');
-    doc.text(studentData.schoolName || 'MAI School', pageWidth / 2, 20, { align: 'center' });
+  y = drawSectionTitle(doc, "Student Information", y);
 
-    doc.setFontSize(18);
-    doc.text('Student Report Card', pageWidth / 2, 35, { align: 'center' });
+  const studentInfo = [
+    ["Student Name", studentData.name || "N/A"],
+    ["Class", studentData.class || "N/A"],
+    ["Roll Number", studentData.rollNumber || "N/A"],
+    ["Academic Year", yearLabel],
+    ["School", brand.name],
+  ];
 
-    // Academic Year
+  autoTable(doc, {
+    startY: y,
+    body: studentInfo,
+    theme: "plain",
+    styles: { fontSize: 10, cellPadding: 3, textColor: PDF_THEME.text },
+    columnStyles: {
+      0: { fontStyle: "bold", cellWidth: 40, textColor: PDF_THEME.muted },
+      1: { cellWidth: "auto" },
+    },
+  });
+
+  y = drawSectionTitle(doc, "Academic Performance", doc.lastAutoTable.finalY + 12);
+
+  const marksData = (studentData.results || []).map((result) => {
+    const percentage =
+      result.totalMarks > 0
+        ? ((result.marksObtained / result.totalMarks) * 100).toFixed(1)
+        : "0.0";
+    return [
+      result.subject,
+      String(result.marksObtained),
+      String(result.totalMarks),
+      percentage + "%",
+      result.grade || calculateGrade(percentage),
+    ];
+  });
+
+  if (marksData.length > 0) {
+    const totalObtained = studentData.results.reduce((sum, r) => sum + r.marksObtained, 0);
+    const totalMax = studentData.results.reduce((sum, r) => sum + r.totalMarks, 0);
+    const overallPercentage =
+      totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : "0.0";
+
+    marksData.push([
+      "TOTAL",
+      String(totalObtained),
+      String(totalMax),
+      overallPercentage + "%",
+      calculateGrade(overallPercentage),
+    ]);
+  }
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Subject", "Marks Obtained", "Total Marks", "Percentage", "Grade"]],
+    body: marksData.length > 0 ? marksData : [["No exam results available", "", "", "", ""]],
+    ...tableThemeStyles(),
+    styles: {
+      ...tableThemeStyles().styles,
+      fontSize: 9,
+      cellPadding: 4,
+      halign: "center",
+    },
+    columnStyles: {
+      0: { halign: "left", fontStyle: "bold" },
+    },
+    didParseCell(cellData) {
+      if (cellData.row.index === marksData.length - 1 && marksData.length > 1) {
+        cellData.cell.styles.fillColor = PDF_THEME.primarySoft;
+        cellData.cell.styles.textColor = PDF_THEME.primaryDeep;
+        cellData.cell.styles.fontStyle = "bold";
+      }
+    },
+  });
+
+  y = doc.lastAutoTable.finalY + 14;
+
+  if (y > pageHeight - 90) {
+    doc.addPage();
+    y = 20;
+  }
+
+  y = drawSectionTitle(doc, "Attendance Summary", y);
+
+  autoTable(doc, {
+    startY: y,
+    body: [
+      ["Total Days", String(studentData.totalDays || 0)],
+      ["Present", String(studentData.presentDays || 0)],
+      ["Absent", String(studentData.absentDays || 0)],
+      ["Attendance Percentage", `${studentData.attendancePercentage || "0"}%`],
+    ],
+    theme: "grid",
+    styles: {
+      fontSize: 10,
+      cellPadding: 4,
+      textColor: PDF_THEME.text,
+      lineColor: PDF_THEME.border,
+      lineWidth: 0.2,
+    },
+    columnStyles: {
+      0: { fontStyle: "bold", cellWidth: 60, fillColor: PDF_THEME.primarySoft },
+      1: { cellWidth: "auto", halign: "center" },
+    },
+  });
+
+  y = doc.lastAutoTable.finalY + 12;
+
+  if (studentData.overallGrade || studentData.remarks) {
+    y = drawSectionTitle(doc, "Overall Performance", y);
     doc.setFontSize(10);
-    doc.setFont(undefined, 'normal');
-    const currentYear = new Date().getFullYear();
-    doc.text(`Academic Year ${currentYear - 1}-${currentYear}`, pageWidth / 2, 45, { align: 'center' });
-
-    // Reset text color for body
-    doc.setTextColor(0, 0, 0);
-    let yPosition = 60;
-
-    // Student Information Section
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    doc.text('Student Information', 14, yPosition);
-    yPosition += 8;
-
-    const studentInfo = [
-        ['Student Name', studentData.name || 'N/A'],
-        ['Class', studentData.class || 'N/A'],
-        ['Roll Number', studentData.rollNumber || 'N/A'],
-        ['Academic Year', `${currentYear - 1}-${currentYear}`]
-    ];
-
-    autoTable(doc, {
-        startY: yPosition,
-        body: studentInfo,
-        theme: 'plain',
-        styles: {
-            fontSize: 10,
-            cellPadding: 3
-        },
-        columnStyles: {
-            0: { fontStyle: 'bold', cellWidth: 40 },
-            1: { cellWidth: 'auto' }
-        }
-    });
-
-    yPosition = doc.lastAutoTable.finalY + 15;
-
-    // Academic Performance Section
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    doc.text('Academic Performance', 14, yPosition);
-    yPosition += 8;
-
-    // Marks Table
-    const marksData = (studentData.results || []).map(result => {
-        const percentage = result.totalMarks > 0
-            ? ((result.marksObtained / result.totalMarks) * 100).toFixed(1)
-            : '0.0';
-        return [
-            result.subject,
-            result.marksObtained.toString(),
-            result.totalMarks.toString(),
-            percentage + '%',
-            result.grade || calculateGrade(percentage)
-        ];
-    });
-
-    // Add summary row if there are results
-    if (marksData.length > 0) {
-        const totalObtained = studentData.results.reduce((sum, r) => sum + r.marksObtained, 0);
-        const totalMax = studentData.results.reduce((sum, r) => sum + r.totalMarks, 0);
-        const overallPercentage = totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : '0.0';
-
-        marksData.push([
-            'TOTAL',
-            totalObtained.toString(),
-            totalMax.toString(),
-            overallPercentage + '%',
-            calculateGrade(overallPercentage)
-        ]);
+    doc.setTextColor(...PDF_THEME.text);
+    if (studentData.overallGrade) {
+      doc.setFont(undefined, "bold");
+      doc.text(`Grade: ${studentData.overallGrade}`, 14, y);
+      y += 7;
     }
-
-    autoTable(doc, {
-        startY: yPosition,
-        head: [['Subject', 'Marks Obtained', 'Total Marks', 'Percentage', 'Grade']],
-        body: marksData.length > 0 ? marksData : [['No exam results available', '', '', '', '']],
-        theme: 'grid',
-        headStyles: {
-            fillColor: [79, 70, 229],
-            fontSize: 10,
-            fontStyle: 'bold',
-            halign: 'center'
-        },
-        styles: {
-            fontSize: 9,
-            cellPadding: 4,
-            halign: 'center'
-        },
-        columnStyles: {
-            0: { halign: 'left', fontStyle: 'bold' }
-        },
-        alternateRowStyles: {
-            fillColor: [249, 250, 251]
-        },
-        didParseCell: function (data) {
-            // Highlight the total row
-            if (data.row.index === marksData.length - 1 && marksData.length > 1) {
-                data.cell.styles.fillColor = [226, 232, 240];
-                data.cell.styles.fontStyle = 'bold';
-            }
-        }
-    });
-
-    yPosition = doc.lastAutoTable.finalY + 15;
-
-    // Check if we need a new page
-    if (yPosition > pageHeight - 80) {
-        doc.addPage();
-        yPosition = 20;
+    if (studentData.remarks) {
+      doc.setFont(undefined, "italic");
+      doc.setTextColor(...PDF_THEME.muted);
+      doc.text(`Remarks: ${studentData.remarks}`, 14, y, { maxWidth: pageWidth - 28 });
+      y += 12;
     }
+    doc.setFont(undefined, "normal");
+    doc.setTextColor(...PDF_THEME.text);
+  }
 
-    // Attendance Section
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    doc.text('Attendance Summary', 14, yPosition);
-    yPosition += 8;
+  const sigY = Math.min(y + 20, pageHeight - 40);
+  drawSignaturePair(doc, sigY, "Class Teacher", "Principal");
+  doc.setFontSize(8);
+  doc.setTextColor(...PDF_THEME.muted);
+  doc.text(`Issue Date: ${formatPdfDate(new Date())}`, pageWidth / 2, sigY + 5, {
+    align: "center",
+  });
 
-    const attendanceData = [
-        ['Total Days', (studentData.totalDays || 0).toString()],
-        ['Present', (studentData.presentDays || 0).toString()],
-        ['Absent', (studentData.absentDays || 0).toString()],
-        ['Attendance Percentage', (studentData.attendancePercentage || '0') + '%']
-    ];
+  drawDocumentFooters(doc, {
+    schoolName: brand.name,
+    schoolSlug: brand.slug,
+    note: "Official academic record — issued by the institution.",
+  });
 
-    autoTable(doc, {
-        startY: yPosition,
-        body: attendanceData,
-        theme: 'grid',
-        styles: {
-            fontSize: 10,
-            cellPadding: 4
-        },
-        columnStyles: {
-            0: { fontStyle: 'bold', cellWidth: 60, fillColor: [243, 244, 246] },
-            1: { cellWidth: 'auto', halign: 'center' }
-        }
-    });
-
-    yPosition = doc.lastAutoTable.finalY + 15;
-
-    // Overall Grade and Remarks
-    if (studentData.overallGrade || studentData.remarks) {
-        doc.setFontSize(12);
-        doc.setFont(undefined, 'bold');
-        doc.text('Overall Performance', 14, yPosition);
-        yPosition += 8;
-
-        if (studentData.overallGrade) {
-            doc.setFontSize(10);
-            doc.setFont(undefined, 'normal');
-            doc.text(`Grade: ${studentData.overallGrade}`, 14, yPosition);
-            yPosition += 7;
-        }
-
-        if (studentData.remarks) {
-            doc.setFont(undefined, 'italic');
-            doc.text('Remarks: ' + studentData.remarks, 14, yPosition, {
-                maxWidth: pageWidth - 28
-            });
-            yPosition += 15;
-        }
-    }
-
-    // Footer with signatures
-    const footerY = pageHeight - 40;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(14, footerY, pageWidth - 14, footerY);
-
-    doc.setFontSize(9);
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(100, 100, 100);
-
-    doc.text('_________________', 20, footerY + 15);
-    doc.text('Class Teacher', 20, footerY + 20);
-
-    doc.text('_________________', pageWidth / 2 - 20, footerY + 15);
-    doc.text('Principal', pageWidth / 2 - 20, footerY + 20);
-
-    doc.text(`Issue Date: ${new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    })}`, pageWidth - 60, footerY + 20);
-
-    // Page number
-    doc.setFontSize(8);
-    doc.text('Page 1', pageWidth / 2, pageHeight - 10, { align: 'center' });
-
-    // Save the PDF
-    doc.save(
-        safeFileName(
-            `report-card-${studentData.name || 'student'}-${new Date().toISOString().split('T')[0]}`
-        )
-    );
+  doc.save(
+    safeFileName(
+      `report-card-${studentData.name || "student"}-${new Date().toISOString().split("T")[0]}`
+    )
+  );
 }
 
-/**
- * Calculate grade based on percentage
- * @param {number|string} percentage 
- * @returns {string} grade
- */
 function calculateGrade(percentage) {
-    const percent = parseFloat(percentage);
-    if (percent >= 90) return 'A+';
-    if (percent >= 80) return 'A';
-    if (percent >= 70) return 'B+';
-    if (percent >= 60) return 'B';
-    if (percent >= 50) return 'C';
-    if (percent >= 40) return 'D';
-    return 'F';
+  const percent = parseFloat(percentage);
+  if (percent >= 90) return "A+";
+  if (percent >= 80) return "A";
+  if (percent >= 70) return "B+";
+  if (percent >= 60) return "B";
+  if (percent >= 50) return "C";
+  if (percent >= 40) return "D";
+  return "F";
 }

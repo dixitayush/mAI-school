@@ -28,10 +28,10 @@ async function resetMigrationHistory(pool) {
 /**
  * Apply pending *.sql files from db/migrations in filename order.
  *
- * Migrations are still written to be idempotent, but they are now recorded in
- * schema_migrations and skipped once applied. A destructive boot
- * (initDb with DB_RESET=1) clears that history so everything re-applies
- * against the fresh core tables — that is what 008_fk_repair.sql needs.
+ * Migrations are DROP+CREATE for feature tables (fresh / DB_RESET boots).
+ * They are recorded in schema_migrations and skipped once applied. A
+ * destructive boot (initDb with DB_RESET=1) clears that history so every
+ * migration re-applies against the fresh core tables from schema.sql.
  */
 async function runMigrations(pool) {
   let ownsPool = false;

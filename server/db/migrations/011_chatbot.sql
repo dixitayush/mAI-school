@@ -6,7 +6,9 @@
 -- superuser pool, scoping every query by req.auth manually.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS chat_sessions (
+DROP TABLE IF EXISTS chat_messages CASCADE;
+DROP TABLE IF EXISTS chat_sessions CASCADE;
+CREATE TABLE chat_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -14,10 +16,10 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 COMMENT ON TABLE chat_sessions IS E'@omit create,update,delete';
-CREATE INDEX IF NOT EXISTS chat_sessions_user_idx
+CREATE INDEX chat_sessions_user_idx
   ON chat_sessions (user_id, created_at DESC);
 
-CREATE TABLE IF NOT EXISTS chat_messages (
+CREATE TABLE chat_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
@@ -25,7 +27,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 COMMENT ON TABLE chat_messages IS E'@omit create,update,delete';
-CREATE INDEX IF NOT EXISTS chat_messages_session_idx
+CREATE INDEX chat_messages_session_idx
   ON chat_messages (session_id, created_at ASC);
 
 -- ---- RLS: a user sees only their own sessions/messages within their tenant ----

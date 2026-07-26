@@ -70,6 +70,10 @@ async function seedData() {
         )
     `, [class10AId]);
     const student1 = s1Sub.rows[0];
+    await pool.query(
+        'UPDATE students SET roll_number = $1, section = $2 WHERE id = $3',
+        ['1', 'A', student1.id]
+    );
 
     const s2Sub = await pool.query(`
         SELECT * FROM register_student(
@@ -78,10 +82,10 @@ async function seedData() {
         )
     `, [class11AId]);
     const student2 = s2Sub.rows[0];
-    // roll_number/section columns are added by migration 001 (runs AFTER this),
-    // so we record intended values here and apply the UPDATEs in seedFeatureData.
-    student1.section = 'A'; student1.roll = '1';
-    student2.section = 'A'; student2.roll = '1';
+    await pool.query(
+        'UPDATE students SET roll_number = $1, section = $2 WHERE id = $3',
+        ['1', 'A', student2.id]
+    );
 
     // Bulk roster so the new class/section dropdowns + search are demonstrable.
     // Spread across two sections (A, B) in class 10-A and 11-A.
@@ -106,6 +110,10 @@ async function seedData() {
             [uname, fullName, `${uname}@student.com`, classId, `${fullName} Parent`, `${uname}.parent@example.com`]
         );
         const stu = r.rows[0];
+        await pool.query(
+            'UPDATE students SET roll_number = $1, section = $2 WHERE id = $3',
+            [roll, section, stu.id]
+        );
         rosterStudents.push({ ...stu, section, roll, classId });
     }
 
@@ -119,15 +127,15 @@ async function seedData() {
         ($3, CURRENT_DATE, 'late', 'Bus delay', $4)
     `, [student1.id, teacher1UserId, student2.id, teacher2UserId]);
 
-    // 6. Fees
+    // 6. Fees (institution_id set here; trigger from 013 is not applied yet)
     console.log('Seeding Fees...');
     await pool.query(`
-        INSERT INTO fees (student_id, amount, description, due_date, status, invoice_number) VALUES
-        ($1, 1000.00, 'Annual Tuition - Term 1', CURRENT_DATE + 30, 'pending', 'INV-2024-001'),
-        ($1, 200.00, 'Lab Materials', CURRENT_DATE + 15, 'paid', 'INV-2024-002'),
-        ($2, 1000.00, 'Annual Tuition - Term 1', CURRENT_DATE + 30, 'overdue', 'INV-2024-003'),
-        ($2, 50.00, 'Library Fine', CURRENT_DATE - 5, 'pending', 'INV-2024-004')
-    `, [student1.id, student2.id]);
+        INSERT INTO fees (student_id, institution_id, amount, description, due_date, status, invoice_number, paid_amount) VALUES
+        ($1, $3, 1000.00, 'Annual Tuition - Term 1', CURRENT_DATE + 30, 'pending', 'INV-2024-001', 0),
+        ($1, $3, 200.00, 'Lab Materials', CURRENT_DATE + 15, 'paid', 'INV-2024-002', 200.00),
+        ($2, $3, 1000.00, 'Annual Tuition - Term 1', CURRENT_DATE + 30, 'overdue', 'INV-2024-003', 0),
+        ($2, $3, 50.00, 'Library Fine', CURRENT_DATE - 5, 'pending', 'INV-2024-004', 0)
+    `, [student1.id, student2.id, demoInstitutionId]);
 
     // 7. Exams & Results
     console.log('Seeding Exams & Results...');
@@ -193,12 +201,6 @@ async function seedFeatureData(ids) {
         class10AId, class11AId, student1, student2, rosterStudents,
     } = ids;
     console.log('Seeding feature tables (holidays, timetable, online classes, assignments)...');
-
-    // Apply roll_number/section now that migration 001 has added the columns.
-    for (const s of [student1, student2, ...rosterStudents]) {
-        await pool.query('UPDATE students SET roll_number = $1, section = $2 WHERE id = $3',
-            [s.roll, s.section, s.id]);
-    }
 
     // --- Wipe existing demo feature rows (idempotent) ---
     await pool.query('DELETE FROM holidays WHERE institution_id = $1', [demoInstitutionId]);

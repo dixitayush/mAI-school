@@ -5,7 +5,8 @@
 -- writes go through role-checked SECURITY DEFINER functions.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS online_classes (
+DROP TABLE IF EXISTS online_classes CASCADE;
+CREATE TABLE online_classes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
@@ -22,7 +23,7 @@ CREATE TABLE IF NOT EXISTS online_classes (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 COMMENT ON TABLE online_classes IS E'@omit create,update,delete';
-CREATE INDEX IF NOT EXISTS online_classes_class_date_idx
+CREATE INDEX online_classes_class_date_idx
   ON online_classes (class_id, class_date);
 
 ALTER TABLE online_classes ENABLE ROW LEVEL SECURITY;

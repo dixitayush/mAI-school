@@ -87,7 +87,17 @@ export default function AdminDashboard() {
 
     const handleDownloadReport = () => {
         try {
+            let schoolName;
+            let schoolSlug;
+            try {
+                const inst = JSON.parse(localStorage.getItem('institution') || 'null');
+                schoolName = inst?.name;
+                schoolSlug = inst?.slug;
+            } catch { /* ignore */ }
+
             const reportData = {
+                schoolName,
+                schoolSlug,
                 students: data?.allStudents?.totalCount || 0,
                 teachers: data?.allTeachers?.totalCount || 0,
                 revenue: totalFees,

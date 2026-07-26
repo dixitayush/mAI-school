@@ -127,8 +127,11 @@ BEGIN
   INSERT INTO profiles (user_id) VALUES (new_user.id);
 
   IF p_role = 'teacher' THEN
-    INSERT INTO teachers (user_id, email, subject_specialization, qualification)
-    VALUES (new_user.id, p_email, p_subject_specialization, p_qualification);
+    INSERT INTO teachers (user_id, subject_specialization, qualification)
+    VALUES (new_user.id, p_subject_specialization, p_qualification);
+    IF p_email IS NOT NULL THEN
+      UPDATE profiles SET email = p_email WHERE user_id = new_user.id;
+    END IF;
   END IF;
 
   RETURN new_user;

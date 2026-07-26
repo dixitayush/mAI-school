@@ -6,7 +6,9 @@
 -- reads are RLS-scoped (students see only their own submissions).
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS assignments (
+DROP TABLE IF EXISTS assignment_submissions CASCADE;
+DROP TABLE IF EXISTS assignments CASCADE;
+CREATE TABLE assignments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
@@ -19,9 +21,9 @@ CREATE TABLE IF NOT EXISTS assignments (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 COMMENT ON TABLE assignments IS E'@omit create,update,delete';
-CREATE INDEX IF NOT EXISTS assignments_class_idx ON assignments (class_id, due_date);
+CREATE INDEX assignments_class_idx ON assignments (class_id, due_date);
 
-CREATE TABLE IF NOT EXISTS assignment_submissions (
+CREATE TABLE assignment_submissions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   assignment_id UUID NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
   student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
@@ -35,7 +37,7 @@ CREATE TABLE IF NOT EXISTS assignment_submissions (
   CONSTRAINT assignment_submissions_uniq UNIQUE (assignment_id, student_id)
 );
 COMMENT ON TABLE assignment_submissions IS E'@omit create,update,delete';
-CREATE INDEX IF NOT EXISTS assignment_submissions_a_idx ON assignment_submissions (assignment_id);
+CREATE INDEX assignment_submissions_a_idx ON assignment_submissions (assignment_id);
 
 -- ---- RLS ----
 ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;

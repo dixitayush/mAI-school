@@ -7,7 +7,8 @@
 -- derives the weekday from a picked date and overlays holidays.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS timetable_periods (
+DROP TABLE IF EXISTS timetable_periods CASCADE;
+CREATE TABLE timetable_periods (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
@@ -23,7 +24,7 @@ CREATE TABLE IF NOT EXISTS timetable_periods (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 COMMENT ON TABLE timetable_periods IS E'@omit create,update,delete';
-CREATE INDEX IF NOT EXISTS timetable_periods_class_day_idx
+CREATE INDEX timetable_periods_class_day_idx
   ON timetable_periods (class_id, day_of_week, period_no);
 
 ALTER TABLE timetable_periods ENABLE ROW LEVEL SECURITY;

@@ -1,170 +1,98 @@
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { formatInr } from './currency';
-import { safeFileName } from './pdfUtils';
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { formatInr } from "./currency";
+import {
+  PDF_THEME,
+  academicYearLabel,
+  drawDocumentFooters,
+  drawDocumentHeader,
+  drawSectionTitle,
+  formatPdfDate,
+  resolveSchoolBrand,
+  safeFileName,
+  tableThemeStyles,
+} from "./pdfUtils";
 
 /**
  * Generate a comprehensive dashboard report as PDF
  * @param {Object} data - Dashboard data including stats and charts
- * @returns {void} - Downloads the PDF file
  */
 export function generateDashboardReport(data) {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.width;
-    const pageHeight = doc.internal.pageSize.height;
+  const doc = new jsPDF();
+  const brand = resolveSchoolBrand(data);
+  const pageHeight = doc.internal.pageSize.height;
 
-    // Header
-    doc.setFillColor(79, 70, 229); // Primary color
-    doc.rect(0, 0, pageWidth, 40, 'F');
+  let y = drawDocumentHeader(doc, {
+    title: "DASHBOARD REPORT",
+    subtitle: `AY ${academicYearLabel()} · ${formatPdfDate(new Date(), true)}`,
+    schoolName: brand.name,
+    schoolSlug: brand.slug,
+  });
 
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont(undefined, 'bold');
-    doc.text('Dashboard Report', pageWidth / 2, 20, { align: 'center' });
+  y = drawSectionTitle(doc, "School Overview", y);
 
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'normal');
-    doc.text(`Generated on ${new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    })}`, pageWidth / 2, 30, { align: 'center' });
+  const statsData = [
+    ["Total Students", String(data?.students || 0)],
+    ["Active Teachers", String(data?.teachers || 0)],
+    ["Total Revenue", formatInr(data?.revenue || 0)],
+    ["Average Attendance", String(data?.attendance || "0%")],
+    ["Institution", brand.name],
+  ];
 
-    // Reset text color for body
-    doc.setTextColor(0, 0, 0);
-    let yPosition = 50;
+  autoTable(doc, {
+    startY: y,
+    head: [["Metric", "Value"]],
+    body: statsData,
+    ...tableThemeStyles(),
+    styles: { ...tableThemeStyles().styles, fontSize: 10, cellPadding: 5 },
+  });
 
-    // Overview Section
-    doc.setFontSize(16);
-    doc.setFont(undefined, 'bold');
-    doc.text('School Overview', 14, yPosition);
-    yPosition += 10;
+  y = doc.lastAutoTable.finalY + 14;
 
-    // Statistics Table
-    const statsData = [
-        ['Total Students', (data?.students || 0).toString()],
-        ['Active Teachers', (data?.teachers || 0).toString()],
-        ['Total Revenue', formatInr(data?.revenue || 0)],
-        ['Average Attendance', (data?.attendance || '0%').toString()]
-    ];
+  if (data?.feeBreakdown && data.feeBreakdown.length > 0) {
+    y = drawSectionTitle(doc, "Fee Collection Status", y);
+
+    const feeData = data.feeBreakdown.map((item) => [
+      item.name,
+      String(item.value),
+      data.totalFees
+        ? `${((item.value / data.totalFees) * 100).toFixed(1)}%`
+        : "0%",
+    ]);
 
     autoTable(doc, {
-        startY: yPosition,
-        head: [['Metric', 'Value']],
-        body: statsData,
-        theme: 'grid',
-        headStyles: {
-            fillColor: [79, 70, 229],
-            fontSize: 11,
-            fontStyle: 'bold'
-        },
-        styles: {
-            fontSize: 10,
-            cellPadding: 5
-        },
-        alternateRowStyles: {
-            fillColor: [249, 250, 251]
-        }
+      startY: y,
+      head: [["Status", "Count", "Percentage"]],
+      body: feeData,
+      ...tableThemeStyles(),
+      styles: { ...tableThemeStyles().styles, fontSize: 10, cellPadding: 5 },
     });
 
-    yPosition = doc.lastAutoTable.finalY + 15;
+    y = doc.lastAutoTable.finalY + 14;
+  }
 
-    // Fee Collection Section
-    if (data?.feeBreakdown && data.feeBreakdown.length > 0) {
-        doc.setFontSize(16);
-        doc.setFont(undefined, 'bold');
-        doc.text('Fee Collection Status', 14, yPosition);
-        yPosition += 10;
-
-        const feeData = data.feeBreakdown.map(item => [
-            item.name,
-            item.value.toString(),
-            `${((item.value / data.totalFees) * 100).toFixed(1)}%`
-        ]);
-
-        autoTable(doc, {
-            startY: yPosition,
-            head: [['Status', 'Count', 'Percentage']],
-            body: feeData,
-            theme: 'grid',
-            headStyles: {
-                fillColor: [79, 70, 229],
-                fontSize: 11,
-                fontStyle: 'bold'
-            },
-            styles: {
-                fontSize: 10,
-                cellPadding: 5
-            },
-            alternateRowStyles: {
-                fillColor: [249, 250, 251]
-            }
-        });
-
-        yPosition = doc.lastAutoTable.finalY + 15;
+  if (data?.attendanceData && data.attendanceData.length > 0) {
+    if (y > pageHeight - 60) {
+      doc.addPage();
+      y = 20;
     }
 
-    // Attendance Trends Section
-    if (data?.attendanceData && data.attendanceData.length > 0) {
-        // Check if we need a new page
-        if (yPosition > pageHeight - 60) {
-            doc.addPage();
-            yPosition = 20;
-        }
+    y = drawSectionTitle(doc, "Attendance Trends (Monthly)", y);
 
-        doc.setFontSize(16);
-        doc.setFont(undefined, 'bold');
-        doc.text('Attendance Trends (Monthly)', 14, yPosition);
-        yPosition += 10;
+    autoTable(doc, {
+      startY: y,
+      head: [["Month", "Attendance Rate"]],
+      body: data.attendanceData.map((item) => [item.month, `${item.rate}%`]),
+      ...tableThemeStyles(),
+      styles: { ...tableThemeStyles().styles, fontSize: 10, cellPadding: 5 },
+    });
+  }
 
-        const attendanceTableData = data.attendanceData.map(item => [
-            item.month,
-            `${item.rate}%`
-        ]);
+  drawDocumentFooters(doc, {
+    schoolName: brand.name,
+    schoolSlug: brand.slug,
+    note: "Confidential — for authorised school administrators only.",
+  });
 
-        autoTable(doc, {
-            startY: yPosition,
-            head: [['Month', 'Attendance Rate']],
-            body: attendanceTableData,
-            theme: 'grid',
-            headStyles: {
-                fillColor: [79, 70, 229],
-                fontSize: 11,
-                fontStyle: 'bold'
-            },
-            styles: {
-                fontSize: 10,
-                cellPadding: 5
-            },
-            alternateRowStyles: {
-                fillColor: [249, 250, 251]
-            }
-        });
-
-        yPosition = doc.lastAutoTable.finalY + 15;
-    }
-
-    // Footer on last page
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(128, 128, 128);
-        doc.text(
-            `Page ${i} of ${totalPages}`,
-            pageWidth / 2,
-            pageHeight - 10,
-            { align: 'center' }
-        );
-        doc.text(
-            'School Management System',
-            14,
-            pageHeight - 10
-        );
-    }
-
-    // Save the PDF
-    doc.save(safeFileName(`dashboard-report-${new Date().toISOString().split('T')[0]}`));
+  doc.save(safeFileName(`dashboard-report-${new Date().toISOString().split("T")[0]}`));
 }

@@ -1,25 +1,9 @@
 -- ============================================================
 -- Migration 005 — Exam Marks, Grades, Rank & Pass/Fail (Feature 3)
--- Additive on top of the existing minimal exams/results tables (each exam
--- already represents one subject). Adds exam_type + passing_marks, a
--- grade helper, a tenant/role-checked marks upsert, and a results view fn
--- that computes percentage, letter grade, rank and pass/fail.
+-- exam_type / passing_marks / results uniqueness live in schema.sql.
+-- This migration only installs grade helpers and marks upserts.
 -- ============================================================
 
-ALTER TABLE exams ADD COLUMN IF NOT EXISTS exam_type TEXT NOT NULL DEFAULT 'custom';
-ALTER TABLE exams ADD COLUMN IF NOT EXISTS passing_marks INT;
-
--- One result row per (exam, student) so marks entry is an upsert.
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'results_exam_student_uniq'
-  ) THEN
-    ALTER TABLE results ADD CONSTRAINT results_exam_student_uniq UNIQUE (exam_id, student_id);
-  END IF;
-END $$;
-
--- Standard letter grade from a percentage.
 CREATE OR REPLACE FUNCTION grade_for(p_pct NUMERIC) RETURNS TEXT AS $$
   SELECT CASE
     WHEN p_pct >= 90 THEN 'A+'
@@ -32,7 +16,6 @@ CREATE OR REPLACE FUNCTION grade_for(p_pct NUMERIC) RETURNS TEXT AS $$
   END;
 $$ LANGUAGE sql IMMUTABLE;
 
--- Role + tenant checked marks entry (teacher/admin/principal of the exam's tenant).
 CREATE OR REPLACE FUNCTION upsert_result(
   p_exam_id UUID,
   p_student_id UUID,
@@ -82,7 +65,6 @@ $$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER;
 COMMENT ON FUNCTION upsert_result(UUID, UUID, INT, TEXT)
   IS E'@name upsertResult\nEnter or update a student''s marks for an exam';
 
--- Per-student results for an exam: percentage, grade, rank, pass/fail.
 CREATE OR REPLACE FUNCTION exam_results(p_exam_id UUID)
 RETURNS TABLE (
   student_id UUID, full_name TEXT, roll_number TEXT,

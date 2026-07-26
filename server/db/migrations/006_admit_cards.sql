@@ -5,7 +5,8 @@
 -- client-side; issuance is recorded here for audit.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS admit_cards (
+DROP TABLE IF EXISTS admit_cards CASCADE;
+CREATE TABLE admit_cards (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   exam_id UUID NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
@@ -16,7 +17,7 @@ CREATE TABLE IF NOT EXISTS admit_cards (
   CONSTRAINT admit_cards_exam_student_uniq UNIQUE (exam_id, student_id)
 );
 COMMENT ON TABLE admit_cards IS E'@omit create,update,delete';
-CREATE INDEX IF NOT EXISTS admit_cards_inst_idx ON admit_cards (institution_id, exam_id);
+CREATE INDEX admit_cards_inst_idx ON admit_cards (institution_id, exam_id);
 
 ALTER TABLE admit_cards ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON admit_cards TO mai_graphql;

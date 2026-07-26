@@ -9,9 +9,16 @@
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 1. Bank and statutory details for paying staff.
+-- 1–5. Payroll tables (DROP + CREATE)
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS staff_bank_accounts (
+DROP TABLE IF EXISTS payslips CASCADE;
+DROP TABLE IF EXISTS payroll_runs CASCADE;
+DROP TABLE IF EXISTS staff_attendance CASCADE;
+DROP TABLE IF EXISTS salary_components CASCADE;
+DROP TABLE IF EXISTS salary_structures CASCADE;
+DROP TABLE IF EXISTS staff_bank_accounts CASCADE;
+
+CREATE TABLE staff_bank_accounts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -28,15 +35,11 @@ CREATE TABLE IF NOT EXISTS staff_bank_accounts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
--- One primary account per staff member.
-CREATE UNIQUE INDEX IF NOT EXISTS staff_bank_accounts_primary_uniq
+CREATE UNIQUE INDEX staff_bank_accounts_primary_uniq
   ON staff_bank_accounts (user_id) WHERE is_primary;
-CREATE INDEX IF NOT EXISTS staff_bank_accounts_inst_idx ON staff_bank_accounts (institution_id);
+CREATE INDEX staff_bank_accounts_inst_idx ON staff_bank_accounts (institution_id);
 
--- ------------------------------------------------------------
--- 2. Salary structures — the compensation plan, effective dated.
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS salary_structures (
+CREATE TABLE salary_structures (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -53,14 +56,11 @@ CREATE TABLE IF NOT EXISTS salary_structures (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT salary_structures_dates CHECK (effective_to IS NULL OR effective_to >= effective_from)
 );
-CREATE INDEX IF NOT EXISTS salary_structures_user_idx
+CREATE INDEX salary_structures_user_idx
   ON salary_structures (user_id, effective_from DESC);
-CREATE INDEX IF NOT EXISTS salary_structures_inst_idx ON salary_structures (institution_id, is_active);
+CREATE INDEX salary_structures_inst_idx ON salary_structures (institution_id, is_active);
 
--- ------------------------------------------------------------
--- 3. Components — earnings and deductions making up the structure.
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS salary_components (
+CREATE TABLE salary_components (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   salary_structure_id UUID NOT NULL REFERENCES salary_structures(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -70,17 +70,13 @@ CREATE TABLE IF NOT EXISTS salary_components (
     CHECK (calculation IN ('fixed', 'percent_of_basic', 'percent_of_ctc')),
   value NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (value >= 0),
   is_taxable BOOLEAN NOT NULL DEFAULT TRUE,
-  -- Loss of pay is applied only to components flagged as pro-ratable.
   prorate_on_lop BOOLEAN NOT NULL DEFAULT TRUE,
   sort_order INT NOT NULL DEFAULT 0
 );
-CREATE UNIQUE INDEX IF NOT EXISTS salary_components_uniq
+CREATE UNIQUE INDEX salary_components_uniq
   ON salary_components (salary_structure_id, lower(code));
 
--- ------------------------------------------------------------
--- 4. Monthly staff attendance — working days, leave and loss of pay.
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS staff_attendance (
+CREATE TABLE staff_attendance (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -93,14 +89,11 @@ CREATE TABLE IF NOT EXISTS staff_attendance (
   remarks TEXT,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS staff_attendance_uniq
+CREATE UNIQUE INDEX staff_attendance_uniq
   ON staff_attendance (user_id, period_month);
-CREATE INDEX IF NOT EXISTS staff_attendance_inst_idx ON staff_attendance (institution_id, period_month);
+CREATE INDEX staff_attendance_inst_idx ON staff_attendance (institution_id, period_month);
 
--- ------------------------------------------------------------
--- 5. Payroll runs and payslips.
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS payroll_runs (
+CREATE TABLE payroll_runs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   period_month DATE NOT NULL,
@@ -118,10 +111,10 @@ CREATE TABLE IF NOT EXISTS payroll_runs (
   paid_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS payroll_runs_period_uniq
+CREATE UNIQUE INDEX payroll_runs_period_uniq
   ON payroll_runs (institution_id, period_month);
 
-CREATE TABLE IF NOT EXISTS payslips (
+CREATE TABLE payslips (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   payroll_run_id UUID NOT NULL REFERENCES payroll_runs(id) ON DELETE CASCADE,
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
@@ -134,7 +127,6 @@ CREATE TABLE IF NOT EXISTS payslips (
   gross_earnings NUMERIC(12, 2) NOT NULL DEFAULT 0,
   total_deductions NUMERIC(12, 2) NOT NULL DEFAULT 0,
   net_pay NUMERIC(12, 2) NOT NULL DEFAULT 0,
-  -- Frozen copy of every component as computed for this month.
   components JSONB NOT NULL DEFAULT '[]'::jsonb,
   payment_status TEXT NOT NULL DEFAULT 'pending'
     CHECK (payment_status IN ('pending', 'paid', 'on_hold')),
@@ -142,9 +134,9 @@ CREATE TABLE IF NOT EXISTS payslips (
   payment_reference TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS payslips_run_user_uniq ON payslips (payroll_run_id, user_id);
-CREATE INDEX IF NOT EXISTS payslips_user_idx ON payslips (user_id, period_month DESC);
-CREATE INDEX IF NOT EXISTS payslips_inst_idx ON payslips (institution_id, period_month);
+CREATE UNIQUE INDEX payslips_run_user_uniq ON payslips (payroll_run_id, user_id);
+CREATE INDEX payslips_user_idx ON payslips (user_id, period_month DESC);
+CREATE INDEX payslips_inst_idx ON payslips (institution_id, period_month);
 
 -- ------------------------------------------------------------
 -- 6. Working days in a month, derived from weekends and holidays.
@@ -275,7 +267,9 @@ BEGIN
     RETURNING id INTO v_run;
   ELSE
     -- Rebuild the draft from scratch so edits to structures are picked up.
-    DELETE FROM payslips WHERE payroll_run_id = v_run;
+    -- Qualify payslips.payroll_run_id: RETURNS TABLE also exposes that name
+    -- as an OUT variable, which Postgres would otherwise treat as ambiguous.
+    DELETE FROM payslips p WHERE p.payroll_run_id = v_run;
     UPDATE payroll_runs SET working_days = v_working, generated_by = rls_jwt_user_id()
      WHERE id = v_run;
   END IF;

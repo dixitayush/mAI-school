@@ -77,22 +77,24 @@ export default function AdmitCardsPage() {
     });
   })();
 
-  const schoolName = (() => {
+  const schoolBrand = (() => {
     try {
-      return JSON.parse(localStorage.getItem("institution") || "null")?.name;
+      const inst = JSON.parse(localStorage.getItem("institution") || "null");
+      return { schoolName: inst?.name, schoolSlug: inst?.slug };
     } catch {
-      return undefined;
+      return {};
     }
   })();
 
   const buildCard = async (r) => ({
-    schoolName,
+    ...schoolBrand,
     examTitle: selectedExam?.title,
     subject: selectedExam?.subject,
     examDate: selectedExam?.examDate,
     studentName: r.fullName,
     rollNumber: r.rollNumber,
     className: selectedExam?.classByClassId?.name,
+    section: r.section,
     photoDataUrl: r.photoFileId ? await fetchFileDataUrl(r.photoFileId) : null,
   });
 

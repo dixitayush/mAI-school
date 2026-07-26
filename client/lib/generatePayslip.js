@@ -1,10 +1,16 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatAmount } from "./currency";
-import { safeFileName } from "./pdfUtils";
-
-const BRAND = [79, 70, 229];
-const MUTED = [120, 120, 120];
+import {
+  PDF_THEME,
+  drawDocumentFooters,
+  drawDocumentHeader,
+  drawSectionTitle,
+  formatPdfDate,
+  resolveSchoolBrand,
+  safeFileName,
+  tableThemeStyles,
+} from "./pdfUtils";
 
 const MONTH = (d) =>
   d ? new Date(d).toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : "-";
@@ -28,21 +34,20 @@ function asArray(value) {
  */
 export function generatePayslip(data) {
   const doc = new jsPDF();
+  const brand = resolveSchoolBrand(data);
   const pageWidth = doc.internal.pageSize.width;
 
-  doc.setFillColor(...BRAND);
-  doc.rect(0, 0, pageWidth, 34, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  doc.setFont(undefined, "bold");
-  doc.text(data.schoolName || "MAI School", 14, 14);
-  doc.setFontSize(10);
-  doc.setFont(undefined, "normal");
-  doc.text(`Salary Slip — ${MONTH(data.periodMonth)}`, pageWidth - 14, 14, { align: "right" });
-  doc.setTextColor(0, 0, 0);
+  let y = drawDocumentHeader(doc, {
+    title: "SALARY SLIP",
+    subtitle: MONTH(data.periodMonth),
+    schoolName: brand.name,
+    schoolSlug: brand.slug,
+  });
+
+  y = drawSectionTitle(doc, "Employee Details", y);
 
   autoTable(doc, {
-    startY: 42,
+    startY: y,
     body: [
       ["Employee", data.employeeName || "-", "Designation", data.designation || "Staff"],
       ["Employee ID", data.employeeCode || "-", "Payment Mode", data.paymentMode || "Bank Transfer"],
@@ -54,13 +59,14 @@ export function generatePayslip(data) {
         "Paid Days",
         `${data.paidDays ?? "-"}${Number(data.lopDays) > 0 ? `  (LOP ${data.lopDays})` : ""}`,
       ],
+      ["School", brand.name, "Period", MONTH(data.periodMonth)],
     ],
     theme: "plain",
-    styles: { fontSize: 9.5, cellPadding: 1.8 },
+    styles: { fontSize: 9.5, cellPadding: 1.8, textColor: PDF_THEME.text },
     columnStyles: {
-      0: { fontStyle: "bold", cellWidth: 30, textColor: MUTED },
+      0: { fontStyle: "bold", cellWidth: 30, textColor: PDF_THEME.muted },
       1: { cellWidth: 58 },
-      2: { fontStyle: "bold", cellWidth: 30, textColor: MUTED },
+      2: { fontStyle: "bold", cellWidth: 30, textColor: PDF_THEME.muted },
       3: { cellWidth: "auto" },
     },
   });
@@ -71,24 +77,27 @@ export function generatePayslip(data) {
   const gross = earnings.reduce((s, c) => s + Number(c.amount || 0), 0);
   const totalDed = deductions.reduce((s, c) => s + Number(c.amount || 0), 0);
 
-  // Pad the shorter column so earnings and deductions line up side by side.
-  const rowCount = Math.max(earnings.length, deductions.length);
+  const rowCount = Math.max(earnings.length, deductions.length, 1);
   const rows = Array.from({ length: rowCount }, (_, i) => [
-    earnings[i]?.name || "",
+    earnings[i]?.name || (i === 0 && !earnings.length ? "—" : ""),
     earnings[i] ? formatAmount(earnings[i].amount) : "",
-    deductions[i]?.name || "",
+    deductions[i]?.name || (i === 0 && !deductions.length ? "—" : ""),
     deductions[i] ? formatAmount(deductions[i].amount) : "",
   ]);
 
+  y = drawSectionTitle(doc, "Earnings & Deductions", doc.lastAutoTable.finalY + 10);
+
   autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 6,
+    startY: y,
     head: [["Earnings", "Amount (Rs.)", "Deductions", "Amount (Rs.)"]],
     body: rows,
     foot: [["Gross Earnings", formatAmount(gross), "Total Deductions", formatAmount(totalDed)]],
-    theme: "grid",
-    headStyles: { fillColor: BRAND, fontSize: 9.5, fontStyle: "bold" },
-    footStyles: { fillColor: [243, 244, 246], textColor: [0, 0, 0], fontStyle: "bold" },
-    styles: { fontSize: 9.5, cellPadding: 3 },
+    ...tableThemeStyles(),
+    footStyles: {
+      fillColor: PDF_THEME.primarySoft,
+      textColor: PDF_THEME.primaryDeep,
+      fontStyle: "bold",
+    },
     columnStyles: {
       1: { halign: "right", cellWidth: 35 },
       3: { halign: "right", cellWidth: 35 },
@@ -96,28 +105,25 @@ export function generatePayslip(data) {
   });
 
   const net = gross - totalDed;
-  let y = doc.lastAutoTable.finalY + 8;
+  y = doc.lastAutoTable.finalY + 8;
 
-  doc.setFillColor(240, 253, 244);
-  doc.setDrawColor(187, 247, 208);
+  doc.setFillColor(...PDF_THEME.successBg);
+  doc.setDrawColor(...PDF_THEME.primary);
+  doc.setLineWidth(0.5);
   doc.roundedRect(14, y, pageWidth - 28, 16, 2, 2, "FD");
   doc.setFontSize(11);
   doc.setFont(undefined, "bold");
-  doc.setTextColor(21, 128, 61);
+  doc.setTextColor(...PDF_THEME.primaryDeep);
   doc.text("NET PAYABLE", 20, y + 10);
   doc.text(`Rs. ${formatAmount(net)}`, pageWidth - 20, y + 10, { align: "right" });
-  doc.setTextColor(0, 0, 0);
+  doc.setTextColor(...PDF_THEME.text);
   doc.setFont(undefined, "normal");
 
-  y += 26;
-  doc.setFontSize(9);
-  doc.setTextColor(...MUTED);
-  doc.text(
-    "This is a computer-generated salary slip and does not require a signature.",
-    14,
-    y,
-    { maxWidth: pageWidth - 28 }
-  );
+  drawDocumentFooters(doc, {
+    schoolName: brand.name,
+    schoolSlug: brand.slug,
+    note: `Computer-generated salary slip for ${MONTH(data.periodMonth)}. Valid without signature. Issued ${formatPdfDate(new Date())}.`,
+  });
 
   doc.save(
     safeFileName(`payslip-${data.employeeName || "staff"}-${(data.periodMonth || "").slice(0, 7)}`)

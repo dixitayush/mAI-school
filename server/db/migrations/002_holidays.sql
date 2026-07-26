@@ -3,7 +3,8 @@
 -- Holidays feed working-day / attendance / eligibility math (Feature 2).
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS holidays (
+DROP TABLE IF EXISTS holidays CASCADE;
+CREATE TABLE holidays (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
@@ -17,7 +18,7 @@ CREATE TABLE IF NOT EXISTS holidays (
   CONSTRAINT holidays_date_order CHECK (end_date >= start_date)
 );
 COMMENT ON TABLE holidays IS E'@omit create,update,delete';
-CREATE INDEX IF NOT EXISTS holidays_inst_date_idx ON holidays (institution_id, start_date, end_date);
+CREATE INDEX holidays_inst_date_idx ON holidays (institution_id, start_date, end_date);
 
 ALTER TABLE holidays ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON holidays TO mai_graphql;
