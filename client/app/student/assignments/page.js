@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useQuery, useMutation, gql } from "@apollo/client";
 import {
   ClipboardList,
@@ -14,9 +12,9 @@ import {
   Clock,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { resolveSignInPath } from "@/lib/tenant";
 import { fetchFileObjectUrl } from "@/lib/api";
 import FileUpload from "@/components/FileUpload";
+import { useRequireRole } from "@/lib/useSession";
 
 const GET_STUDENT_ASSIGNMENTS = gql`
   query StudentAssignments($userId: UUID!) {
@@ -88,18 +86,7 @@ async function downloadFile(fileId, filename) {
 }
 
 function StudentAssignmentsContent() {
-  const router = useRouter();
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const role = localStorage.getItem("role");
-    if (!storedUser || (role !== "student" && role !== "admin")) {
-      router.push(resolveSignInPath());
-    } else {
-      setUser(JSON.parse(storedUser));
-    }
-  }, [router]);
+  const { user, ready } = useRequireRole(["student", "admin"]);
 
   const { data: sData } = useQuery(GET_STUDENT_ASSIGNMENTS, {
     variables: { userId: user?.id },
@@ -114,7 +101,13 @@ function StudentAssignmentsContent() {
   });
   const [submitAssignment] = useMutation(SUBMIT_ASSIGNMENT);
 
-  if (!user) return null;
+  if (!ready) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <Loader2 className="h-7 w-7 animate-spin text-primary-600" />
+      </div>
+    );
+  }
 
   const assignments = data?.allAssignments?.nodes || [];
 

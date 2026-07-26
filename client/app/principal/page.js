@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, gql } from '@apollo/client';
 import {
@@ -11,9 +11,9 @@ import {
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { resolveSignInPath } from '@/lib/tenant';
 import { useTenantPaths } from '@/lib/useTenantPaths';
 import { formatInrCompact } from '@/lib/currency';
+import { useRequireRole } from '@/lib/useSession';
 
 const GET_PRINCIPAL_DASHBOARD = gql`
   query GetPrincipalDashboard {
@@ -32,10 +32,13 @@ const GET_PRINCIPAL_DASHBOARD = gql`
         }
       }
     }
-    allFees {
+    feeCollectionSummary {
       nodes {
-        amount
-        status
+        totalBilled
+        totalCollected
+        totalOutstanding
+        totalOverdue
+        defaulterCount
       }
     }
   }
@@ -52,21 +55,10 @@ const ALERT_STYLES = {
 function PrincipalDashboardContent() {
     const router = useRouter();
     const { to } = useTenantPaths();
-    const [user, setUser] = useState(null);
+    useRequireRole('principal');
     const [isGenerating, setIsGenerating] = useState(false);
     const [report, setReport] = useState(null);
     const { loading, data } = useQuery(GET_PRINCIPAL_DASHBOARD);
-
-    useEffect(() => {
-        const storedUser = localStorage.getItem('user');
-        const role = localStorage.getItem('role');
-
-        if (!storedUser || role !== 'principal') {
-            router.push(resolveSignInPath());
-        } else {
-            setUser(JSON.parse(storedUser));
-        }
-    }, [router]);
 
     const handleGenerateReport = async (type) => {
         setIsGenerating(true);
@@ -89,7 +81,7 @@ function PrincipalDashboardContent() {
         }
     };
 
-    if (!user || loading) {
+    if (loading) {
         return (
             <div className="flex min-h-[50vh] items-center justify-center py-16">
                 <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
@@ -100,23 +92,23 @@ function PrincipalDashboardContent() {
     const students = data?.allStudents?.totalCount || 0;
     const teachers = data?.allTeachers?.totalCount || 0;
     const classes = data?.allClasses?.nodes || [];
-    const fees = data?.allFees?.nodes || [];
+    const finance = data?.feeCollectionSummary?.nodes?.[0];
 
-    // Calculate fee statistics
-    const totalFees = fees.reduce((sum, fee) => sum + parseFloat(fee.amount), 0);
-    const paidFees = fees.filter(f => f.status === 'paid').reduce((sum, fee) => sum + parseFloat(fee.amount), 0);
+    const totalFees = Number(finance?.totalBilled || 0);
+    const paidFees = Number(finance?.totalCollected || 0);
     const collectionRate = totalFees > 0 ? Math.round((paidFees / totalFees) * 100) : 0;
 
+    const overdueAmt = Number(finance?.totalOverdue || 0);
     const feeStatusData = [
-        { name: 'Paid', value: fees.filter(f => f.status === 'paid').length, color: '#10B981' },
-        { name: 'Pending', value: fees.filter(f => f.status === 'pending').length, color: '#F59E0B' },
-        { name: 'Overdue', value: fees.filter(f => f.status === 'overdue').length, color: '#EF4444' },
+        { name: 'Collected', value: Number(finance?.totalCollected || 0), color: '#10B981' },
+        { name: 'Outstanding', value: Math.max(0, Number(finance?.totalOutstanding || 0) - overdueAmt), color: '#F59E0B' },
+        { name: 'Overdue', value: overdueAmt, color: '#EF4444' },
     ];
 
-    // Mock class performance data - in production, fetch from attendance API
-    const classPerformanceData = classes.slice(0, 5).map(cls => ({
+    // Stable class performance placeholders (avoid Math.random on each render)
+    const classPerformanceData = classes.slice(0, 5).map((cls, idx) => ({
         name: cls.name,
-        attendance: Math.floor(Math.random() * 20) + 80, // Mock: 80-100%
+        attendance: 82 + ((idx * 3) % 15),
         students: cls.studentsByClassId.totalCount
     }));
 
@@ -130,11 +122,11 @@ function PrincipalDashboardContent() {
             color: 'yellow'
         });
     }
-    if (fees.filter(f => f.status === 'overdue').length > 0) {
+    if (Number(finance?.defaulterCount || 0) > 0) {
         alerts.push({
             type: 'error',
             title: 'Overdue Fees',
-            message: `${fees.filter(f => f.status === 'overdue').length} students have overdue payments`,
+            message: `${finance.defaulterCount} students have overdue payments`,
             color: 'red'
         });
     }
@@ -143,13 +135,13 @@ function PrincipalDashboardContent() {
         hidden: { opacity: 0 },
         show: {
             opacity: 1,
-            transition: { staggerChildren: 0.1 }
+            transition: { staggerChildren: 0.04 }
         }
     };
 
     const itemVariants = {
-        hidden: { opacity: 0, y: 20 },
-        show: { opacity: 1, y: 0 }
+        hidden: { opacity: 0, y: 10 },
+        show: { opacity: 1, y: 0, transition: { duration: 0.18 } }
     };
 
     return (
@@ -282,7 +274,7 @@ function PrincipalDashboardContent() {
                                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
                                     <span className="text-zinc-600 font-medium">{item.name}</span>
                                 </div>
-                                <span className="font-bold text-zinc-900">{item.value}</span>
+                                <span className="font-bold text-zinc-900">{formatInrCompact(item.value)}</span>
                             </div>
                         ))}
                     </div>

@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, gql } from '@apollo/client';
 import { FileText, Award, Loader2, Calendar, BookOpen, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { resolveSignInPath } from '@/lib/tenant';
 import { useTenantPaths } from '@/lib/useTenantPaths';
+import { useRequireRole } from '@/lib/useSession';
 
 const GET_TEACHER_EXAMS = gql`
   query GetTeacherExams($teacherId: UUID!) {
@@ -15,7 +14,7 @@ const GET_TEACHER_EXAMS = gql`
         id
         name
         gradeLevel
-        examsByClassId(orderBy: EXAM_DATE_ASC) {
+        examsByClassId(orderBy: EXAM_DATE_ASC, first: 30) {
           nodes {
             id
             title
@@ -36,25 +35,20 @@ const GET_TEACHER_EXAMS = gql`
 function TeacherExamsContent() {
     const router = useRouter();
     const { to } = useTenantPaths();
-    const [user, setUser] = useState(null);
-
-    useEffect(() => {
-        const storedUser = localStorage.getItem('user');
-        const role = localStorage.getItem('role');
-
-        if (!storedUser || role !== 'teacher') {
-            router.push(resolveSignInPath());
-        } else {
-            setUser(JSON.parse(storedUser));
-        }
-    }, [router]);
+    const { user, ready } = useRequireRole('teacher');
 
     const { loading, data } = useQuery(GET_TEACHER_EXAMS, {
         variables: { teacherId: user?.id },
         skip: !user?.id,
     });
 
-    if (!user) return null;
+    if (!ready) {
+        return (
+            <div className="flex min-h-[40vh] items-center justify-center">
+                <Loader2 className="h-7 w-7 animate-spin text-primary-600" />
+            </div>
+        );
+    }
 
     // Flatten exams from teacher's classes
     const classes = data?.allClasses?.nodes || [];

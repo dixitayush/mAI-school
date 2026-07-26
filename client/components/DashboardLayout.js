@@ -8,6 +8,7 @@ import Sidebar from "@/components/Sidebar";
 import NotificationListener from "@/components/NotificationListener";
 import ChatWidget from "@/components/ChatWidget";
 import { useTenantPaths } from "@/lib/useTenantPaths";
+import { useSession } from "@/lib/useSession";
 
 const ROLE_META = {
   mai_admin: {
@@ -53,26 +54,16 @@ const DISPLAY_FALLBACK = {
 
 export default function DashboardLayout({ children, userRole = "admin" }) {
   const { to } = useTenantPaths();
+  const { user, role: sessionRole } = useSession();
   // Finance and payroll pages live under /admin but are shared with opsadmin,
   // so the chrome follows the signed-in user rather than the route.
-  const [signedInRole, setSignedInRole] = useState(null);
-  const role = signedInRole || userRole;
+  const role = (sessionRole && ROLE_META[sessionRole] ? sessionRole : null) || userRole;
   const meta = ROLE_META[role] || ROLE_META.admin;
-  const [displayName, setDisplayName] = useState("");
+  const displayName = user?.full_name || DISPLAY_FALLBACK[userRole] || "User";
   const [institution, setInstitution] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
-    let name = "";
-    try {
-      const raw = localStorage.getItem("user");
-      if (raw) name = JSON.parse(raw).full_name || "";
-      const stored = localStorage.getItem("role");
-      if (stored && ROLE_META[stored]) setSignedInRole(stored);
-    } catch {
-      /* ignore */
-    }
-    setDisplayName(name || DISPLAY_FALLBACK[userRole] || "User");
     try {
       const instRaw = localStorage.getItem("institution");
       setInstitution(instRaw && instRaw !== "null" ? JSON.parse(instRaw) : null);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, gql } from '@apollo/client';
 import {
@@ -11,9 +11,9 @@ import {
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import AnnouncementCard from '@/components/AnnouncementCard';
-import { resolveSignInPath } from '@/lib/tenant';
 import { useTenantPaths } from '@/lib/useTenantPaths';
 import { formatInr } from '@/lib/currency';
+import { useRequireRole } from '@/lib/useSession';
 
 const GET_TEACHER_DASHBOARD = gql`
   query GetTeacherDashboard($teacherId: UUID!) {
@@ -25,7 +25,7 @@ const GET_TEACHER_DASHBOARD = gql`
         studentsByClassId {
           totalCount
         }
-        examsByClassId(orderBy: EXAM_DATE_ASC) {
+        examsByClassId(orderBy: EXAM_DATE_ASC, first: 12) {
           nodes {
             id
             title
@@ -60,20 +60,9 @@ const GET_TEACHER_DASHBOARD = gql`
 function TeacherDashboardContent() {
     const router = useRouter();
     const { to } = useTenantPaths();
-    const [user, setUser] = useState(null);
+    const { user, ready } = useRequireRole('teacher');
     const [isUploading, setIsUploading] = useState(false);
     const [aiResult, setAiResult] = useState(null);
-
-    useEffect(() => {
-        const storedUser = localStorage.getItem('user');
-        const role = localStorage.getItem('role');
-
-        if (!storedUser || role !== 'teacher') {
-            router.push(resolveSignInPath());
-        } else {
-            setUser(JSON.parse(storedUser));
-        }
-    }, [router]);
 
     const { loading, data } = useQuery(GET_TEACHER_DASHBOARD, {
         variables: { teacherId: user?.id },
@@ -125,7 +114,13 @@ function TeacherDashboardContent() {
         }
     };
 
-    if (!user) return null;
+    if (!ready || loading) {
+        return (
+            <div className="flex min-h-[50vh] items-center justify-center py-16">
+                <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+            </div>
+        );
+    }
 
     const classes = data?.allClasses?.nodes || [];
 
@@ -201,24 +196,14 @@ function TeacherDashboardContent() {
         hidden: { opacity: 0 },
         show: {
             opacity: 1,
-            transition: {
-                staggerChildren: 0.1
-            }
+            transition: { staggerChildren: 0.04 }
         }
     };
 
     const itemVariants = {
-        hidden: { opacity: 0, y: 20 },
-        show: { opacity: 1, y: 0 }
+        hidden: { opacity: 0, y: 10 },
+        show: { opacity: 1, y: 0, transition: { duration: 0.18 } }
     };
-
-    if (loading) {
-        return (
-            <div className="flex min-h-[50vh] items-center justify-center py-16">
-                <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
-            </div>
-        );
-    }
 
     return (
         <motion.div

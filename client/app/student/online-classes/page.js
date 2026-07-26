@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 import { useQuery, gql } from "@apollo/client";
 import { Video, Loader2, Clock, Calendar, ExternalLink, Users } from "lucide-react";
-import { resolveSignInPath } from "@/lib/tenant";
+import { useRequireRole } from "@/lib/useSession";
 
 const GET_STUDENT_CLASS = gql`
   query StudentClassForOnline($userId: UUID!) {
@@ -48,18 +47,7 @@ const providerStyle = {
 };
 
 function StudentOnlineClassesContent() {
-  const router = useRouter();
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const role = localStorage.getItem("role");
-    if (!storedUser || role !== "student") {
-      router.push(resolveSignInPath());
-    } else {
-      setUser(JSON.parse(storedUser));
-    }
-  }, [router]);
+  const { user, ready } = useRequireRole("student");
 
   const { data: sData } = useQuery(GET_STUDENT_CLASS, {
     variables: { userId: user?.id },
@@ -83,7 +71,13 @@ function StudentOnlineClassesContent() {
     };
   }, [data, todayStr]);
 
-  if (!user) return null;
+  if (!ready) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <Loader2 className="h-7 w-7 animate-spin text-primary-600" />
+      </div>
+    );
+  }
 
   const renderCard = (s) => {
     const isUpcoming = s.classDate >= todayStr;

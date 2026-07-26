@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, gql } from '@apollo/client';
 import { Menu } from '@headlessui/react';
@@ -12,28 +11,19 @@ import { Users, GraduationCap, BookOpen, IndianRupee, Activity, TrendingUp, Chev
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { motion } from 'framer-motion';
 import { generateDashboardReport } from '@/lib/generateReport';
-import { resolveSignInPath } from '@/lib/tenant';
 import { useTenantPaths } from '@/lib/useTenantPaths';
 import { formatInr, formatInrCompact } from '@/lib/currency';
+import { useRequireRole } from '@/lib/useSession';
 
 const GET_STATS = gql`
   query GetStats {
-    allUsers {
-      totalCount
-    }
     allStudents {
       totalCount
     }
     allTeachers {
       totalCount
     }
-    allFees {
-      nodes {
-        amount
-        status
-      }
-    }
-    allAttendances {
+    allAttendances(first: 400, orderBy: DATE_DESC) {
       nodes {
         date
         status
@@ -71,19 +61,53 @@ const GET_STATS = gql`
 export default function AdminDashboard() {
     const router = useRouter();
     const { to } = useTenantPaths();
-    const { loading, error, data } = useQuery(GET_STATS);
-    const [user, setUser] = useState(null);
+    useRequireRole('admin');
+    // Stats query only needs the JWT (Apollo auth link) — start immediately.
+    const { loading, data } = useQuery(GET_STATS);
 
-    useEffect(() => {
-        const storedUser = localStorage.getItem('user');
-        const role = localStorage.getItem('role');
+    const finance = data?.feeCollectionSummary?.nodes?.[0];
+    const payroll = data?.payrollSummary?.nodes?.[0];
+    const spending = data?.expenseSummary?.nodes?.[0];
+    const totalFees = Number(finance?.totalBilled || 0);
 
-        if (!storedUser || role !== 'admin') {
-            router.push(resolveSignInPath());
-        } else {
-            setUser(JSON.parse(storedUser));
+    const attendances = data?.allAttendances?.nodes || [];
+    const monthlyAttendance = {};
+
+    attendances.forEach(att => {
+        const date = new Date(att.date);
+        const month = date.toLocaleString('default', { month: 'short' });
+
+        if (!monthlyAttendance[month]) {
+            monthlyAttendance[month] = { total: 0, present: 0 };
         }
-    }, [router]);
+
+        monthlyAttendance[month].total += 1;
+        if (att.status === 'present') {
+            monthlyAttendance[month].present += 1;
+        }
+    });
+
+    const defaultMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    const attendanceData = Object.keys(monthlyAttendance).length > 0
+        ? Object.keys(monthlyAttendance).map(month => ({
+            month,
+            rate: Math.round((monthlyAttendance[month].present / monthlyAttendance[month].total) * 100)
+        }))
+        : defaultMonths.map(month => ({ month, rate: 0 }));
+
+    const totalAttendanceRecords = attendances.length;
+    const totalPresentRecords = attendances.filter(a => a.status === 'present').length;
+    const averageAttendanceRate = totalAttendanceRecords > 0
+        ? Math.round((totalPresentRecords / totalAttendanceRecords) * 100)
+        : 0;
+
+    // Amount-based breakdown from summary (avoids fetching every fee row)
+    const overdueAmt = Number(finance?.totalOverdue || 0);
+    const feeStatusData = [
+        { name: 'Collected', value: Number(finance?.totalCollected || 0), color: '#34D399' },
+        { name: 'Outstanding', value: Math.max(0, Number(finance?.totalOutstanding || 0) - overdueAmt), color: '#FBBF24' },
+        { name: 'Overdue', value: overdueAmt, color: '#F87171' },
+    ];
 
     const handleDownloadReport = () => {
         try {
@@ -101,10 +125,10 @@ export default function AdminDashboard() {
                 students: data?.allStudents?.totalCount || 0,
                 teachers: data?.allTeachers?.totalCount || 0,
                 revenue: totalFees,
-                attendance: '94%',
+                attendance: `${averageAttendanceRate}%`,
                 feeBreakdown: feeStatusData,
-                totalFees: feeStatusData.reduce((sum, item) => sum + item.value, 0),
-                attendanceData: attendanceData
+                totalFees,
+                attendanceData
             };
 
             generateDashboardReport(reportData);
@@ -115,67 +139,17 @@ export default function AdminDashboard() {
         }
     };
 
-    if (!user) return null;
-
-    // Calculate fee statistics
-    const totalFees = data?.allFees?.nodes.reduce((sum, fee) => sum + parseFloat(fee.amount), 0) || 0;
-    const finance = data?.feeCollectionSummary?.nodes?.[0];
-    const payroll = data?.payrollSummary?.nodes?.[0];
-    const spending = data?.expenseSummary?.nodes?.[0];
-
-    // Calculate Attendance Data by Month dynamically
-    const attendances = data?.allAttendances?.nodes || [];
-    const monthlyAttendance = {};
-
-    attendances.forEach(att => {
-        const date = new Date(att.date);
-        const month = date.toLocaleString('default', { month: 'short' });
-        
-        if (!monthlyAttendance[month]) {
-            monthlyAttendance[month] = { total: 0, present: 0 };
-        }
-        
-        monthlyAttendance[month].total += 1;
-        if (att.status === 'present') {
-            monthlyAttendance[month].present += 1;
-        }
-    });
-
-    // Default months if no data exists yet to keep the chart from looking empty
-    const defaultMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-    const attendanceData = Object.keys(monthlyAttendance).length > 0 
-        ? Object.keys(monthlyAttendance).map(month => ({
-            month,
-            rate: Math.round((monthlyAttendance[month].present / monthlyAttendance[month].total) * 100)
-        }))
-        : defaultMonths.map(month => ({ month, rate: 0 }));
-
-    // Calculate average attendance for the stat card
-    const totalAttendanceRecords = attendances.length;
-    const totalPresentRecords = attendances.filter(a => a.status === 'present').length;
-    const averageAttendanceRate = totalAttendanceRecords > 0 
-        ? Math.round((totalPresentRecords / totalAttendanceRecords) * 100)
-        : 0;
-
-    const feeStatusData = [
-        { name: 'Paid', value: data?.allFees?.nodes.filter(f => f.status === 'paid').length || 0, color: '#34D399' }, // Emerald-400
-        { name: 'Pending', value: data?.allFees?.nodes.filter(f => f.status === 'pending').length || 0, color: '#FBBF24' }, // Amber-400
-        { name: 'Overdue', value: data?.allFees?.nodes.filter(f => f.status === 'overdue').length || 0, color: '#F87171' }, // Red-400
-    ];
-
     const containerVariants = {
         hidden: { opacity: 0 },
         show: {
             opacity: 1,
-            transition: {
-                staggerChildren: 0.1
-            }
+            transition: { staggerChildren: 0.04 }
         }
     };
 
     const itemVariants = {
-        hidden: { opacity: 0, y: 20 },
-        show: { opacity: 1, y: 0 }
+        hidden: { opacity: 0, y: 10 },
+        show: { opacity: 1, y: 0, transition: { duration: 0.18 } }
     };
 
     return (
@@ -255,7 +229,7 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-4">
                 <StatCard
                     title="Total Students"
-                    value={data?.allStudents?.totalCount || 0}
+                    value={loading ? '…' : (data?.allStudents?.totalCount || 0)}
                     icon={GraduationCap}
                     trend="up"
                     trendValue="+12%"
@@ -263,29 +237,26 @@ export default function AdminDashboard() {
                 />
                 <StatCard
                     title="Active Teachers"
-                    value={data?.allTeachers?.totalCount || 0}
+                    value={loading ? '…' : (data?.allTeachers?.totalCount || 0)}
                     icon={BookOpen}
                     trend="up"
                     trendValue="+3%"
                     color="blue"
-                    delay={0.1}
                 />
                 <StatCard
                     title="Fees Collected"
-                    value={formatInrCompact(finance?.totalCollected || 0)}
+                    value={loading ? '…' : formatInrCompact(finance?.totalCollected || 0)}
                     subtitle={`${formatInr(finance?.collectedThisMonth || 0)} this month`}
                     icon={IndianRupee}
                     color="green"
-                    delay={0.2}
                 />
                 <StatCard
                     title="Avg Attendance"
-                    value={`${averageAttendanceRate}%`}
+                    value={loading ? '…' : `${averageAttendanceRate}%`}
                     icon={Activity}
                     trend="up"
                     trendValue="Active"
                     color="orange"
-                    delay={0.3}
                 />
             </div>
 
@@ -473,7 +444,7 @@ export default function AdminDashboard() {
                         {/* Center Text */}
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                             <span className="text-3xl font-bold text-zinc-900">{formatInrCompact(totalFees)}</span>
-                            <span className="text-xs text-zinc-400 uppercase font-medium">Total</span>
+                            <span className="text-xs text-zinc-400 uppercase font-medium">Billed</span>
                         </div>
                     </div>
 
@@ -484,7 +455,7 @@ export default function AdminDashboard() {
                                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
                                     <span className="text-zinc-600 font-medium">{item.name}</span>
                                 </div>
-                                <span className="font-bold text-zinc-900 font-mono">{item.value}</span>
+                                <span className="font-bold text-zinc-900 font-mono">{formatInrCompact(item.value)}</span>
                             </div>
                         ))}
                     </div>

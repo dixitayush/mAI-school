@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, gql } from "@apollo/client";
 import {
   ClipboardList,
@@ -16,9 +15,9 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { resolveSignInPath } from "@/lib/tenant";
 import { fetchFileObjectUrl } from "@/lib/api";
 import FileUpload from "@/components/FileUpload";
+import { useRequireRole } from "@/lib/useSession";
 
 const GET_TEACHER_ASSIGNMENTS = gql`
   query TeacherAssignments {
@@ -123,21 +122,9 @@ async function downloadFile(fileId, filename) {
 }
 
 function TeacherAssignmentsContent() {
-  const router = useRouter();
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const role = localStorage.getItem("role");
-    if (!storedUser || (role !== "teacher" && role !== "admin" && role !== "principal")) {
-      router.push(resolveSignInPath());
-    } else {
-      setUser(JSON.parse(storedUser));
-    }
-  }, [router]);
+  const { ready } = useRequireRole(["teacher", "admin", "principal"]);
 
   const { data, loading, refetch } = useQuery(GET_TEACHER_ASSIGNMENTS, {
-    skip: !user,
     fetchPolicy: "cache-and-network",
   });
   const [createAssignment] = useMutation(CREATE_ASSIGNMENT);
@@ -181,7 +168,13 @@ function TeacherAssignmentsContent() {
     }
   };
 
-  if (!user) return null;
+  if (!ready) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <Loader2 className="h-7 w-7 animate-spin text-primary-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

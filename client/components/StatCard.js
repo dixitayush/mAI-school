@@ -25,10 +25,10 @@ export default function StatCard({
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay, duration: 0.3 }}
-            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            transition={{ delay: Math.min(delay, 0.08), duration: 0.18 }}
+            whileHover={{ y: -2, transition: { duration: 0.15 } }}
             className="rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-6"
         >
             <div className="flex items-start justify-between gap-3">
@@ -63,7 +63,7 @@ export default function StatCard({
                 <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: '75%' }}
-                    transition={{ delay: delay + 0.3, duration: 0.8, ease: 'easeOut' }}
+                    transition={{ delay: Math.min(delay, 0.08) + 0.05, duration: 0.35, ease: 'easeOut' }}
                     className={`h-full bg-gradient-to-r ${colorClasses[color]}`}
                 />
             </div>

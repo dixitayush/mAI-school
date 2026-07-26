@@ -20,7 +20,29 @@ const authLink = setContext((_, { headers }) => {
 
 const client = new ApolloClient({
     link: authLink.concat(httpLink),
-    cache: new InMemoryCache(),
+    cache: new InMemoryCache({
+        typePolicies: {
+            Query: {
+                fields: {
+                    // Keep list pages snappy when revisiting within a session.
+                    allStudents: { merge: false },
+                    allTeachers: { merge: false },
+                    allClasses: { merge: false },
+                    allFees: { merge: false },
+                    allAnnouncements: { merge: false },
+                },
+            },
+        },
+    }),
+    defaultOptions: {
+        watchQuery: {
+            fetchPolicy: 'cache-and-network',
+            nextFetchPolicy: 'cache-first',
+        },
+        query: {
+            fetchPolicy: 'cache-first',
+        },
+    },
 });
 
 export default client;

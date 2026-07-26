@@ -1,11 +1,13 @@
 "use client";
 
-import { Edit, Trash2, Plus, Search, Download } from 'lucide-react';
+import { Edit, Trash2, Plus, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { saveAs } from 'file-saver';
+
+const DEFAULT_PAGE_SIZE = 10;
 
 export default function DataTable({
     title,
@@ -15,18 +17,40 @@ export default function DataTable({
     onEdit,
     onDelete,
     isLoading,
-    searchable = true
+    searchable = true,
+    pageSize = DEFAULT_PAGE_SIZE,
 }) {
     const [searchTerm, setSearchTerm] = useState('');
+    const [page, setPage] = useState(1);
+    const rows = Array.isArray(data) ? data : [];
 
-    const filteredData = searchable && searchTerm
-        ? data.filter(row =>
+    const filteredData = useMemo(() => {
+        if (!searchable || !searchTerm.trim()) return rows;
+        const q = searchTerm.toLowerCase();
+        return rows.filter(row =>
             columns.some(col => {
                 const value = col.render ? col.render(row) : row[col.accessor];
-                return value?.toString().toLowerCase().includes(searchTerm.toLowerCase());
+                return value?.toString().toLowerCase().includes(q);
             })
-        )
-        : data;
+        );
+    }, [rows, columns, searchable, searchTerm]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+    const currentPage = Math.min(page, totalPages);
+
+    useEffect(() => {
+        setPage(1);
+    }, [searchTerm, pageSize, rows.length]);
+
+    useEffect(() => {
+        if (page > totalPages) setPage(totalPages);
+    }, [page, totalPages]);
+
+    const pageStart = filteredData.length === 0 ? 0 : (currentPage - 1) * pageSize;
+    const pageEnd = Math.min(pageStart + pageSize, filteredData.length);
+    const pageRows = filteredData.slice(pageStart, pageEnd);
+    const hasActions = Boolean(onEdit || onDelete);
+    const colSpan = columns.length + (hasActions ? 1 : 0);
 
     const exportToPDF = () => {
         const doc = new jsPDF();
@@ -38,9 +62,7 @@ export default function DataTable({
         filteredData.forEach(row => {
             const rowData = columns.map(col => {
                 const val = col.render ? col.render(row) : row[col.accessor];
-                // Strip HTML tags if render returns JSX (simple approximation)
                 if (typeof val === 'object' && val !== null) {
-                    // Try to extract text from React element if possible, or fallback
                     return val.props?.children || '';
                 }
                 return val;
@@ -59,10 +81,9 @@ export default function DataTable({
 
     const exportToCSV = () => {
         const headers = columns.map(col => col.header).join(',');
-        const rows = filteredData.map(row =>
+        const csvRows = filteredData.map(row =>
             columns.map(col => {
                 let val = col.render ? col.render(row) : row[col.accessor];
-                // Simple cleanup for CSV
                 if (typeof val === 'object' && val !== null) {
                     val = val.props?.children || '';
                 }
@@ -70,15 +91,16 @@ export default function DataTable({
             }).join(',')
         );
 
-        const csvContent = [headers, ...rows].join('\n');
+        const csvContent = [headers, ...csvRows].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         saveAs(blob, `${title.toLowerCase().replace(/\s+/g, '_')}_export.csv`);
     };
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
             className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden"
         >
             <div className="border-b border-zinc-100 bg-white p-4 sm:p-6">
@@ -107,6 +129,14 @@ export default function DataTable({
                             >
                                 <span className="text-xs font-bold px-1">PDF</span>
                             </button>
+                            <button
+                                type="button"
+                                onClick={exportToCSV}
+                                className="p-2 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 rounded-xl transition-colors border border-zinc-200"
+                                title="Export CSV"
+                            >
+                                <span className="text-xs font-bold px-1">CSV</span>
+                            </button>
                         </div>
 
                         {onAdd && (
@@ -133,7 +163,7 @@ export default function DataTable({
                                     {col.header}
                                 </th>
                             ))}
-                            {(onEdit || onDelete) && (
+                            {hasActions && (
                                 <th className="sticky right-0 whitespace-nowrap bg-zinc-50/95 px-3 py-3 text-right text-[10px] font-semibold uppercase tracking-wider text-zinc-500 backdrop-blur-sm sm:static sm:bg-transparent sm:px-6 sm:py-4 sm:text-xs">
                                     Actions
                                 </th>
@@ -142,14 +172,14 @@ export default function DataTable({
                     </thead>
                     <tbody className="divide-y divide-zinc-100">
                         {isLoading ? (
-                            Array.from({ length: 5 }).map((_, idx) => (
+                            Array.from({ length: Math.min(pageSize, 5) }).map((_, idx) => (
                                 <tr key={idx} className="animate-pulse">
                                     {columns.map((_, colIdx) => (
                                         <td key={colIdx} className="px-3 py-3 sm:px-6 sm:py-4">
                                             <div className="h-4 w-3/4 rounded-lg bg-zinc-100"></div>
                                         </td>
                                     ))}
-                                    {(onEdit || onDelete) && (
+                                    {hasActions && (
                                         <td className="px-3 py-3 sm:px-6 sm:py-4">
                                             <div className="ml-auto h-4 w-16 rounded-lg bg-zinc-100"></div>
                                         </td>
@@ -158,7 +188,7 @@ export default function DataTable({
                             ))
                         ) : filteredData.length === 0 ? (
                             <tr>
-                                <td colSpan={columns.length + 1} className="px-6 py-12 text-center">
+                                <td colSpan={colSpan} className="px-6 py-12 text-center">
                                     <div className="text-zinc-400 flex flex-col items-center">
                                         <div className="w-12 h-12 bg-zinc-50 rounded-full flex items-center justify-center mb-3">
                                             <Search className="w-6 h-6 text-zinc-300" />
@@ -171,12 +201,9 @@ export default function DataTable({
                                 </td>
                             </tr>
                         ) : (
-                            filteredData.map((row, rowIdx) => (
-                                <motion.tr
-                                    key={row.id || rowIdx}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    transition={{ delay: rowIdx * 0.03 }}
+                            pageRows.map((row, rowIdx) => (
+                                <tr
+                                    key={row.id || `${pageStart + rowIdx}`}
                                     className="hover:bg-zinc-50/80 transition-colors group"
                                 >
                                     {columns.map((col, colIdx) => (
@@ -184,7 +211,7 @@ export default function DataTable({
                                             {col.render ? col.render(row) : row[col.accessor]}
                                         </td>
                                     ))}
-                                    {(onEdit || onDelete) && (
+                                    {hasActions && (
                                         <td className="sticky right-0 bg-white/95 px-3 py-3 text-right backdrop-blur-sm sm:static sm:bg-transparent sm:px-6 sm:py-4">
                                             <div className="flex items-center justify-end space-x-1 opacity-100 transition-opacity sm:space-x-2 sm:opacity-0 sm:group-hover:opacity-100">
                                                 {onEdit && (
@@ -208,7 +235,7 @@ export default function DataTable({
                                             </div>
                                         </td>
                                     )}
-                                </motion.tr>
+                                </tr>
                             ))
                         )}
                     </tbody>
@@ -216,14 +243,38 @@ export default function DataTable({
             </div>
 
             {!isLoading && filteredData.length > 0 && (
-                <div className="px-6 py-4 bg-zinc-50/30 border-t border-zinc-100 flex items-center justify-between">
+                <div className="px-4 sm:px-6 py-4 bg-zinc-50/30 border-t border-zinc-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs font-medium text-zinc-500">
-                        Showing <span className="text-zinc-900">{filteredData.length}</span> results
+                        Showing{' '}
+                        <span className="text-zinc-900">{pageStart + 1}</span>
+                        –
+                        <span className="text-zinc-900">{pageEnd}</span>
+                        {' '}of{' '}
+                        <span className="text-zinc-900">{filteredData.length}</span>
+                        {' '}results
                     </p>
-                    {/* Placeholder for future pagination */}
-                    <div className="flex flex-wrap gap-2">
-                        <button type="button" className="min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-500 hover:bg-zinc-100 disabled:opacity-50" disabled>Previous</button>
-                        <button type="button" className="min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-500 hover:bg-zinc-100 disabled:opacity-50" disabled>Next</button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                            disabled={currentPage <= 1}
+                            className="inline-flex min-h-9 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                            Previous
+                        </button>
+                        <span className="px-2 text-xs font-medium text-zinc-500">
+                            Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={currentPage >= totalPages}
+                            className="inline-flex min-h-9 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                            Next
+                            <ChevronRight className="h-3.5 w-3.5" />
+                        </button>
                     </div>
                 </div>
             )}

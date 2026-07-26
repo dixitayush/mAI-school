@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import { useQuery, gql } from "@apollo/client";
 import { CalendarClock, Loader2, Clock, MapPin, User, PartyPopper } from "lucide-react";
-import { resolveSignInPath } from "@/lib/tenant";
+import { useRequireRole } from "@/lib/useSession";
 
 const GET_STUDENT_CLASS = gql`
   query StudentClass($userId: UUID!) {
@@ -55,19 +54,8 @@ function toISO(d) {
 }
 
 function StudentTimetableContent() {
-  const router = useRouter();
-  const [user, setUser] = useState(null);
+  const { user, ready } = useRequireRole(["student", "admin"]);
   const [dateStr, setDateStr] = useState(toISO(new Date()));
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const role = localStorage.getItem("role");
-    if (!storedUser || (role !== "student" && role !== "admin")) {
-      router.push(resolveSignInPath());
-    } else {
-      setUser(JSON.parse(storedUser));
-    }
-  }, [router]);
 
   const { data: sData } = useQuery(GET_STUDENT_CLASS, {
     variables: { userId: user?.id },
@@ -90,7 +78,13 @@ function StudentTimetableContent() {
     (h) => dateStr >= h.startDate && dateStr <= h.endDate
   );
 
-  if (!user) return null;
+  if (!ready) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <Loader2 className="h-7 w-7 animate-spin text-primary-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

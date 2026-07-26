@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, gql } from '@apollo/client';
 import {
@@ -15,10 +14,10 @@ import { generateReportCard } from '@/lib/generateReportCard';
 import AnnouncementCard from '@/components/AnnouncementCard';
 import RecentAttendanceCard from '@/components/RecentAttendanceCard';
 import AttendanceAnalytics from '@/components/AttendanceAnalytics';
-import { resolveSignInPath } from '@/lib/tenant';
 import { useTenantPaths } from '@/lib/useTenantPaths';
 import { formatInr } from '@/lib/currency';
 import Link from 'next/link';
+import { useRequireRole } from '@/lib/useSession';
 
 const GET_STUDENT_DASHBOARD = gql`
   query GetStudentDashboard($userId: UUID!) {
@@ -33,7 +32,7 @@ const GET_STUDENT_DASHBOARD = gql`
           name
           gradeLevel
         }
-        attendancesByStudentId {
+        attendancesByStudentId(first: 120, orderBy: DATE_DESC) {
           nodes {
             date
             status
@@ -41,7 +40,7 @@ const GET_STUDENT_DASHBOARD = gql`
           }
           totalCount
         }
-        resultsByStudentId {
+        resultsByStudentId(first: 40) {
           nodes {
             marksObtained
             grade
@@ -70,7 +69,7 @@ const GET_STUDENT_DASHBOARD = gql`
         }
       }
     }
-    allExams(orderBy: EXAM_DATE_ASC) {
+    allExams(orderBy: EXAM_DATE_ASC, first: 20) {
       nodes {
         id
         title
@@ -85,23 +84,8 @@ const GET_STUDENT_DASHBOARD = gql`
 export default function StudentDashboard() {
     const router = useRouter();
     const { to } = useTenantPaths();
-    const [user, setUser] = useState(null);
-    const [userId, setUserId] = useState(null);
-    const [mounted, setMounted] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-        const storedUser = localStorage.getItem('user');
-        const role = localStorage.getItem('role');
-
-        if (!storedUser || (role !== 'student' && role !== 'admin')) {
-            router.push(resolveSignInPath());
-        } else {
-            const parsedUser = JSON.parse(storedUser);
-            setUser(parsedUser);
-            setUserId(parsedUser.id);
-        }
-    }, [router]);
+    const { user, ready } = useRequireRole(['student', 'admin']);
+    const userId = user?.id;
 
     const { loading, data, error } = useQuery(GET_STUDENT_DASHBOARD, {
         variables: { userId },
@@ -148,19 +132,7 @@ export default function StudentDashboard() {
         }
     };
 
-    // Prevent hydration mismatch by not rendering until mounted
-    if (!mounted || !user) {
-        return (
-            <div className="flex justify-center items-center h-64">
-                <div className="text-center">
-                    <Loader2 className="w-12 h-12 animate-spin text-primary-600 mx-auto mb-4" />
-                    <p className="text-zinc-600 font-medium">Loading...</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (loading) {
+    if (!ready || loading) {
         return (
             <div className="flex justify-center items-center h-64">
                 <div className="text-center">
@@ -253,15 +225,13 @@ export default function StudentDashboard() {
         hidden: { opacity: 0 },
         show: {
             opacity: 1,
-            transition: {
-                staggerChildren: 0.1
-            }
+            transition: { staggerChildren: 0.04 }
         }
     };
 
     const itemVariants = {
-        hidden: { opacity: 0, y: 20 },
-        show: { opacity: 1, y: 0 }
+        hidden: { opacity: 0, y: 10 },
+        show: { opacity: 1, y: 0, transition: { duration: 0.18 } }
     };
 
     return (

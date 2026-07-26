@@ -24,6 +24,7 @@ import {
   resolveTenantSlugForLogin,
   tenantAppPath,
 } from "@/lib/tenant";
+import { notifySessionChanged } from "@/lib/useSession";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 const easeOut = [0.22, 1, 0.36, 1];
@@ -150,6 +151,7 @@ export default function LoginPage() {
         } else {
           localStorage.removeItem("institution");
         }
+        notifySessionChanged();
 
         const navSlug = data.institution?.slug || institution_slug || "";
         if (data.role === "mai_admin") {
