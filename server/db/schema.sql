@@ -18,7 +18,9 @@ DROP TABLE IF EXISTS institutions CASCADE;
 DROP TYPE IF EXISTS user_role CASCADE;
 
 -- 0. Tenants (institutes)
-CREATE TYPE user_role AS ENUM ('mai_admin', 'admin', 'principal', 'teacher', 'student');
+-- 'opsadmin' runs fees, payroll and expenses. Existing databases get it from
+-- migration 016, which must stay in sync with this list.
+CREATE TYPE user_role AS ENUM ('mai_admin', 'admin', 'principal', 'opsadmin', 'teacher', 'student');
 
 -- JWT helpers for RLS + SECURITY DEFINER checks (set by PostGraphile pgSettings per request)
 CREATE OR REPLACE FUNCTION rls_jwt_institution_id() RETURNS uuid AS $$

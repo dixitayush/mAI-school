@@ -6,16 +6,9 @@ import { toast } from "react-hot-toast";
 import { Building2, Copy, IndianRupee, Loader2, Plus, Shield, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { instituteLoginPageUrl } from "@/lib/tenant";
+import { formatInr } from "@/lib/currency";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
-
-function formatInr(n) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(n);
-}
 
 export default function MaiAdminPage() {
   const router = useRouter();

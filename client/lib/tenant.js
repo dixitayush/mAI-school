@@ -175,6 +175,7 @@ export function instituteAppPathNeedsCanonicalPrefix(pathname) {
     "/admin",
     "/teacher",
     "/principal",
+    "/opsadmin",
     "/student",
     "/exams",
     "/profile",

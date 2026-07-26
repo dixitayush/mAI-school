@@ -30,6 +30,11 @@ const ROLE_META = {
     subtitle: "Principal",
     ring: "from-amber-500 to-primary-600",
   },
+  opsadmin: {
+    searchPlaceholder: "Search invoices, payroll, expenses…",
+    subtitle: "Operations",
+    ring: "from-cyan-500 to-blue-600",
+  },
   student: {
     searchPlaceholder: "Search exams, results, fees…",
     subtitle: "Student",
@@ -42,37 +47,35 @@ const DISPLAY_FALLBACK = {
   admin: "Admin",
   teacher: "Teacher",
   principal: "Principal",
+  opsadmin: "Ops Admin",
   student: "Student",
 };
 
 export default function DashboardLayout({ children, userRole = "admin" }) {
   const { to } = useTenantPaths();
-  const meta = ROLE_META[userRole] || ROLE_META.admin;
+  // Finance and payroll pages live under /admin but are shared with opsadmin,
+  // so the chrome follows the signed-in user rather than the route.
+  const [signedInRole, setSignedInRole] = useState(null);
+  const role = signedInRole || userRole;
+  const meta = ROLE_META[role] || ROLE_META.admin;
   const [displayName, setDisplayName] = useState("");
   const [institution, setInstitution] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
+    let name = "";
     try {
       const raw = localStorage.getItem("user");
-      if (raw) {
-        const p = JSON.parse(raw);
-        if (p.full_name) {
-          setDisplayName(p.full_name);
-          return;
-        }
-      }
+      if (raw) name = JSON.parse(raw).full_name || "";
+      const stored = localStorage.getItem("role");
+      if (stored && ROLE_META[stored]) setSignedInRole(stored);
     } catch {
       /* ignore */
     }
-    setDisplayName(DISPLAY_FALLBACK[userRole] || "User");
+    setDisplayName(name || DISPLAY_FALLBACK[userRole] || "User");
     try {
       const instRaw = localStorage.getItem("institution");
-      if (instRaw && instRaw !== "null") {
-        setInstitution(JSON.parse(instRaw));
-      } else {
-        setInstitution(null);
-      }
+      setInstitution(instRaw && instRaw !== "null" ? JSON.parse(instRaw) : null);
     } catch {
       setInstitution(null);
     }
@@ -116,11 +119,11 @@ export default function DashboardLayout({ children, userRole = "admin" }) {
       )}
 
       <Sidebar
-        userRole={userRole}
+        userRole={role}
         mobileOpen={mobileNavOpen}
         onNavigate={() => setMobileNavOpen(false)}
       />
-      <NotificationListener userRole={userRole} />
+      <NotificationListener userRole={role} />
 
       <div className="flex min-w-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)] lg:pl-64 lg:pb-0">
         <header className="sticky top-0 z-20 border-b border-zinc-200/80 bg-white/80 pt-[env(safe-area-inset-top)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/70">
@@ -140,7 +143,7 @@ export default function DashboardLayout({ children, userRole = "admin" }) {
                 )}
               </button>
 
-              {institution && userRole !== "mai_admin" && (
+              {institution && role !== "mai_admin" && (
                 <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-zinc-200/90 bg-white/90 px-2.5 py-1.5 sm:max-w-md sm:flex-none sm:px-3">
                   {institution.logo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -172,7 +175,7 @@ export default function DashboardLayout({ children, userRole = "admin" }) {
                 </button>
 
                 <Link
-                  href={userRole === "mai_admin" ? "/profile" : to("/profile")}
+                  href={role === "mai_admin" ? "/profile" : to("/profile")}
                   className="flex min-w-0 items-center gap-2 rounded-2xl py-1 pl-1 pr-1.5 transition hover:bg-zinc-100 sm:gap-3 sm:pr-3"
                 >
                   <div
@@ -219,7 +222,7 @@ export default function DashboardLayout({ children, userRole = "admin" }) {
         </main>
       </div>
 
-      {userRole !== "mai_admin" && <ChatWidget userRole={userRole} />}
+      {role !== "mai_admin" && <ChatWidget userRole={role} />}
     </div>
   );
 }

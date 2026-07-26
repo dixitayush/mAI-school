@@ -13,6 +13,7 @@ import { motion } from 'framer-motion';
 import AnnouncementCard from '@/components/AnnouncementCard';
 import { resolveSignInPath } from '@/lib/tenant';
 import { useTenantPaths } from '@/lib/useTenantPaths';
+import { formatInr } from '@/lib/currency';
 
 const GET_TEACHER_DASHBOARD = gql`
   query GetTeacherDashboard($teacherId: UUID!) {
@@ -36,6 +37,21 @@ const GET_TEACHER_DASHBOARD = gql`
             }
           }
         }
+      }
+    }
+    allPayslips(orderBy: PERIOD_MONTH_DESC, first: 1) {
+      nodes {
+        id
+        periodMonth
+        netPay
+        grossEarnings
+        paymentStatus
+      }
+    }
+    allSalaryStructures(orderBy: EFFECTIVE_FROM_DESC, first: 1) {
+      nodes {
+        id
+        annualCtc
       }
     }
   }
@@ -63,6 +79,10 @@ function TeacherDashboardContent() {
         variables: { teacherId: user?.id },
         skip: !user?.id,
     });
+
+    // RLS already narrows payslips and structures to the signed-in teacher.
+    const latestPayslip = data?.allPayslips?.nodes?.[0];
+    const salaryStructure = data?.allSalaryStructures?.nodes?.[0];
 
     const handleAiAttendance = async (e) => {
         const file = e.target.files[0];
@@ -413,6 +433,49 @@ function TeacherDashboardContent() {
                     <AnnouncementCard />
                 </motion.div>
             </div>
+
+            {/* Salary */}
+            {(latestPayslip || salaryStructure) && (
+                <motion.div variants={itemVariants} className="rounded-xl border border-zinc-100 bg-white p-6 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between">
+                        <div>
+                            <h2 className="text-lg font-bold text-zinc-900">Salary</h2>
+                            <p className="text-sm text-zinc-500">Your latest payslip and compensation</p>
+                        </div>
+                        <button onClick={() => router.push(to('/teacher/salary'))} className="text-sm font-medium text-primary-600 hover:underline">
+                            View payslips
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div className="rounded-xl bg-zinc-50 p-4">
+                            <p className="text-xs font-medium text-zinc-500">Annual CTC</p>
+                            <p className="mt-1 text-2xl font-bold text-zinc-900">
+                                {salaryStructure ? formatInr(salaryStructure.annualCtc) : '—'}
+                            </p>
+                        </div>
+                        <div className="rounded-xl bg-zinc-50 p-4">
+                            <p className="text-xs font-medium text-zinc-500">Last net pay</p>
+                            <p className="mt-1 text-2xl font-bold text-zinc-900">
+                                {latestPayslip ? formatInr(latestPayslip.netPay) : '—'}
+                            </p>
+                            {latestPayslip && (
+                                <p className="mt-1 text-xs text-zinc-500">
+                                    {new Date(latestPayslip.periodMonth).toLocaleDateString('en-IN', {
+                                        month: 'long',
+                                        year: 'numeric',
+                                    })}
+                                </p>
+                            )}
+                        </div>
+                        <div className="rounded-xl bg-zinc-50 p-4">
+                            <p className="text-xs font-medium text-zinc-500">Payment status</p>
+                            <p className="mt-1 text-2xl font-bold capitalize text-zinc-900">
+                                {latestPayslip?.paymentStatus || 'pending'}
+                            </p>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
 
             {/* Quick Actions */}
             <motion.div variants={itemVariants} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -1,5 +1,7 @@
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
+import { formatInr } from './currency';
+import { safeFileName } from './pdfUtils';
 
 /**
  * Generate a comprehensive dashboard report as PDF
@@ -44,11 +46,11 @@ export function generateDashboardReport(data) {
     const statsData = [
         ['Total Students', (data?.students || 0).toString()],
         ['Active Teachers', (data?.teachers || 0).toString()],
-        ['Total Revenue', `$${(data?.revenue || 0).toLocaleString()}`],
+        ['Total Revenue', formatInr(data?.revenue || 0)],
         ['Average Attendance', (data?.attendance || '0%').toString()]
     ];
 
-    doc.autoTable({
+    autoTable(doc, {
         startY: yPosition,
         head: [['Metric', 'Value']],
         body: statsData,
@@ -82,7 +84,7 @@ export function generateDashboardReport(data) {
             `${((item.value / data.totalFees) * 100).toFixed(1)}%`
         ]);
 
-        doc.autoTable({
+        autoTable(doc, {
             startY: yPosition,
             head: [['Status', 'Count', 'Percentage']],
             body: feeData,
@@ -122,7 +124,7 @@ export function generateDashboardReport(data) {
             `${item.rate}%`
         ]);
 
-        doc.autoTable({
+        autoTable(doc, {
             startY: yPosition,
             head: [['Month', 'Attendance Rate']],
             body: attendanceTableData,
@@ -164,6 +166,5 @@ export function generateDashboardReport(data) {
     }
 
     // Save the PDF
-    const fileName = `dashboard-report-${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(fileName);
+    doc.save(safeFileName(`dashboard-report-${new Date().toISOString().split('T')[0]}`));
 }

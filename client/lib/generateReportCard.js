@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
+import { safeFileName } from './pdfUtils';
 
 /**
  * Generate a comprehensive student report card as PDF
@@ -47,7 +48,7 @@ export function generateReportCard(studentData) {
         ['Academic Year', `${currentYear - 1}-${currentYear}`]
     ];
 
-    doc.autoTable({
+    autoTable(doc, {
         startY: yPosition,
         body: studentInfo,
         theme: 'plain',
@@ -98,7 +99,7 @@ export function generateReportCard(studentData) {
         ]);
     }
 
-    doc.autoTable({
+    autoTable(doc, {
         startY: yPosition,
         head: [['Subject', 'Marks Obtained', 'Total Marks', 'Percentage', 'Grade']],
         body: marksData.length > 0 ? marksData : [['No exam results available', '', '', '', '']],
@@ -150,7 +151,7 @@ export function generateReportCard(studentData) {
         ['Attendance Percentage', (studentData.attendancePercentage || '0') + '%']
     ];
 
-    doc.autoTable({
+    autoTable(doc, {
         startY: yPosition,
         body: attendanceData,
         theme: 'grid',
@@ -215,8 +216,11 @@ export function generateReportCard(studentData) {
     doc.text('Page 1', pageWidth / 2, pageHeight - 10, { align: 'center' });
 
     // Save the PDF
-    const fileName = `report-card-${studentData.name?.replace(/\s+/g, '-').toLowerCase() || 'student'}-${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(fileName);
+    doc.save(
+        safeFileName(
+            `report-card-${studentData.name || 'student'}-${new Date().toISOString().split('T')[0]}`
+        )
+    );
 }
 
 /**

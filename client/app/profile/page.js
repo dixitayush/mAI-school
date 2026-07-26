@@ -241,7 +241,7 @@ function ProfileContent() {
     const roleDetails = user.role === 'student' ? user.studentsByUserId?.nodes?.[0] :
         user.role === 'teacher' ? user.teachersByUserId?.nodes?.[0] : null;
 
-    const dashboardRole = ['mai_admin', 'admin', 'teacher', 'principal', 'student'].includes(userRole)
+    const dashboardRole = ['mai_admin', 'admin', 'teacher', 'principal', 'opsadmin', 'student'].includes(userRole)
         ? userRole
         : 'admin';
 

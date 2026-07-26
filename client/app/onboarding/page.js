@@ -31,20 +31,13 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { instituteLoginPageUrl } from "@/lib/tenant";
+import { formatInr } from "@/lib/currency";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
 const SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PRESET_COUNTS = [100, 250, 500, 1000, 2500, 5000];
-
-function formatInr(n) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(n);
-}
 
 function passwordStrength(pw) {
   if (!pw) return { score: 0, label: "", color: "bg-zinc-200" };

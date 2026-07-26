@@ -111,7 +111,7 @@ export default function AdmitCardsPage() {
     try {
       const cards = [];
       for (const r of eligible) cards.push(await buildCard(r));
-      generateAdmitCardsBulk(cards, `admit-cards-${selectedExam?.title || "exam"}.pdf`);
+      generateAdmitCardsBulk(cards, `admit-cards-${selectedExam?.title || "exam"}`);
       toast.success(`Generated ${cards.length} admit cards`);
     } catch (err) {
       toast.error(err.message || "Bulk generation failed");

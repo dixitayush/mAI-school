@@ -16,6 +16,9 @@ import AnnouncementCard from '@/components/AnnouncementCard';
 import RecentAttendanceCard from '@/components/RecentAttendanceCard';
 import AttendanceAnalytics from '@/components/AttendanceAnalytics';
 import { resolveSignInPath } from '@/lib/tenant';
+import { useTenantPaths } from '@/lib/useTenantPaths';
+import { formatInr } from '@/lib/currency';
+import Link from 'next/link';
 
 const GET_STUDENT_DASHBOARD = gql`
   query GetStudentDashboard($userId: UUID!) {
@@ -54,9 +57,15 @@ const GET_STUDENT_DASHBOARD = gql`
         }
         feesByStudentId {
           nodes {
+            id
             amount
+            paidAmount
+            discountAmount
             status
             dueDate
+            feeHeadByFeeHeadId {
+              name
+            }
           }
         }
       }
@@ -75,6 +84,7 @@ const GET_STUDENT_DASHBOARD = gql`
 
 export default function StudentDashboard() {
     const router = useRouter();
+    const { to } = useTenantPaths();
     const [user, setUser] = useState(null);
     const [userId, setUserId] = useState(null);
     const [mounted, setMounted] = useState(false);
@@ -186,11 +196,19 @@ export default function StudentDashboard() {
         ? ((presentDays / totalAttendanceDays) * 100).toFixed(1)
         : 0;
 
-    // Calculate fees breakdown
+    // Fees outstanding: a line can be partly paid or discounted, so bill the balance.
+    const SETTLED = ['paid', 'waived', 'cancelled'];
     const feesRecords = studentData?.feesByStudentId?.nodes || [];
-    const pendingFees = feesRecords
-        .filter(f => f.status === 'pending' || f.status === 'overdue')
-        .reduce((sum, f) => sum + parseFloat(f.amount), 0);
+    const openFees = feesRecords.filter((f) => !SETTLED.includes(f.status));
+    const balanceOf = (f) =>
+        parseFloat(f.amount || 0) - parseFloat(f.discountAmount || 0) - parseFloat(f.paidAmount || 0);
+    const pendingFees = openFees.reduce((sum, f) => sum + Math.max(balanceOf(f), 0), 0);
+    const overdueFees = openFees
+        .filter((f) => f.status === 'overdue' || (f.dueDate && new Date(f.dueDate) < new Date()))
+        .reduce((sum, f) => sum + Math.max(balanceOf(f), 0), 0);
+    const nextDue = openFees
+        .filter((f) => f.dueDate)
+        .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
 
     // Get results
     const results = studentData?.resultsByStudentId?.nodes || [];
@@ -330,8 +348,18 @@ export default function StudentDashboard() {
                         </div>
                     </div>
                     <p className="text-sm text-zinc-500 font-medium">Fees Due</p>
-                    <p className="text-3xl font-bold text-zinc-900 mt-1">${pendingFees.toLocaleString()}</p>
-                    <p className="text-xs text-red-500 mt-2 font-medium">Pending payments</p>
+                    <p className="text-3xl font-bold text-zinc-900 mt-1">{formatInr(pendingFees)}</p>
+                    {pendingFees > 0 ? (
+                        <p className="text-xs text-red-500 mt-2 font-medium">
+                            {overdueFees > 0
+                                ? `${formatInr(overdueFees)} overdue`
+                                : nextDue
+                                  ? `Next due ${nextDue.dueDate}`
+                                  : 'Pending payments'}
+                        </p>
+                    ) : (
+                        <p className="text-xs text-emerald-600 mt-2 font-medium">All cleared</p>
+                    )}
                 </motion.div>
 
                 <motion.div
@@ -348,6 +376,42 @@ export default function StudentDashboard() {
                     <p className="text-xs text-zinc-500 mt-2">Scheduled assessments</p>
                 </motion.div>
             </div>
+
+            {/* Fee summary */}
+            {openFees.length > 0 && (
+                <motion.div variants={itemVariants} className="rounded-xl border border-zinc-100 bg-white p-6 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between">
+                        <div>
+                            <h2 className="text-lg font-bold text-zinc-900">Outstanding fees</h2>
+                            <p className="text-sm text-zinc-500">Balance after any discount or part payment</p>
+                        </div>
+                        <Link href={to('/student/fees')} className="text-sm font-medium text-primary-600 hover:underline">
+                            View & download receipts
+                        </Link>
+                    </div>
+                    <div className="divide-y divide-zinc-100">
+                        {openFees.slice(0, 5).map((f) => (
+                            <div key={f.id} className="flex items-center justify-between py-2.5 text-sm">
+                                <div>
+                                    <div className="font-medium text-zinc-800">
+                                        {f.feeHeadByFeeHeadId?.name || 'Fee'}
+                                    </div>
+                                    <div className="text-xs text-zinc-500">
+                                        {f.dueDate ? `Due ${f.dueDate}` : 'No due date'}
+                                        {parseFloat(f.paidAmount || 0) > 0 && ` · ${formatInr(f.paidAmount)} paid`}
+                                    </div>
+                                </div>
+                                <span className="font-semibold text-zinc-900">{formatInr(Math.max(balanceOf(f), 0))}</span>
+                            </div>
+                        ))}
+                    </div>
+                    {openFees.length > 5 && (
+                        <p className="pt-3 text-xs text-zinc-500">
+                            and {openFees.length - 5} more on the fees page.
+                        </p>
+                    )}
+                </motion.div>
+            )}
 
             {/* Attendance Analytics (working-day aware) */}
             {studentData?.id && (

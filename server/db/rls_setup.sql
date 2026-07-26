@@ -55,16 +55,10 @@ CREATE POLICY mai_tenant_all ON institutions FOR ALL TO mai_graphql
   USING (rls_is_mai_admin() OR id = rls_jwt_institution_id())
   WITH CHECK (rls_is_mai_admin() OR id = rls_jwt_institution_id());
 
--- users (tenant rows only; mai_admin rows have institution_id NULL — visible only to mai_admin)
-CREATE POLICY mai_tenant_all ON users FOR ALL TO mai_graphql
-  USING (
-    rls_is_mai_admin()
-    OR institution_id = rls_jwt_institution_id()
-  )
-  WITH CHECK (
-    rls_is_mai_admin()
-    OR (institution_id IS NOT NULL AND institution_id = rls_jwt_institution_id() AND role <> 'mai_admin')
-  );
+-- users: policies live in migration 018_user_management.sql (mai_tenant_read /
+-- mai_tenant_write). The blanket mai_tenant_all policy dropped above is
+-- deliberately not recreated: it let any tenant user — including a student —
+-- write the users table and grant themselves an admin role.
 
 -- profiles: same institution as user
 CREATE POLICY mai_tenant_all ON profiles FOR ALL TO mai_graphql
@@ -135,23 +129,11 @@ CREATE POLICY mai_tenant_all ON attendance FOR ALL TO mai_graphql
     )
   );
 
-CREATE POLICY mai_tenant_all ON fees FOR ALL TO mai_graphql
-  USING (
-    rls_is_mai_admin()
-    OR EXISTS (
-      SELECT 1 FROM students s
-      JOIN users u ON u.id = s.user_id
-      WHERE s.id = fees.student_id AND u.institution_id = rls_jwt_institution_id()
-    )
-  )
-  WITH CHECK (
-    rls_is_mai_admin()
-    OR EXISTS (
-      SELECT 1 FROM students s
-      JOIN users u ON u.id = s.user_id
-      WHERE s.id = fees.student_id AND u.institution_id = rls_jwt_institution_id()
-    )
-  );
+-- fees: policies live in migration 013_finance.sql (mai_tenant_read /
+-- mai_tenant_write). They depend on fees.institution_id, which that migration
+-- adds, so they cannot be declared here — this file runs before migrations.
+-- The blanket mai_tenant_all policy dropped above is deliberately not
+-- recreated: it let any tenant user read every student's fees.
 
 CREATE POLICY mai_tenant_all ON exams FOR ALL TO mai_graphql
   USING (

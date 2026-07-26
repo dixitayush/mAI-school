@@ -8,12 +8,13 @@ import { toast } from 'react-hot-toast';
 import StatCard from '@/components/StatCard';
 import Calendar from '@/components/Calendar';
 import AnnouncementCard from '@/components/AnnouncementCard';
-import { Users, GraduationCap, BookOpen, DollarSign, Activity, TrendingUp, ChevronDown, Download } from 'lucide-react';
+import { Users, GraduationCap, BookOpen, IndianRupee, Activity, TrendingUp, ChevronDown, Download } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { motion } from 'framer-motion';
 import { generateDashboardReport } from '@/lib/generateReport';
 import { resolveSignInPath } from '@/lib/tenant';
 import { useTenantPaths } from '@/lib/useTenantPaths';
+import { formatInr, formatInrCompact } from '@/lib/currency';
 
 const GET_STATS = gql`
   query GetStats {
@@ -36,6 +37,32 @@ const GET_STATS = gql`
       nodes {
         date
         status
+      }
+    }
+    feeCollectionSummary {
+      nodes {
+        totalBilled
+        totalCollected
+        totalOutstanding
+        totalOverdue
+        collectedThisMonth
+        defaulterCount
+      }
+    }
+    payrollSummary {
+      nodes {
+        staffOnPayroll
+        monthlyNet
+        lastRunMonth
+        lastRunStatus
+        pendingPayslips
+      }
+    }
+    expenseSummary {
+      nodes {
+        spentThisMonth
+        pendingCount
+        pendingAmount
       }
     }
   }
@@ -82,6 +109,9 @@ export default function AdminDashboard() {
 
     // Calculate fee statistics
     const totalFees = data?.allFees?.nodes.reduce((sum, fee) => sum + parseFloat(fee.amount), 0) || 0;
+    const finance = data?.feeCollectionSummary?.nodes?.[0];
+    const payroll = data?.payrollSummary?.nodes?.[0];
+    const spending = data?.expenseSummary?.nodes?.[0];
 
     // Calculate Attendance Data by Month dynamically
     const attendances = data?.allAttendances?.nodes || [];
@@ -231,11 +261,10 @@ export default function AdminDashboard() {
                     delay={0.1}
                 />
                 <StatCard
-                    title="Revenue"
-                    value={`$${totalFees.toLocaleString()}`}
-                    icon={DollarSign}
-                    trend="up"
-                    trendValue="+18%"
+                    title="Fees Collected"
+                    value={formatInrCompact(finance?.totalCollected || 0)}
+                    subtitle={`${formatInr(finance?.collectedThisMonth || 0)} this month`}
+                    icon={IndianRupee}
                     color="green"
                     delay={0.2}
                 />
@@ -249,6 +278,96 @@ export default function AdminDashboard() {
                     delay={0.3}
                 />
             </div>
+
+            {/* Finance and payroll strip */}
+            <motion.div variants={itemVariants} className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
+                <div className="rounded-2xl border border-zinc-100 bg-white p-6 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between">
+                        <h3 className="font-semibold text-zinc-900">Fee collection</h3>
+                        <button onClick={() => router.push(to('/admin/fees/invoices'))} className="text-sm font-medium text-primary-600 hover:underline">
+                            Collect
+                        </button>
+                    </div>
+                    <div className="mb-3 h-2 overflow-hidden rounded-full bg-zinc-100">
+                        <div
+                            className="h-full rounded-full bg-emerald-500"
+                            style={{
+                                width: `${Math.min(
+                                    100,
+                                    (Number(finance?.totalCollected || 0) / Math.max(Number(finance?.totalBilled || 0), 1)) * 100
+                                )}%`,
+                            }}
+                        />
+                    </div>
+                    <dl className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                            <dt className="text-zinc-500">Billed</dt>
+                            <dd className="font-medium text-zinc-800">{formatInr(finance?.totalBilled || 0)}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                            <dt className="text-zinc-500">Outstanding</dt>
+                            <dd className="font-medium text-amber-600">{formatInr(finance?.totalOutstanding || 0)}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                            <dt className="text-zinc-500">Overdue</dt>
+                            <dd className="font-medium text-red-600">
+                                {formatInr(finance?.totalOverdue || 0)}{' '}
+                                <span className="text-xs text-zinc-500">({finance?.defaulterCount || 0} students)</span>
+                            </dd>
+                        </div>
+                    </dl>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-100 bg-white p-6 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between">
+                        <h3 className="font-semibold text-zinc-900">Payroll</h3>
+                        <button onClick={() => router.push(to('/admin/payroll'))} className="text-sm font-medium text-primary-600 hover:underline">
+                            Run payroll
+                        </button>
+                    </div>
+                    <dl className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                            <dt className="text-zinc-500">Staff on payroll</dt>
+                            <dd className="font-medium text-zinc-800">{payroll?.staffOnPayroll || 0}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                            <dt className="text-zinc-500">Monthly net</dt>
+                            <dd className="font-medium text-zinc-800">{formatInr(payroll?.monthlyNet || 0)}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                            <dt className="text-zinc-500">Last run</dt>
+                            <dd className="font-medium capitalize text-zinc-800">{payroll?.lastRunStatus || 'not run'}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                            <dt className="text-zinc-500">Unpaid payslips</dt>
+                            <dd className="font-medium text-zinc-800">{payroll?.pendingPayslips || 0}</dd>
+                        </div>
+                    </dl>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-100 bg-white p-6 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between">
+                        <h3 className="font-semibold text-zinc-900">Expenses</h3>
+                        <button onClick={() => router.push(to('/admin/expenses'))} className="text-sm font-medium text-primary-600 hover:underline">
+                            Review
+                        </button>
+                    </div>
+                    <dl className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                            <dt className="text-zinc-500">Spent this month</dt>
+                            <dd className="font-medium text-zinc-800">{formatInr(spending?.spentThisMonth || 0)}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                            <dt className="text-zinc-500">Awaiting approval</dt>
+                            <dd className="font-medium text-amber-600">{formatInr(spending?.pendingAmount || 0)}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                            <dt className="text-zinc-500">Bills to review</dt>
+                            <dd className="font-medium text-zinc-800">{spending?.pendingCount || 0}</dd>
+                        </div>
+                    </dl>
+                </div>
+            </motion.div>
 
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -343,7 +462,7 @@ export default function AdminDashboard() {
                         </ResponsiveContainer>
                         {/* Center Text */}
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <span className="text-3xl font-bold text-zinc-900">${(totalFees / 1000).toFixed(1)}k</span>
+                            <span className="text-3xl font-bold text-zinc-900">{formatInrCompact(totalFees)}</span>
                             <span className="text-xs text-zinc-400 uppercase font-medium">Total</span>
                         </div>
                     </div>

@@ -273,22 +273,52 @@ async function seedFeatureData(ids) {
     console.log('Feature table seeding complete.');
 }
 
+/**
+ * schema.sql DROPs every core table before recreating it. Running that on each
+ * boot would orphan financial records (fees, payments, payslips) because the
+ * reseed hands students and staff fresh UUIDs. So it only runs against an empty
+ * database, or when DB_RESET=1 explicitly asks for a wipe.
+ */
+async function shouldResetSchema() {
+    if (process.env.DB_RESET === '1') {
+        console.log('DB_RESET=1 — resetting schema (all existing data will be dropped).');
+        return true;
+    }
+    const { rows } = await pool.query("SELECT to_regclass('public.institutions') AS tbl");
+    if (!rows[0].tbl) {
+        console.log('No existing schema found — bootstrapping a fresh database.');
+        return true;
+    }
+    return false;
+}
+
 async function initDb() {
     try {
         console.log('Initializing database...');
 
-        // 1. Run Schema (Drops and Recreates Tables)
-        const schemaPath = path.join(__dirname, 'schema.sql');
-        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+        const isReset = await shouldResetSchema();
 
-        console.log('Running schema.sql (Resetting DB)...');
-        await pool.query(schemaSql);
-        console.log('Schema applied successfully.');
+        // 1. Schema + demo seed, only on a fresh or explicitly reset database.
+        let seedIds = null;
+        if (isReset) {
+            const schemaPath = path.join(__dirname, 'schema.sql');
+            const schemaSql = fs.readFileSync(schemaPath, 'utf8');
 
-        // 2. Seed Data
-        const seedIds = await seedData();
+            console.log('Running schema.sql...');
+            await pool.query(schemaSql);
+            console.log('Schema applied successfully.');
 
-        // 3. RLS + mai_graphql (PostGraphile connects as this role)
+            // The reset dropped the core tables the migrations depend on, so
+            // clear the history and let every migration re-apply against them.
+            const { resetMigrationHistory } = require('./migrate');
+            await resetMigrationHistory(pool);
+
+            seedIds = await seedData();
+        } else {
+            console.log('Existing database detected — preserving data (set DB_RESET=1 to wipe).');
+        }
+
+        // 2. RLS + mai_graphql (PostGraphile connects as this role)
         const rlsPath = path.join(__dirname, 'rls_setup.sql');
         const rlsSql = fs.readFileSync(rlsPath, 'utf8');
         console.log('Applying rls_setup.sql (RLS + mai_graphql)...');
@@ -298,12 +328,12 @@ async function initDb() {
         await pool.query(`ALTER ROLE mai_graphql WITH LOGIN PASSWORD '${escaped}'`);
         console.log('RLS applied. Set MAI_GRAPHQL_DB_PASSWORD in production.');
 
-        // 4. Additive feature migrations (idempotent; create new tables + RLS).
+        // 3. Additive feature migrations (tracked in schema_migrations).
         const { runMigrations } = require('./migrate');
         console.log('Running feature migrations...');
         await runMigrations(pool);
 
-        // 5. Seed feature tables (must run after migrations create them).
+        // 4. Seed feature tables (must run after migrations create them).
         await seedFeatureData(seedIds);
 
         console.log('Database initialization complete.');

@@ -14,6 +14,8 @@ const ROLE_GREETING = {
     "Hi! Ask me about school attendance, fees, upcoming exams and holidays.",
   principal:
     "Hi! Ask me about school attendance, fees, upcoming exams and holidays.",
+  opsadmin:
+    "Hi! Ask me about fee collection, outstanding dues, payroll and expenses.",
   mai_admin: "Hi! How can I help?",
 };
 
@@ -22,6 +24,7 @@ const SUGGESTIONS = {
   teacher: ["How is my class attendance?", "Which submissions need grading?", "Any online classes today?"],
   admin: ["What's the overall attendance?", "Any pending fees?", "What exams are coming up?"],
   principal: ["What's the overall attendance?", "Any pending fees?", "What exams are coming up?"],
+  opsadmin: ["Any pending fees?", "What's the overall attendance?", "What exams are coming up?"],
   mai_admin: [],
 };
 

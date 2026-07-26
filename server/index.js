@@ -4,6 +4,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
+const { requireAuth, requireRole, requireTenant } = require('./middleware/auth');
 require('dotenv').config();
 
 const app = express();
@@ -236,31 +237,55 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Register Route (demo / bootstrap; cannot create mai_admin here)
-app.post('/register', async (req, res) => {
-  const { username, password, role, full_name, institution_id: institutionId } = req.body;
+// Register Route. This runs on the superuser pool, which bypasses RLS and the
+// users privilege trigger, so the role check has to happen here: it used to be
+// unauthenticated and accept any role and institution.
+const CREATABLE_ROLES = ['admin', 'principal', 'opsadmin', 'teacher', 'student'];
 
-  if (role === 'mai_admin') {
-    return res.status(403).json({ error: 'Cannot register platform admin via this endpoint' });
-  }
-  if (!institutionId) {
-    return res.status(400).json({ error: 'institution_id is required' });
-  }
+app.post(
+  '/register',
+  requireAuth,
+  requireRole('admin', 'principal'),
+  requireTenant,
+  async (req, res) => {
+    const { username, password, role, full_name } = req.body;
 
-  try {
-    const result = await pool.query('SELECT * FROM register_user($1, $2, $3, $4, $5)', [
-      username,
-      password,
-      role,
-      full_name,
-      institutionId,
-    ]);
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Registration failed' });
+    if (!CREATABLE_ROLES.includes(role)) {
+      return res.status(400).json({ error: `role must be one of ${CREATABLE_ROLES.join(', ')}` });
+    }
+    if (!username || !password || !full_name) {
+      return res.status(400).json({ error: 'username, password and full_name are required' });
+    }
+    if (String(password).length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    // A platform admin has no tenant of their own, so they must name one.
+    const institutionId =
+      req.auth.role === 'mai_admin' ? req.body.institution_id : req.auth.institution_id;
+    if (!institutionId) {
+      return res.status(400).json({ error: 'institution_id is required' });
+    }
+
+    try {
+      const result = await pool.query('SELECT * FROM register_user($1, $2, $3, $4, $5)', [
+        username,
+        password,
+        role,
+        full_name,
+        institutionId,
+      ]);
+      const user = result.rows[0];
+      res.json({ id: user.id, username: user.username, role: user.role, full_name: user.full_name });
+    } catch (err) {
+      console.error(err);
+      if (err.code === '23505') {
+        return res.status(409).json({ error: 'That username is already taken' });
+      }
+      res.status(500).json({ error: 'Registration failed' });
+    }
   }
-});
+);
 
 const { initDb } = require('./db/init');
 

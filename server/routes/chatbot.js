@@ -147,7 +147,7 @@ async function buildContext(auth) {
       );
       ctx.upcoming_online_classes = oc.rows;
     }
-  } else if (role === 'admin' || role === 'principal' || role === 'mai_admin') {
+  } else if (role === 'admin' || role === 'principal' || role === 'opsadmin' || role === 'mai_admin') {
     const counts = await pool.query(
       `SELECT
          (SELECT count(*) FROM students s JOIN users u ON u.id=s.user_id WHERE u.institution_id=$1) students,

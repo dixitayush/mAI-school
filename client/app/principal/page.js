@@ -13,6 +13,7 @@ import { motion } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { resolveSignInPath } from '@/lib/tenant';
 import { useTenantPaths } from '@/lib/useTenantPaths';
+import { formatInrCompact } from '@/lib/currency';
 
 const GET_PRINCIPAL_DASHBOARD = gql`
   query GetPrincipalDashboard {
@@ -218,7 +219,7 @@ function PrincipalDashboardContent() {
                         <TrendingUp className="w-5 h-5 text-green-600" />
                     </div>
                     <p className="text-green-600 text-sm font-medium mb-1">Fee Collection</p>
-                    <p className="text-3xl font-bold text-green-900">${(paidFees / 1000).toFixed(1)}k</p>
+                    <p className="text-3xl font-bold text-green-900">{formatInrCompact(paidFees)}</p>
                     <p className="text-xs text-green-600 mt-2">{collectionRate}% collected</p>
                 </motion.div>
 

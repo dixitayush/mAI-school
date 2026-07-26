@@ -46,3 +46,6 @@ next-env.d.ts
 
 # Server
 server/uploads/
+
+# Graphify
+graphify-out/

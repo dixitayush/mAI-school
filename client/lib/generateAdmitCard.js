@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
+import { imageFormatOf, safeFileName } from "./pdfUtils";
 
 /**
  * Generate an exam admit card PDF.
@@ -34,7 +35,14 @@ export function generateAdmitCard(data, docRef = null, save = true) {
   // Optional student photo box (top-right)
   if (data.photoDataUrl) {
     try {
-      doc.addImage(data.photoDataUrl, "JPEG", pageWidth - 50, 50, 32, 38);
+      doc.addImage(
+        data.photoDataUrl,
+        imageFormatOf(data.photoDataUrl),
+        pageWidth - 50,
+        50,
+        32,
+        38
+      );
     } catch {
       /* ignore bad image */
     }
@@ -60,7 +68,7 @@ export function generateAdmitCard(data, docRef = null, save = true) {
     ],
   ];
 
-  doc.autoTable({
+  autoTable(doc, {
     startY: 55,
     margin: { right: 60 },
     body: info,
@@ -90,21 +98,18 @@ export function generateAdmitCard(data, docRef = null, save = true) {
   doc.text("Controller of Exams", pageWidth - 70, y + 5);
 
   if (!docRef && save) {
-    const fname = `admit-card-${(data.studentName || "student")
-      .replace(/\s+/g, "-")
-      .toLowerCase()}.pdf`;
-    doc.save(fname);
+    doc.save(safeFileName(`admit-card-${data.studentName || "student"}`));
   }
   return doc;
 }
 
 /** Generate one multi-page PDF with an admit card per student. */
-export function generateAdmitCardsBulk(cards, fileName = "admit-cards.pdf") {
+export function generateAdmitCardsBulk(cards, fileName = "admit-cards") {
   if (!cards || cards.length === 0) return;
   const doc = new jsPDF();
   cards.forEach((c, i) => {
     if (i > 0) doc.addPage();
     generateAdmitCard(c, doc, false);
   });
-  doc.save(fileName);
+  doc.save(safeFileName(fileName));
 }

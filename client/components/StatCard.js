@@ -6,6 +6,7 @@ import { TrendingUp, TrendingDown } from 'lucide-react';
 export default function StatCard({
     title,
     value,
+    subtitle,
     icon: Icon,
     trend,
     trendValue,
@@ -18,6 +19,8 @@ export default function StatCard({
         purple: 'from-purple-500 to-purple-600',
         orange: 'from-orange-500 to-orange-600',
         green: 'from-green-500 to-green-600',
+        yellow: 'from-amber-500 to-amber-600',
+        red: 'from-red-500 to-red-600',
     };
 
     return (
@@ -32,6 +35,8 @@ export default function StatCard({
                 <div className="min-w-0 flex-1">
                     <p className="mb-1 text-xs font-medium text-zinc-500 sm:text-sm">{title}</p>
                     <h3 className="mb-2 break-words text-2xl font-bold tabular-nums text-zinc-900 sm:text-3xl">{value}</h3>
+
+                    {subtitle && <p className="mb-2 text-xs text-zinc-500">{subtitle}</p>}
 
                     {trend && (
                         <div className="flex items-center space-x-1">

@@ -28,6 +28,14 @@ import {
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 const easeOut = [0.22, 1, 0.36, 1];
 
+const ROLE_HOME = {
+  admin: "/admin",
+  principal: "/principal",
+  opsadmin: "/opsadmin",
+  teacher: "/teacher",
+  student: "/student",
+};
+
 function LoginInputShell({ icon: Icon, children }) {
   return (
     <div className="relative rounded-2xl border border-zinc-200/90 bg-zinc-50/50 transition focus-within:border-primary-400/80 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(111,163,113,0.12)]">
@@ -146,14 +154,9 @@ export default function LoginPage() {
         const navSlug = data.institution?.slug || institution_slug || "";
         if (data.role === "mai_admin") {
           router.push("/mai-admin");
-        } else if (data.role === "admin") {
-          router.push(tenantAppPath(navSlug, "/admin"));
-        } else if (data.role === "teacher") {
-          router.push(tenantAppPath(navSlug, "/teacher"));
-        } else if (data.role === "principal") {
-          router.push(tenantAppPath(navSlug, "/principal"));
-        } else if (data.role === "student") {
-          router.push(tenantAppPath(navSlug, "/student"));
+        } else {
+          // Fall back to /profile so a role without its own dashboard still lands somewhere.
+          router.push(tenantAppPath(navSlug, ROLE_HOME[data.role] || "/profile"));
         }
       } else {
         setError(data.error || "Login failed");
