@@ -14,6 +14,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
 import { useTenantPaths } from '@/lib/useTenantPaths';
 import { formatInrCompact } from '@/lib/currency';
 import { useRequireRole } from '@/lib/useSession';
+import { apiBase, authHeaders } from '@/lib/api';
 
 const GET_PRINCIPAL_DASHBOARD = gql`
   query GetPrincipalDashboard {
@@ -65,9 +66,9 @@ function PrincipalDashboardContent() {
         setReport(null);
 
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/ai/reports`, {
+            const res = await fetch(`${apiBase()}/api/ai/reports`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ type })
             });
             const data = await res.json();

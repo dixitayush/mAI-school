@@ -1,16 +1,29 @@
+require('dotenv').config();
+
 const express = require('express');
 const { postgraphile } = require('postgraphile');
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
+const {
+  requireAuth,
+  requireRole,
+  requireTenant,
+  signAccessToken,
+  verifyAccessToken,
+  extractBearer,
+} = require('./middleware/auth');
+const {
+  corsOptions,
+  helmetMiddleware,
+  authRateLimiter,
+  apiRateLimiter,
+} = require('./middleware/security');
+const { validatePassword } = require('./lib/passwordPolicy');
 const { Pool } = require('pg');
-const { requireAuth, requireRole, requireTenant } = require('./middleware/auth');
-require('dotenv').config();
 
 const app = express();
+const isProd = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 5001;
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/mai_school';
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
 function postgraphileDatabaseUrl() {
   const skip = process.env.SKIP_GRAPHQL_RLS === '1' || process.env.SKIP_GRAPHQL_RLS === 'true';
@@ -57,13 +70,10 @@ function resolveInstitutionSlug(req) {
 }
 
 function pgSettingsFromRequest(req) {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith('Bearer ')) {
-    return {};
-  }
+  const token = extractBearer(req);
+  if (!token) return {};
   try {
-    const token = auth.slice(7);
-    const p = jwt.verify(token, JWT_SECRET, { audience: 'postgraphile' });
+    const p = verifyAccessToken(token);
     return {
       'jwt.claims.role': String(p.role || ''),
       'jwt.claims.user_id': p.user_id ? String(p.user_id) : '',
@@ -74,9 +84,19 @@ function pgSettingsFromRequest(req) {
   }
 }
 
-app.use(cors());
-app.use(express.json());
-app.use('/uploads', express.static('uploads')); // Serve uploaded files
+// Behind reverse proxies (Render, nginx, etc.)
+if (isProd || process.env.TRUST_PROXY === '1') {
+  app.set('trust proxy', 1);
+}
+
+app.use(helmetMiddleware());
+app.use(cors(corsOptions()));
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
+app.use(apiRateLimiter());
+
+// Legacy disk uploads (prefer /api/files + AuthImage). Upload POST is JWT-protected;
+// filenames are unguessable. Do not put secrets in this directory.
+app.use('/uploads', express.static('uploads', { fallthrough: false }));
 
 // Import Routes
 const aiRoutes = require('./routes/ai');
@@ -108,13 +128,32 @@ function mountPostGraphile() {
   if (graphileDbUrl !== DATABASE_URL) {
     console.log('[PostGraphile] Using mai_graphql connection (RLS enforced).');
   }
-  // Mount only after initDb() creates mai_graphql + password (see initDb().then below).
+  const enableGraphiql =
+    !isProd && process.env.ENABLE_GRAPHIQL !== '0' && process.env.ENABLE_GRAPHIQL !== 'false';
+
+  // Reject GraphQL without a Bearer token in production (RLS alone is not enough for schema leak).
+  if (isProd || process.env.REQUIRE_GRAPHQL_AUTH === '1') {
+    app.use('/graphql', (req, res, next) => {
+      if (req.method === 'OPTIONS') return next();
+      const token = extractBearer(req);
+      if (!token) {
+        return res.status(401).json({ errors: [{ message: 'Authorization required' }] });
+      }
+      try {
+        verifyAccessToken(token);
+        return next();
+      } catch {
+        return res.status(401).json({ errors: [{ message: 'Invalid or expired token' }] });
+      }
+    });
+  }
+
   const graphileOpts = {
-    watchPg: true,
-    graphiql: true,
-    enhanceGraphiql: true,
-    showErrorStack: true,
-    extendedErrors: ['hint', 'detail', 'errcode'],
+    watchPg: !isProd,
+    graphiql: enableGraphiql,
+    enhanceGraphiql: enableGraphiql,
+    showErrorStack: !isProd,
+    extendedErrors: isProd ? ['errcode'] : ['hint', 'detail', 'errcode'],
     ignoreRBAC: true,
     legacyRelations: 'omit',
     pgSettings: pgSettingsFromRequest,
@@ -126,11 +165,17 @@ function mountPostGraphile() {
   app.use(postgraphile(graphileDbUrl, 'public', graphileOpts));
 }
 
-app.use('/api/platform', platformRouter(pool, JWT_SECRET));
+app.use('/api/platform', platformRouter(pool));
+
+const loginLimiter = authRateLimiter();
 
 // Auth Routes
-app.post('/login', async (req, res) => {
+app.post('/login', loginLimiter, async (req, res) => {
   const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
 
   try {
     const slug = resolveInstitutionSlug(req);
@@ -201,6 +246,7 @@ app.post('/login', async (req, res) => {
       return res.status(403).json({ error: 'This account has been disabled' });
     }
 
+    // bcrypt via pgcrypto: password_hash = crypt(plain, gen_salt('bf'))
     const verifyResult = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND password_hash = crypt($2, password_hash)',
       [userRow.id, password]
@@ -212,18 +258,11 @@ app.post('/login', async (req, res) => {
 
     const user = verifyResult.rows[0];
 
-    const token = jwt.sign(
-      {
-        role: user.role,
-        user_id: user.id,
-        institution_id: user.institution_id || null,
-      },
-      JWT_SECRET,
-      {
-        expiresIn: '1d',
-        audience: 'postgraphile',
-      }
-    );
+    const token = signAccessToken({
+      role: user.role,
+      user_id: user.id,
+      institution_id: user.institution_id || null,
+    });
 
     res.json({
       token,
@@ -256,8 +295,9 @@ app.post(
     if (!username || !password || !full_name) {
       return res.status(400).json({ error: 'username, password and full_name are required' });
     }
-    if (String(password).length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.ok) {
+      return res.status(400).json({ error: pwCheck.error });
     }
 
     // A platform admin has no tenant of their own, so they must name one.
@@ -289,16 +329,19 @@ app.post(
 
 const { initDb } = require('./db/init');
 
-// ... (rest of imports)
-
 // Initialize DB first (creates mai_graphql + RLS), then mount GraphQL so auth succeeds.
 initDb()
   .then(() => {
     mountPostGraphile();
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
-      console.log(`GraphiQL available at http://localhost:${PORT}/graphiql`);
+      if (!isProd) {
+        console.log(`GraphiQL available at http://localhost:${PORT}/graphiql`);
+      }
       console.log('PostGraphile options: ignoreRBAC=true, RLS via mai_graphql unless SKIP_GRAPHQL_RLS');
+      console.log(
+        `[auth] JWT access tokens enabled (JWT_SECRET set: ${Boolean(process.env.JWT_SECRET)})`
+      );
     });
   })
   .catch((err) => {

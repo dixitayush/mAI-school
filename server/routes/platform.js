@@ -1,35 +1,19 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const { sendWelcomeAdminEmail } = require('../lib/welcomeAdminEmail');
 const { isValidEmail, isValidLoginUrl } = require('../lib/validateContact');
+const { requireAuth, requireRole } = require('../middleware/auth');
+const { validatePassword } = require('../lib/passwordPolicy');
 
 function billingInrPerStudent() {
   const n = Number(process.env.BILLING_INR_PER_STUDENT_MONTH);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 30;
 }
 
-function platformRouter(pool, jwtSecret) {
+function platformRouter(pool) {
   const router = express.Router();
+  const requireMaiAdmin = [requireAuth, requireRole('mai_admin')];
 
-  function requireMaiAdmin(req, res, next) {
-    const auth = req.headers.authorization;
-    if (!auth?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    try {
-      const token = auth.slice(7);
-      const payload = jwt.verify(token, jwtSecret, { audience: 'postgraphile' });
-      if (payload.role !== 'mai_admin') {
-        return res.status(403).json({ error: 'MAI platform admin only' });
-      }
-      req.maiUserId = payload.user_id;
-      next();
-    } catch {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-  }
-
-  router.get('/stats', requireMaiAdmin, async (_req, res) => {
+  router.get('/stats', ...requireMaiAdmin, async (_req, res) => {
     try {
       const q = await pool.query(`
         SELECT
@@ -72,7 +56,7 @@ function platformRouter(pool, jwtSecret) {
     }
   });
 
-  router.get('/institutions', requireMaiAdmin, async (_req, res) => {
+  router.get('/institutions', ...requireMaiAdmin, async (_req, res) => {
     try {
       const q = await pool.query(
         `SELECT id, name, slug, logo_url AS "logoUrl", is_active AS "isActive", created_at AS "createdAt"
@@ -85,7 +69,7 @@ function platformRouter(pool, jwtSecret) {
     }
   });
 
-  router.post('/institutions', requireMaiAdmin, async (req, res) => {
+  router.post('/institutions', ...requireMaiAdmin, async (req, res) => {
     const {
       name,
       slug,
@@ -101,6 +85,10 @@ function platformRouter(pool, jwtSecret) {
       return res.status(400).json({
         error: 'name, slug, adminUsername, adminPassword, and adminFullName are required',
       });
+    }
+    const pwCheck = validatePassword(adminPassword);
+    if (!pwCheck.ok) {
+      return res.status(400).json({ error: pwCheck.error });
     }
     let est = null;
     if (estimatedStudents !== undefined && estimatedStudents !== null && estimatedStudents !== '') {
@@ -180,7 +168,7 @@ function platformRouter(pool, jwtSecret) {
     }
   });
 
-  router.patch('/institutions/:id/active', requireMaiAdmin, async (req, res) => {
+  router.patch('/institutions/:id/active', ...requireMaiAdmin, async (req, res) => {
     const { id } = req.params;
     const { isActive } = req.body;
     if (typeof isActive !== 'boolean') {
@@ -199,7 +187,7 @@ function platformRouter(pool, jwtSecret) {
     }
   });
 
-  router.patch('/users/:id/login-enabled', requireMaiAdmin, async (req, res) => {
+  router.patch('/users/:id/login-enabled', ...requireMaiAdmin, async (req, res) => {
     const { id } = req.params;
     const { loginEnabled } = req.body;
     if (typeof loginEnabled !== 'boolean') {
@@ -220,7 +208,7 @@ function platformRouter(pool, jwtSecret) {
     }
   });
 
-  router.get('/institutions/:id/users', requireMaiAdmin, async (req, res) => {
+  router.get('/institutions/:id/users', ...requireMaiAdmin, async (req, res) => {
     const { id } = req.params;
     try {
       const q = await pool.query(

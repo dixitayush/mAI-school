@@ -13,6 +13,7 @@ import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import AttendanceImportModal from '@/components/AttendanceImportModal';
 import ClassAttendanceSummary from '@/components/ClassAttendanceSummary';
+import { apiBase, authHeaders } from '@/lib/api';
 
 const GET_CLASSES_AND_STUDENTS = gql`
   query GetClassesAndStudents {
@@ -83,7 +84,9 @@ function AttendanceContent() {
     // Pre-populate attendance data from DB when class/date changes (mark tab)
     useEffect(() => {
         if (selectedClass && date && activeTab === 'mark') {
-            fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/attendance/history?class_id=${selectedClass}&date=${date}`)
+            fetch(`${apiBase()}/api/attendance/history?class_id=${selectedClass}&date=${date}`, {
+                headers: authHeaders(),
+            })
                 .then(res => res.json())
                 .then(records => {
                     if (Array.isArray(records) && records.length > 0) {
@@ -107,7 +110,9 @@ function AttendanceContent() {
     useEffect(() => {
         if (filteredStudents.length > 0 && activeTab === 'mark') {
             filteredStudents.forEach(student => {
-                fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/attendance/stats/${student.id}`)
+                fetch(`${apiBase()}/api/attendance/stats/${student.id}`, {
+                    headers: authHeaders(),
+                })
                     .then(res => res.json())
                     .then(data => {
                         setStudentStats(prev => ({ ...prev, [student.id]: data }));
@@ -121,7 +126,9 @@ function AttendanceContent() {
     useEffect(() => {
         if (activeTab === 'history' && selectedClass && date) {
             setLoadingHistory(true);
-            fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/attendance/history?class_id=${selectedClass}&date=${date}`)
+            fetch(`${apiBase()}/api/attendance/history?class_id=${selectedClass}&date=${date}`, {
+                headers: authHeaders(),
+            })
                 .then(res => res.json())
                 .then(data => {
                     setHistoryData(data);
@@ -156,22 +163,19 @@ function AttendanceContent() {
 
     const handleSubmit = async () => {
         setSubmitting(true);
-        const user = JSON.parse(localStorage.getItem('user'));
-        const recordedBy = user?.id;
 
         try {
             const promises = Object.entries(attendanceData).map(async ([studentId, record]) => {
                 if (!record.status) return;
 
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/attendance/mark`, {
+                const res = await fetch(`${apiBase()}/api/attendance/mark`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: authHeaders({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify({
                         student_id: studentId,
                         date,
                         status: record.status,
                         remarks: record.remarks,
-                        recorded_by: recordedBy
                     })
                 });
                 return res.json();

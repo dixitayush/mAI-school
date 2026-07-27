@@ -1,21 +1,81 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
+const isProd = process.env.NODE_ENV === 'production';
+const DEFAULT_DEV_SECRET = 'supersecretkey';
+
+function resolveJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (isProd) {
+    if (!secret || secret === DEFAULT_DEV_SECRET || secret.length < 32) {
+      console.error(
+        '[auth] FATAL: JWT_SECRET must be set to a strong value (≥32 chars) in production'
+      );
+      process.exit(1);
+    }
+    return secret;
+  }
+  if (!secret || secret === DEFAULT_DEV_SECRET) {
+    console.warn(
+      '[auth] Using weak/default JWT_SECRET — set a strong JWT_SECRET before production'
+    );
+  }
+  return secret || DEFAULT_DEV_SECRET;
+}
+
+const JWT_SECRET = resolveJwtSecret();
+const JWT_AUDIENCE = process.env.JWT_AUDIENCE || 'postgraphile';
+const JWT_ISSUER = process.env.JWT_ISSUER || 'mai-school';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '12h';
 
 /**
- * Verify the Bearer JWT (same token PostGraphile consumes) and attach
+ * Sign an access token (same shape PostGraphile / RLS expects).
+ */
+function signAccessToken({ role, user_id, institution_id }) {
+  return jwt.sign(
+    {
+      role,
+      user_id,
+      institution_id: institution_id || null,
+    },
+    JWT_SECRET,
+    {
+      expiresIn: JWT_EXPIRES_IN,
+      audience: JWT_AUDIENCE,
+      issuer: JWT_ISSUER,
+    }
+  );
+}
+
+function verifyAccessToken(token) {
+  return jwt.verify(token, JWT_SECRET, {
+    audience: JWT_AUDIENCE,
+    issuer: JWT_ISSUER,
+  });
+}
+
+/**
+ * Extract Bearer token from Authorization header.
+ */
+function extractBearer(req) {
+  const header = req.headers.authorization || '';
+  if (!header.startsWith('Bearer ')) return null;
+  return header.slice(7).trim() || null;
+}
+
+/**
+ * Verify the Bearer JWT and attach
  * req.auth = { role, user_id, institution_id }.
  *
  * REST routes connect to Postgres as a superuser pool that BYPASSES RLS,
  * so every REST handler MUST scope queries by req.auth.institution_id itself.
  */
 function requireAuth(req, res, next) {
-  const header = req.headers.authorization || '';
-  if (!header.startsWith('Bearer ')) {
+  const token = extractBearer(req);
+  if (!token) {
     return res.status(401).json({ error: 'Missing authorization token' });
   }
   try {
-    const payload = jwt.verify(header.slice(7), JWT_SECRET, { audience: 'postgraphile' });
+    const payload = verifyAccessToken(token);
     req.auth = {
       role: payload.role || null,
       user_id: payload.user_id || null,
@@ -45,4 +105,15 @@ function requireTenant(req, res, next) {
   return next();
 }
 
-module.exports = { requireAuth, requireRole, requireTenant, JWT_SECRET };
+module.exports = {
+  requireAuth,
+  requireRole,
+  requireTenant,
+  signAccessToken,
+  verifyAccessToken,
+  extractBearer,
+  JWT_SECRET,
+  JWT_AUDIENCE,
+  JWT_ISSUER,
+  JWT_EXPIRES_IN,
+};

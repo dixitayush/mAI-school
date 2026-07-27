@@ -1,6 +1,8 @@
 const express = require('express');
 const { sendWelcomeAdminEmail } = require('../lib/welcomeAdminEmail');
 const { isValidEmail, isValidLoginUrl } = require('../lib/validateContact');
+const { validatePassword } = require('../lib/passwordPolicy');
+const { authRateLimiter } = require('../middleware/security');
 
 const RESERVED_INSTITUTION_SLUGS = new Set([
   'www',
@@ -30,7 +32,7 @@ function publicRouter(pool) {
     });
   });
 
-  router.post('/self-onboard', async (req, res) => {
+  router.post('/self-onboard', authRateLimiter(), async (req, res) => {
     const {
       name,
       slug: rawSlug,
@@ -74,6 +76,10 @@ function publicRouter(pool) {
     }
     if (!adminPassword || String(adminPassword).length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    }
+    const pwCheck = validatePassword(adminPassword);
+    if (!pwCheck.ok) {
+      return res.status(400).json({ error: pwCheck.error });
     }
 
     const adminEmail = String(rawAdminEmail || '').trim().toLowerCase();

@@ -1,23 +1,30 @@
 const express = require('express');
 const router = express.Router();
 const { sendMail } = require('../lib/mailer');
+const { requireAuth, requireRole, requireTenant } = require('../middleware/auth');
 
-router.post('/send', async (req, res) => {
-  const { to, subject, text } = req.body;
+router.post(
+  '/send',
+  requireAuth,
+  requireRole('admin', 'principal', 'opsadmin', 'teacher'),
+  requireTenant,
+  async (req, res) => {
+    const { to, subject, text } = req.body;
 
-  if (!to || !subject) {
-    return res.status(400).json({ error: 'to and subject required' });
-  }
+    if (!to || !subject) {
+      return res.status(400).json({ error: 'to and subject required' });
+    }
 
-  const safeSubject = String(subject);
-  const safeText = text != null ? String(text) : '';
+    const safeSubject = String(subject).slice(0, 200);
+    const safeText = text != null ? String(text).slice(0, 10000) : '';
+    const safeTo = String(to).slice(0, 320);
 
-  const result = await sendMail({
-    from: process.env.SMTP_FROM || '"mAI-school" <noreply@maischool.com>',
-    to,
-    subject: safeSubject,
-    text: safeText,
-    html: `
+    const result = await sendMail({
+      from: process.env.SMTP_FROM || '"mAI-school" <noreply@maischool.com>',
+      to: safeTo,
+      subject: safeSubject,
+      text: safeText,
+      html: `
             <!DOCTYPE html>
             <html>
             <head>
@@ -54,17 +61,18 @@ router.post('/send', async (req, res) => {
             </body>
             </html>
             `,
-  });
+    });
 
-  if (!result.ok) {
-    return res.status(500).json({ error: result.error || 'Failed to send email' });
+    if (!result.ok) {
+      return res.status(500).json({ error: result.error || 'Failed to send email' });
+    }
+
+    res.json({
+      success: true,
+      messageId: result.messageId,
+      previewUrl: result.previewUrl,
+    });
   }
-
-  res.json({
-    success: true,
-    messageId: result.messageId,
-    previewUrl: result.previewUrl,
-  });
-});
+);
 
 module.exports = router;

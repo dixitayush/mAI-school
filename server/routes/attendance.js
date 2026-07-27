@@ -3,6 +3,7 @@ const router = express.Router();
 const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
+const { requireAuth, requireRole, requireTenant } = require('../middleware/auth');
 
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/mai_school';
 const pool = new Pool({ connectionString: DATABASE_URL });
@@ -175,18 +176,33 @@ async function sendAttendanceEmail(studentEmail, studentName, status, date, rema
 
 const { sendSMS, sendWhatsApp } = require('../services/smsService');
 
-// ... (existing imports and setup)
+const canManageAttendance = [
+  requireAuth,
+  requireRole('teacher', 'admin', 'principal', 'opsadmin'),
+  requireTenant,
+];
 
 // Mark Attendance Route
-router.post('/mark', async (req, res) => {
-    const { student_id, date, status, remarks, recorded_by } = req.body;
+router.post('/mark', ...canManageAttendance, async (req, res) => {
+    const { student_id, date, status, remarks } = req.body;
+    const recorded_by = req.auth.user_id;
 
     if (!student_id || !status) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
     try {
-        // 1. Upsert Attendance Record (insert or update if same student+date exists)
+        const owned = await pool.query(
+            `SELECT s.id
+               FROM students s
+               JOIN users u ON u.id = s.user_id
+              WHERE s.id = $1 AND u.institution_id = $2`,
+            [student_id, req.auth.institution_id]
+        );
+        if (owned.rows.length === 0) {
+            return res.status(404).json({ error: 'Student not found in your institute' });
+        }
+
         const upsertQuery = `
             INSERT INTO attendance (student_id, date, status, remarks, recorded_by)
             VALUES ($1, $2, $3, $4, $5)
@@ -194,10 +210,15 @@ router.post('/mark', async (req, res) => {
             DO UPDATE SET status = EXCLUDED.status, remarks = EXCLUDED.remarks, recorded_by = EXCLUDED.recorded_by, created_at = NOW()
             RETURNING *;
         `;
-        const result = await pool.query(upsertQuery, [student_id, date || new Date(), status, remarks, recorded_by]);
+        const result = await pool.query(upsertQuery, [
+            student_id,
+            date || new Date(),
+            status,
+            remarks,
+            recorded_by,
+        ]);
         const attendanceRecord = result.rows[0];
 
-        // 2. Fetch Student & Parent Details for Notifications
         const studentQuery = `
             SELECT 
                 s.id, 
@@ -207,26 +228,20 @@ router.post('/mark', async (req, res) => {
                 s.parent_name
             FROM students s
             JOIN users u ON s.user_id = u.id
-            WHERE s.id = $1;
+            WHERE s.id = $1 AND u.institution_id = $2;
         `;
-        const studentResult = await pool.query(studentQuery, [student_id]);
+        const studentResult = await pool.query(studentQuery, [student_id, req.auth.institution_id]);
 
         if (studentResult.rows.length > 0) {
             const student = studentResult.rows[0];
 
-            // Send Email to Parent
             if (student.parent_email) {
                 sendAttendanceEmail(student.parent_email, student.student_name, status, attendanceRecord.date, remarks);
             }
 
-            // Send SMS & WhatsApp to Parent
             if (student.parent_phone) {
                 const message = `Attendance Alert: ${student.student_name} is marked ${status.toUpperCase()} on ${new Date(attendanceRecord.date).toLocaleDateString()}. Remarks: ${remarks || 'None'}`;
-
-                // Send SMS
                 await sendSMS(student.parent_phone, message);
-
-                // Send WhatsApp
                 await sendWhatsApp(student.parent_phone, message);
             }
         }
@@ -240,9 +255,20 @@ router.post('/mark', async (req, res) => {
 });
 
 // Get Attendance Stats
-router.get('/stats/:student_id', async (req, res) => {
+router.get('/stats/:student_id', ...canManageAttendance, async (req, res) => {
     const { student_id } = req.params;
     try {
+        const owned = await pool.query(
+            `SELECT s.id
+               FROM students s
+               JOIN users u ON u.id = s.user_id
+              WHERE s.id = $1 AND u.institution_id = $2`,
+            [student_id, req.auth.institution_id]
+        );
+        if (owned.rows.length === 0) {
+            return res.status(404).json({ error: 'Student not found in your institute' });
+        }
+
         const result = await pool.query(
             `SELECT status, COUNT(*) as count FROM attendance WHERE student_id = $1 GROUP BY status`,
             [student_id]
@@ -255,8 +281,6 @@ router.get('/stats/:student_id', async (req, res) => {
         });
 
         if (stats.total > 0) {
-            // Calculate percentage (Present + Late/2) / Total * 100 ? Or just Present/Total
-            // Simple: Present / Total
             stats.percentage = Math.round((stats.present / stats.total) * 100);
         }
 
@@ -268,7 +292,7 @@ router.get('/stats/:student_id', async (req, res) => {
 });
 
 // Get Attendance History (by Class and Date)
-router.get('/history', async (req, res) => {
+router.get('/history', ...canManageAttendance, async (req, res) => {
     const { class_id, date } = req.query;
 
     if (!class_id || !date) {
@@ -276,13 +300,22 @@ router.get('/history', async (req, res) => {
     }
 
     try {
+        const classOwned = await pool.query(
+            `SELECT id FROM classes WHERE id = $1 AND institution_id = $2`,
+            [class_id, req.auth.institution_id]
+        );
+        if (classOwned.rows.length === 0) {
+            return res.status(404).json({ error: 'Class not found in your institute' });
+        }
+
         const query = `
             SELECT a.*, s.user_id 
             FROM attendance a
             JOIN students s ON a.student_id = s.id
-            WHERE s.class_id = $1 AND a.date = $2
+            JOIN users u ON u.id = s.user_id
+            WHERE s.class_id = $1 AND a.date = $2 AND u.institution_id = $3
         `;
-        const result = await pool.query(query, [class_id, date]);
+        const result = await pool.query(query, [class_id, date, req.auth.institution_id]);
         res.json(result.rows);
     } catch (err) {
         console.error(err);

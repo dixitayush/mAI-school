@@ -14,6 +14,7 @@ import AnnouncementCard from '@/components/AnnouncementCard';
 import { useTenantPaths } from '@/lib/useTenantPaths';
 import { formatInr } from '@/lib/currency';
 import { useRequireRole } from '@/lib/useSession';
+import { apiBase, authHeaders } from '@/lib/api';
 
 const GET_TEACHER_DASHBOARD = gql`
   query GetTeacherDashboard($teacherId: UUID!) {
@@ -81,31 +82,20 @@ function TeacherDashboardContent() {
         setAiResult(null);
 
         try {
-            const formData = new FormData();
-            formData.append('file', file);
+            const fd = new FormData();
+            fd.append('file', file);
+            if (classes[0]?.id) fd.append('class_id', classes[0].id);
 
-            const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/upload`, {
+            const res = await fetch(`${apiBase()}/api/ai/attendance/extract`, {
                 method: 'POST',
-                body: formData
-            });
-
-            const uploadData = await uploadRes.json();
-
-            if (!uploadData.success) {
-                throw new Error('File upload failed');
-            }
-
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/ai/attendance`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    classId: classes[0]?.id || '',
-                    imageUrl: uploadData.fileUrl
-                }),
-                headers: { 'Content-Type': 'application/json' }
+                headers: authHeaders(),
+                body: fd,
             });
 
             const data = await res.json();
+            if (!res.ok) throw new Error(data?.error || 'AI processing failed');
             setAiResult(data);
+            toast.success('Attendance register processed');
         } catch (err) {
             console.error(err);
             toast.error('AI Processing Failed: ' + err.message);

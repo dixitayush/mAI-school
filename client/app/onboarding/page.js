@@ -156,7 +156,9 @@ export default function OnboardingPage() {
           form.adminFullName.trim().length > 0 &&
           EMAIL_RE.test(form.adminEmail.trim()) &&
           form.adminUsername.trim().length >= 2 &&
-          form.adminPassword.length >= 8
+          form.adminPassword.length >= 8 &&
+          /[a-zA-Z]/.test(form.adminPassword) &&
+          /[0-9]/.test(form.adminPassword)
         );
       }
       if (i === 3) {

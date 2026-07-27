@@ -13,6 +13,7 @@ import {
     resolveSignInPath,
     tenantLoginPath,
 } from '@/lib/tenant';
+import { apiBase, authHeaders } from '@/lib/api';
 
 const GET_USER_PROFILE = gql`
   query GetUserProfile($id: UUID!) {
@@ -162,13 +163,16 @@ function ProfileContent() {
         uploadData.append('file', file);
 
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/upload`, {
+            const res = await fetch(`${apiBase()}/api/upload`, {
                 method: 'POST',
+                headers: authHeaders(),
                 body: uploadData,
             });
             const result = await res.json();
             if (result.success) {
-                const newPhotoUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}${result.fileUrl}`;
+                const newPhotoUrl = result.fileUrl.startsWith('http')
+                    ? result.fileUrl
+                    : `${apiBase()}${result.fileUrl}`;
                 setFormData(prev => ({ ...prev, photoUrl: newPhotoUrl }));
 
                 // Auto-save photo update

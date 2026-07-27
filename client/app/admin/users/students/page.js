@@ -7,6 +7,7 @@ import DataTable from '@/components/DataTable';
 import StudentModal from '@/components/StudentModal';
 import { Mail, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { apiBase, authHeaders } from '@/lib/api';
 
 const GET_STUDENTS = gql`
   query GetStudents {
@@ -223,9 +224,9 @@ function StudentsContent() {
     setSendingEmail(row.id);
     const email = getEmail(row);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/email/send`, {
+      const res = await fetch(`${apiBase()}/api/email/send`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           to: email || 'student@example.com',
           subject: 'Welcome to mAI-school',
