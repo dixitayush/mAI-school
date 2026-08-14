@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata = {
   title: "mAI-school — School management for modern institutes",
   description:
-    "Run attendance, fees, exams, and communication in one place. Self-serve institute onboarding or sales-led setup; multi-tenant subdomains with student-based pricing in INR.",
+    "Attendance, fees, exams, and campus communication in one platform. Self-serve at ₹30/student/month or sales-led setup—each institute on its own subdomain with isolated data.",
 };
 
 /** Proper scaling and notch / home-indicator safe spacing on phones and tablets. */
