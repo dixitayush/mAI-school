@@ -1,15 +1,15 @@
 const express = require('express');
 const multer = require('multer');
-const { Pool } = require('pg');
 require('dotenv').config();
 
 const { requireAuth, requireRole, requireTenant } = require('../middleware/auth');
 const { saveFile } = require('./files');
 const { logAudit } = require('../lib/audit');
 const gemini = require('../services/geminiService');
+const { getAppPool } = require('../db/pool');
 
 const router = express.Router();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = getAppPool();
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);

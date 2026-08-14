@@ -1,12 +1,12 @@
 const express = require('express');
-const { Pool } = require('pg');
 require('dotenv').config();
 
 const { requireAuth, requireTenant } = require('../middleware/auth');
 const gemini = require('../services/geminiService');
+const { getAppPool } = require('../db/pool');
 
 const router = express.Router();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = getAppPool();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

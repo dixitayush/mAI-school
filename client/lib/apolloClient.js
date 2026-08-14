@@ -1,25 +1,36 @@
-import { ApolloClient, InMemoryCache, createHttpLink } from '@apollo/client';
+import { ApolloClient, InMemoryCache, createHttpLink, from } from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
+import { RetryLink } from '@apollo/client/link/retry';
 
 const httpLink = createHttpLink({
     uri: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/graphql`,
 });
 
 const authLink = setContext((_, { headers }) => {
-    // Get the authentication token from local storage if it exists
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-
-    // Return the headers to the context so httpLink can read them
     return {
         headers: {
             ...headers,
             authorization: token ? `Bearer ${token}` : '',
-        }
-    }
+        },
+    };
+});
+
+/** Retry transient network failures only — never retry GraphQL application errors. */
+const retryLink = new RetryLink({
+    delay: {
+        initial: 300,
+        max: 2000,
+        jitter: true,
+    },
+    attempts: {
+        max: 3,
+        retryIf: (error, _operation) => !!error && !error.result,
+    },
 });
 
 const client = new ApolloClient({
-    link: authLink.concat(httpLink),
+    link: from([retryLink, authLink, httpLink]),
     cache: new InMemoryCache({
         typePolicies: {
             Query: {

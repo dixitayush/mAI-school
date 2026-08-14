@@ -1,7 +1,23 @@
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+const rateLimitLib = require('express-rate-limit');
+const rateLimit = typeof rateLimitLib === 'function' ? rateLimitLib : rateLimitLib.rateLimit;
+const ipKeyGenerator =
+  typeof rateLimitLib.ipKeyGenerator === 'function' ? rateLimitLib.ipKeyGenerator : null;
+const { extractBearer, verifyAccessToken } = require('./auth');
 
 const isProd = process.env.NODE_ENV === 'production';
+
+function clientIpKey(req) {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  if (typeof ipKeyGenerator === 'function') {
+    try {
+      return ipKeyGenerator(ip);
+    } catch {
+      return ip;
+    }
+  }
+  return ip;
+}
 
 /**
  * Allowed browser origins for CORS.
@@ -126,6 +142,34 @@ function helmetMiddleware() {
   });
 }
 
+/**
+ * Multi-tenant rate-limit key: institution_id (from JWT when present) + client IP.
+ * One noisy tenant cannot exhaust another tenant's budget on a shared IP (NAT),
+ * and unauthenticated traffic still keys by IP alone.
+ */
+function tenantRateLimitKey(req) {
+  const ip = clientIpKey(req);
+  const token = extractBearer(req);
+  if (!token) return `anon:${ip}`;
+  try {
+    const p = verifyAccessToken(token);
+    const tenant = p.institution_id != null && p.institution_id !== '' ? String(p.institution_id) : 'platform';
+    return `t:${tenant}:${ip}`;
+  } catch {
+    return `anon:${ip}`;
+  }
+}
+
+function skipHealth(req) {
+  const p = req.path || '';
+  return p === '/health' || p === '/ready' || p === '/api/health' || p === '/api/ready';
+}
+
+const rateLimitValidate = {
+  // Custom key includes tenant + IP via ipKeyGenerator when available.
+  keyGeneratorIpFallback: false,
+};
+
 /** Brute-force protection for /login and public onboarding. */
 function authRateLimiter() {
   return rateLimit({
@@ -133,6 +177,9 @@ function authRateLimiter() {
     max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 30,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: tenantRateLimitKey,
+    skip: skipHealth,
+    validate: rateLimitValidate,
     message: { error: 'Too many attempts. Please try again later.' },
   });
 }
@@ -141,10 +188,26 @@ function authRateLimiter() {
 function apiRateLimiter() {
   return rateLimit({
     windowMs: 60 * 1000,
-    max: Number(process.env.API_RATE_LIMIT_MAX) || 300,
+    max: Number(process.env.API_RATE_LIMIT_MAX) || 200,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: tenantRateLimitKey,
+    skip: skipHealth,
+    validate: rateLimitValidate,
     message: { error: 'Too many requests. Please slow down.' },
+  });
+}
+
+/** GraphQL-specific limiter (mounted only on /graphql). */
+function graphqlRateLimiter() {
+  return rateLimit({
+    windowMs: 60 * 1000,
+    max: Number(process.env.GRAPHQL_RATE_LIMIT_MAX) || 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: tenantRateLimitKey,
+    validate: rateLimitValidate,
+    message: { error: 'Too many GraphQL requests. Please slow down.' },
   });
 }
 
@@ -153,5 +216,7 @@ module.exports = {
   helmetMiddleware,
   authRateLimiter,
   apiRateLimiter,
+  graphqlRateLimiter,
   parseCorsOrigins,
+  tenantRateLimitKey,
 };

@@ -1,11 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const { Pool } = require('pg');
 require('dotenv').config();
+const { getAppPool } = require('./pool');
 
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-});
+const pool = getAppPool();
 
 async function seedData() {
     console.log('Seeding data...');

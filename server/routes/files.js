@@ -1,11 +1,11 @@
 const express = require('express');
 const multer = require('multer');
-const { Pool } = require('pg');
 require('dotenv').config();
 const { requireAuth, requireTenant } = require('../middleware/auth');
+const { getAppPool } = require('../db/pool');
 
 const router = express.Router();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = getAppPool();
 
 const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
 const ALLOWED = new Set([

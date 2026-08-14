@@ -57,12 +57,16 @@ Schema also defines `register_user`, class/student helpers (`modify_class`, `rem
 | Variable | Typical use |
 |----------|-------------|
 | `PORT` | Express listen (default `5001`) |
-| `DATABASE_URL` | PostgreSQL connection for app pool & migrations |
+| `DATABASE_URL` | Direct PostgreSQL URL (owner / migrations / PostGraphile watch) |
+| `DATABASE_POOL_URL` | Optional Neon/PgBouncer pooler URL for runtime app pool |
 | `JWT_SECRET` | Sign/verify JWTs |
 | `ROOT_DOMAIN` | Apex domain for subdomain → slug resolution (login) |
-| `SKIP_GRAPHQL_RLS` | If `1`/`true`, GraphQL uses `DATABASE_URL` without `mai_graphql` |
-| `GRAPHQL_DATABASE_URL` | Optional explicit GraphQL DB URL |
+| `SKIP_GRAPHQL_RLS` | If `1`/`true`, GraphQL uses app URL without `mai_graphql` |
+| `GRAPHQL_DATABASE_URL` / `GRAPHQL_DATABASE_POOL_URL` | Optional explicit GraphQL DB URLs |
 | `MAI_GRAPHQL_DB_USER` / `MAI_GRAPHQL_DB_PASSWORD` | Derived `mai_graphql` URL when RLS enabled |
+| `PG_POOL_MAX` / `PG_GRAPHQL_POOL_MAX` | Max clients per pool (default 8) |
+| `PG_IDLE_TIMEOUT_MS` / `PG_CONNECTION_TIMEOUT_MS` / `PG_STATEMENT_TIMEOUT_MS` | Pool / query timeouts |
+| `AUTH_RATE_LIMIT_MAX` / `API_RATE_LIMIT_MAX` / `GRAPHQL_RATE_LIMIT_MAX` | Tenant+IP rate limits |
 | `BILLING_INR_PER_STUDENT_MONTH` | Pricing (default 30 INR) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | Real email; else Ethereal in some routes |
 

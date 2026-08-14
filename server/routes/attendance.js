@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 const { requireAuth, requireRole, requireTenant } = require('../middleware/auth');
+const { getAppPool } = require('../db/pool');
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/mai_school';
-const pool = new Pool({ connectionString: DATABASE_URL });
+const pool = getAppPool();
 
 // Create a test account for Ethereal (or use real config if available)
 // Email Configuration

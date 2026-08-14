@@ -54,12 +54,12 @@ server/
 
 ### 3.1 `server/index.js`
 
-- **CORS** + **JSON** body parser.  
-- **Pool** on `DATABASE_URL` for login/register and platform/public routes.  
+- **CORS** + **JSON** body parser + helmet + tenant-aware rate limits.  
+- **Shared pools** (`server/db/pool.js`): one **app pool** (`DATABASE_POOL_URL` or `DATABASE_URL`) for REST/auth/init; one **GraphQL pool** (`mai_graphql` / `GRAPHQL_DATABASE_*`) passed into PostGraphile so routes do not each open their own `pg.Pool`. Tunables: `PG_POOL_MAX`, `PG_GRAPHQL_POOL_MAX`, idle/connection/statement timeouts.  
+- **`GET /health`** (liveness) and **`GET /ready`** (`SELECT 1` on app pool); both skipped by API rate limits.  
 - **`resolveInstitutionSlug(req)`:** `body.institution_slug`, then `Host` / `x-forwarded-host` vs `ROOT_DOMAIN`, `.localhost` subdomains.  
 - **`pgSettingsFromRequest`:** JWT → PostGraphile PostgreSQL settings.  
-- **`postgraphileDatabaseUrl()`:** May use dedicated `mai_graphql` user URL when RLS enabled.  
-- **Mount order:** AI, email, upload, attendance, `/api/public`, PostGraphile, `/api/platform`, `/login`, `/register`.
+- **Mount order:** AI, email, upload, attendance, `/api/public`, PostGraphile (+ GraphQL rate limit), `/api/platform`, `/login`, `/register`. Graceful `SIGTERM`/`SIGINT` closes pools.
 
 ### 3.2 Authentication (`POST /login`)
 

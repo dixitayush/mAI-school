@@ -16,37 +16,24 @@ const {
   helmetMiddleware,
   authRateLimiter,
   apiRateLimiter,
+  graphqlRateLimiter,
 } = require('./middleware/security');
 const { validatePassword } = require('./lib/passwordPolicy');
-const { Pool } = require('pg');
+const {
+  getAppPool,
+  getGraphqlPool,
+  closePools,
+  ownerConnectionString,
+  usesSeparateGraphqlRole,
+  appDatabaseUrl,
+} = require('./db/pool');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 5001;
-const DATABASE_URL = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/mai_school';
-
-function postgraphileDatabaseUrl() {
-  const skip = process.env.SKIP_GRAPHQL_RLS === '1' || process.env.SKIP_GRAPHQL_RLS === 'true';
-  if (skip) {
-    console.warn('[PostGraphile] SKIP_GRAPHQL_RLS: using DATABASE_URL (RLS not enforced for GraphQL)');
-    return DATABASE_URL;
-  }
-  if (process.env.GRAPHQL_DATABASE_URL) {
-    return process.env.GRAPHQL_DATABASE_URL;
-  }
-  try {
-    const normalized = DATABASE_URL.replace(/^postgres(ql)?:\/\//, 'postgresql://');
-    const u = new URL(normalized);
-    u.username = process.env.MAI_GRAPHQL_DB_USER || 'mai_graphql';
-    u.password = process.env.MAI_GRAPHQL_DB_PASSWORD || 'mai_graphql_dev_change_me';
-    const out = u.toString().replace(/^postgresql:\/\//, 'postgres://');
-    return out;
-  } catch (e) {
-    console.error('[PostGraphile] Could not derive mai_graphql URL, using DATABASE_URL', e);
-    return DATABASE_URL;
-  }
-}
 const ROOT_DOMAIN = (process.env.ROOT_DOMAIN || 'localhost').split(':')[0];
+
+const pool = getAppPool();
 
 function resolveInstitutionSlug(req) {
   const raw = req.body?.institution_slug;
@@ -94,6 +81,22 @@ app.use(cors(corsOptions()));
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
 app.use(apiRateLimiter());
 
+/** Liveness — no DB. Excluded from rate limits. */
+app.get('/health', (_req, res) => {
+  res.status(200).json({ ok: true });
+});
+
+/** Readiness — verifies the app pool can run a cheap query. */
+app.get('/ready', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error('[ready] database check failed:', err.message);
+    res.status(503).json({ ok: false, error: 'database unavailable' });
+  }
+});
+
 // Legacy disk uploads (prefer /api/files + AuthImage). Upload POST is JWT-protected;
 // filenames are unguessable. Do not put secrets in this directory.
 app.use('/uploads', express.static('uploads', { fallthrough: false }));
@@ -116,17 +119,14 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/files', filesRouter);
 
-// Database Pool for Auth
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-});
-
 app.use('/api/public', publicRouter(pool));
 
 function mountPostGraphile() {
-  const graphileDbUrl = postgraphileDatabaseUrl();
-  if (graphileDbUrl !== DATABASE_URL) {
-    console.log('[PostGraphile] Using mai_graphql connection (RLS enforced).');
+  const graphqlPool = getGraphqlPool();
+  if (usesSeparateGraphqlRole()) {
+    console.log('[PostGraphile] Using mai_graphql pool (RLS enforced).');
+  } else {
+    console.log('[PostGraphile] Using shared app pool URL (SKIP_GRAPHQL_RLS or same credentials).');
   }
   const enableGraphiql =
     !isProd && process.env.ENABLE_GRAPHIQL !== '0' && process.env.ENABLE_GRAPHIQL !== 'false';
@@ -148,6 +148,8 @@ function mountPostGraphile() {
     });
   }
 
+  app.use('/graphql', graphqlRateLimiter());
+
   const graphileOpts = {
     watchPg: !isProd,
     graphiql: enableGraphiql,
@@ -159,10 +161,12 @@ function mountPostGraphile() {
     pgSettings: pgSettingsFromRequest,
     retryOnInitFail: true,
   };
-  if (graphileDbUrl !== DATABASE_URL) {
-    graphileOpts.ownerConnectionString = DATABASE_URL;
+  if (usesSeparateGraphqlRole()) {
+    // Direct owner URL for schema watch / owner connection (avoid pooler for DDL watch).
+    graphileOpts.ownerConnectionString = ownerConnectionString();
   }
-  app.use(postgraphile(graphileDbUrl, 'public', graphileOpts));
+  // Pass Pool instance so PostGraphile does not open an unbounded third pool.
+  app.use(postgraphile(graphqlPool, 'public', graphileOpts));
 }
 
 app.use('/api/platform', platformRouter(pool));
@@ -329,20 +333,52 @@ app.post(
 
 const { initDb } = require('./db/init');
 
+let server = null;
+let shuttingDown = false;
+
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[shutdown] ${signal} received — closing HTTP server and DB pools`);
+  const forceTimer = setTimeout(() => {
+    console.error('[shutdown] forced exit after timeout');
+    process.exit(1);
+  }, 10000);
+  forceTimer.unref?.();
+
+  try {
+    if (server) {
+      await new Promise((resolve) => server.close(resolve));
+    }
+    await closePools();
+    console.log('[shutdown] clean exit');
+    process.exit(0);
+  } catch (err) {
+    console.error('[shutdown] error:', err);
+    process.exit(1);
+  }
+}
+
 // Initialize DB first (creates mai_graphql + RLS), then mount GraphQL so auth succeeds.
 initDb()
   .then(() => {
     mountPostGraphile();
-    app.listen(PORT, () => {
+    server = app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
       if (!isProd) {
         console.log(`GraphiQL available at http://localhost:${PORT}/graphiql`);
       }
+      console.log(
+        `[db] app pool → ${appDatabaseUrl().replace(/:[^:@/]+@/, ':***@')} (max=${process.env.PG_POOL_MAX || 8})`
+      );
       console.log('PostGraphile options: ignoreRBAC=true, RLS via mai_graphql unless SKIP_GRAPHQL_RLS');
       console.log(
         `[auth] JWT access tokens enabled (JWT_SECRET set: ${Boolean(process.env.JWT_SECRET)})`
       );
     });
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
   })
   .catch((err) => {
     console.error('Failed to initialize database:', err);
