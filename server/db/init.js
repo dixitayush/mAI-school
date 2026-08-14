@@ -1,9 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
-const { getAppPool } = require('./pool');
+const { getOwnerPool } = require('./pool');
 
-const pool = getAppPool();
+const pool = getOwnerPool();
 
 async function seedData() {
     console.log('Seeding data...');

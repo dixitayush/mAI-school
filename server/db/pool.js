@@ -31,17 +31,26 @@ function wantsSsl(connectionString) {
   }
 }
 
-function poolOptions(connectionString, { max } = {}) {
+function isPoolerUrl(connectionString) {
+  return /-pooler\.|pooler\.neon\.tech/i.test(String(connectionString || ''));
+}
+
+function poolOptions(connectionString, { max, forOwner = false } = {}) {
   const statementMs = envInt('PG_STATEMENT_TIMEOUT_MS', 30000);
+  const neon = /neon\.tech/i.test(String(connectionString || ''));
+  const defaultConnTimeout = neon ? 15000 : 5000;
   const opts = {
     connectionString,
     max: max ?? envInt('PG_POOL_MAX', 8),
     idleTimeoutMillis: envInt('PG_IDLE_TIMEOUT_MS', 10000),
-    connectionTimeoutMillis: envInt('PG_CONNECTION_TIMEOUT_MS', 5000),
-    allowExitOnIdle: true,
-    // Cap long-running queries so a hung tenant query cannot hold a connection forever.
-    options: `-c statement_timeout=${statementMs}`,
+    connectionTimeoutMillis: envInt('PG_CONNECTION_TIMEOUT_MS', defaultConnTimeout),
+    // Neon pooler + allowExitOnIdle can drop connections mid-handshake on cold start.
+    allowExitOnIdle: !isPoolerUrl(connectionString),
   };
+  // statement_timeout via startup options is unreliable through Neon pooler; use direct/owner pool for DDL.
+  if (!isPoolerUrl(connectionString)) {
+    opts.options = `-c statement_timeout=${statementMs}`;
+  }
   // Only set ssl when the URL does not already declare sslmode (pg honors sslmode in the URI).
   if (wantsSsl(connectionString) && !/sslmode=/i.test(String(connectionString || ''))) {
     opts.ssl = { rejectUnauthorized: process.env.PG_SSL_REJECT_UNAUTHORIZED !== '0' };
@@ -109,6 +118,7 @@ function ownerConnectionString() {
 }
 
 let appPool = null;
+let ownerPool = null;
 let graphqlPool = null;
 
 function getAppPool() {
@@ -118,6 +128,20 @@ function getAppPool() {
     attachPoolErrorHandler(appPool, 'app');
   }
   return appPool;
+}
+
+/** Direct DATABASE_URL pool for init, migrations, and DDL — never the Neon pooler. */
+function getOwnerPool() {
+  if (!ownerPool) {
+    ownerPool = new Pool(
+      poolOptions(DEFAULT_DATABASE_URL, {
+        max: Math.min(envInt('PG_POOL_MAX', 8), 3),
+        forOwner: true,
+      })
+    );
+    attachPoolErrorHandler(ownerPool, 'owner');
+  }
+  return ownerPool;
 }
 
 function getGraphqlPool() {
@@ -144,6 +168,12 @@ async function closePools() {
     );
     appPool = null;
   }
+  if (ownerPool) {
+    closing.push(
+      ownerPool.end().catch((e) => console.error('[db:owner] close failed:', e.message))
+    );
+    ownerPool = null;
+  }
   if (graphqlPool) {
     closing.push(
       graphqlPool.end().catch((e) => console.error('[db:graphql] close failed:', e.message))
@@ -155,6 +185,7 @@ async function closePools() {
 
 module.exports = {
   getAppPool,
+  getOwnerPool,
   getGraphqlPool,
   closePools,
   graphqlDatabaseUrl,
