@@ -27,6 +27,8 @@ export function sanitizeTenantSlugParam(raw) {
  */
 export function tenantLoginUsesQueryForApex(apexHostname) {
   if (process.env.NEXT_PUBLIC_TENANT_LOGIN_SUBDOMAIN === "1") return false;
+  // VPS HTTP-01 cannot mint a wildcard cert; keep institute logins on the apex path.
+  if (process.env.NEXT_PUBLIC_TENANT_LOGIN_PATH === "1") return true;
   if (!apexHostname) return false;
   const h = apexHostname.toLowerCase();
   if (h === "localhost" || h === "127.0.0.1") return false;

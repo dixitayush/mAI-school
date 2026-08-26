@@ -7,6 +7,9 @@ const DEFAULT_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS) || 200
 const UPLOAD_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_UPLOAD_TIMEOUT_MS) || 60000;
 
 export function apiBase() {
+  if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_API_SAME_ORIGIN === "1") {
+    return window.location.origin;
+  }
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 }
 

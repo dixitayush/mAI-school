@@ -5,3 +5,9 @@ Dockerfile
 .git
 .gitignore
 README.md
+.env
+.env.*
+!.env.example
+uploads
+graphify-out
+.DS_Store

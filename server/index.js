@@ -79,12 +79,16 @@ if (isProd || process.env.TRUST_PROXY === '1') {
 app.use(helmetMiddleware());
 app.use(cors(corsOptions()));
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
-app.use(apiRateLimiter());
 
-/** Liveness — no DB. Excluded from rate limits. */
+/** Liveness — no DB. Registered before rate limits for Docker / Traefik probes. */
 app.get('/health', (_req, res) => {
-  res.status(200).json({ ok: true });
+  res.status(200).json({ ok: true, service: 'maischool' });
 });
+app.get('/api/health', (_req, res) => {
+  res.status(200).json({ ok: true, service: 'maischool' });
+});
+
+app.use(apiRateLimiter());
 
 /** Readiness — verifies the app pool can run a cheap query. */
 app.get('/ready', async (_req, res) => {

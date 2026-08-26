@@ -25,8 +25,7 @@ import {
   tenantAppPath,
 } from "@/lib/tenant";
 import { notifySessionChanged } from "@/lib/useSession";
-
-const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+import { apiBase } from "@/lib/api";
 const easeOut = [0.22, 1, 0.36, 1];
 
 const ROLE_HOME = {
@@ -89,7 +88,7 @@ export default function LoginPage() {
     setInstLoading(true);
     (async () => {
       try {
-        const res = await fetch(`${apiBase}/api/public/institution/${encodeURIComponent(slug)}`);
+        const res = await fetch(`${apiBase()}/api/public/institution/${encodeURIComponent(slug)}`);
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
         if (!res.ok) {
@@ -131,7 +130,7 @@ export default function LoginPage() {
           window.location.search,
           pathname || ""
         ) || null;
-      const res = await fetch(`${apiBase}/login`, {
+      const res = await fetch(`${apiBase()}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

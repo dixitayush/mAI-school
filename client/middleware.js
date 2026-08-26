@@ -10,8 +10,11 @@ import {
   TENANT_LOGIN_QUERY_KEY,
 } from "@/lib/tenant";
 
-/** Edge middleware can read NEXT_PUBLIC_* ; set this to your API (same as client). */
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5001";
+/** Edge middleware: INTERNAL_API_URL is the Docker DNS name; baked in at image build. */
+const API_BASE =
+  process.env.INTERNAL_API_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://127.0.0.1:5001";
 
 function apexOrigin(request) {
   const u = request.nextUrl.clone();

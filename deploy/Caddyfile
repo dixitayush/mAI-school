@@ -1,0 +1,62 @@
+# Internal-only. TLS and public DNS live on Traefik (the VPS gateway).
+# Caddy has no published ports; Traefik reaches it on the `proxy` network.
+{
+	admin off
+	auto_https off
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:80 {
+	encode gzip zstd
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# Express: REST, GraphQL, auth, uploads, liveness.
+	@backend path /api/* /graphql /graphql/* /graphiql /graphiql/* /uploads/* /health /ready
+	handle @backend {
+		reverse_proxy server:5000 {
+			flush_interval -1
+			header_up Host {http.request.host}
+			header_up X-Forwarded-Host {http.request.host}
+			header_up X-Real-IP {http.request.header.X-Forwarded-For}
+			transport http {
+				read_timeout 180s
+				write_timeout 180s
+			}
+		}
+	}
+
+	# POST /login and POST /register are Express; GET /login is Next.js.
+	@authpost {
+		method POST
+		path /login /register
+	}
+	handle @authpost {
+		reverse_proxy server:5000 {
+			flush_interval -1
+			header_up Host {http.request.host}
+			header_up X-Forwarded-Host {http.request.host}
+			header_up X-Real-IP {http.request.header.X-Forwarded-For}
+			transport http {
+				read_timeout 60s
+				write_timeout 60s
+			}
+		}
+	}
+
+	handle {
+		reverse_proxy client:3000 {
+			flush_interval -1
+			header_up X-Real-IP {http.request.header.X-Forwarded-For}
+			transport http {
+				read_timeout 60s
+				write_timeout 60s
+			}
+		}
+	}
+}

@@ -7,3 +7,8 @@ Dockerfile
 README.md
 .next
 out
+.env
+.env.*
+!.env.example
+graphify-out
+.DS_Store

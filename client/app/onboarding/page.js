@@ -32,8 +32,7 @@ import {
 import { toast } from "react-hot-toast";
 import { instituteLoginPageUrl } from "@/lib/tenant";
 import { formatInr } from "@/lib/currency";
-
-const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+import { apiBase } from "@/lib/api";
 
 const SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -108,7 +107,7 @@ export default function OnboardingPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${apiBase}/api/public/pricing`);
+        const res = await fetch(`${apiBase()}/api/public/pricing`);
         const data = await res.json().catch(() => ({}));
         if (!cancelled && res.ok && typeof data.amountPerStudentMonth === "number") {
           setRate(data.amountPerStudentMonth);
@@ -205,7 +204,7 @@ export default function OnboardingPage() {
     try {
       const slugFinal = form.slug.trim().toLowerCase();
       const loginUrl = instituteLoginPageUrl(slugFinal);
-      const res = await fetch(`${apiBase}/api/public/self-onboard`, {
+      const res = await fetch(`${apiBase()}/api/public/self-onboard`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

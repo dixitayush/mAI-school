@@ -7,8 +7,7 @@ import { Building2, Copy, IndianRupee, Loader2, Plus, Shield, Users } from "luci
 import { motion } from "framer-motion";
 import { instituteLoginPageUrl } from "@/lib/tenant";
 import { formatInr } from "@/lib/currency";
-
-const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+import { apiBase } from "@/lib/api";
 
 export default function MaiAdminPage() {
   const router = useRouter();
@@ -31,7 +30,7 @@ export default function MaiAdminPage() {
 
   const loadStats = useCallback(async () => {
     const t = localStorage.getItem("token");
-    const res = await fetch(`${apiBase}/api/platform/stats`, {
+    const res = await fetch(`${apiBase()}/api/platform/stats`, {
       headers: { Authorization: `Bearer ${t}` },
     });
     if (!res.ok) throw new Error("Failed to load stats");
@@ -61,7 +60,7 @@ export default function MaiAdminPage() {
 
   const loadUsers = async (institutionId) => {
     const t = localStorage.getItem("token");
-    const res = await fetch(`${apiBase}/api/platform/institutions/${institutionId}/users`, {
+    const res = await fetch(`${apiBase()}/api/platform/institutions/${institutionId}/users`, {
       headers: { Authorization: `Bearer ${t}` },
     });
     if (!res.ok) throw new Error("Failed to load users");
@@ -72,7 +71,7 @@ export default function MaiAdminPage() {
   const toggleInstitution = async (id, isActive) => {
     try {
       const t = localStorage.getItem("token");
-      const res = await fetch(`${apiBase}/api/platform/institutions/${id}/active`, {
+      const res = await fetch(`${apiBase()}/api/platform/institutions/${id}/active`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${t}`,
@@ -91,7 +90,7 @@ export default function MaiAdminPage() {
   const toggleUserLogin = async (userId, loginEnabled, institutionId) => {
     try {
       const t = localStorage.getItem("token");
-      const res = await fetch(`${apiBase}/api/platform/users/${userId}/login-enabled`, {
+      const res = await fetch(`${apiBase()}/api/platform/users/${userId}/login-enabled`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${t}`,
@@ -128,7 +127,7 @@ export default function MaiAdminPage() {
         adminEmailTrim && /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/.test(slugClean)
           ? instituteLoginPageUrl(slugClean)
           : undefined;
-      const res = await fetch(`${apiBase}/api/platform/institutions`, {
+      const res = await fetch(`${apiBase()}/api/platform/institutions`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${t}`,
