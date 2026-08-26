@@ -79,6 +79,15 @@ is_blank() {
   [[ -z "$v" || "$v" == "change-me" || "$v" == "change_me"* || "$v" == your_* ]]
 }
 
+strip_quotes() {
+  local v="${1:-}"
+  v="${v#\"}"
+  v="${v%\"}"
+  v="${v#\'}"
+  v="${v%\'}"
+  printf '%s' "$v"
+}
+
 # --- Laptop path: copy this folder to the VPS and run there ---
 remote_deploy() {
   command -v rsync >/dev/null || die "rsync is required on the laptop."
@@ -124,15 +133,25 @@ compose() { "${DOCKER[@]}" compose "$@"; }
 
 ensure_gateway() {
   if "${DOCKER[@]}" network inspect proxy >/dev/null 2>&1 \
-    && "${DOCKER[@]}" ps --filter "label=com.docker.compose.project=gateway" \
-         --filter "label=com.docker.compose.service=traefik" \
-         --filter "status=running" --format '{{.Names}}' | grep -q .; then
+    && "${DOCKER[@]}" ps --format '{{.Names}}' | grep -qE 'traefik'; then
+    log "Traefik is running; using existing proxy network."
     return 0
   fi
-  local setup
-  setup="$(cd "$ROOT/.." && pwd)/setup.sh"
-  [[ -x "$setup" ]] || die "Traefik is not running and $setup is missing. Copy the repo to /opt/shurbe-data and run setup.sh."
-  log "Traefik / proxy network missing — running ../setup.sh"
+  local setup=""
+  local candidate
+  for candidate in \
+    "$ROOT/../setup.sh" \
+    /opt/shurbe-data/setup.sh \
+    "$HOME/shurbe-data/setup.sh" \
+    "$HOME/setup.sh"
+  do
+    if [[ -x "$candidate" ]]; then
+      setup="$candidate"
+      break
+    fi
+  done
+  [[ -n "$setup" ]] || die "Traefik is not running. Run /opt/shurbe-data/setup.sh (or copy this repo next to gateway/) then re-run ./deploy.sh."
+  log "Traefik / proxy network missing — running $setup"
   "$setup"
 }
 
@@ -155,8 +174,8 @@ ensure_env() {
   POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(env_get .env POSTGRES_PASSWORD)}"
   JWT_SECRET="${JWT_SECRET:-$(env_get .env JWT_SECRET)}"
   MAI_GRAPHQL_DB_PASSWORD="${MAI_GRAPHQL_DB_PASSWORD:-$(env_get .env MAI_GRAPHQL_DB_PASSWORD)}"
-  GEMINI_API_KEY="${GEMINI_API_KEY:-$(env_get .env GEMINI_API_KEY)}"
-  SMTP_FROM="${SMTP_FROM:-$(env_get .env SMTP_FROM)}"
+  GEMINI_API_KEY="$(strip_quotes "${GEMINI_API_KEY:-$(env_get .env GEMINI_API_KEY)}")"
+  SMTP_FROM="$(strip_quotes "${SMTP_FROM:-$(env_get .env SMTP_FROM)}")"
 
   if [[ "${PUBLIC_API_URL:-}" == http://localhost* ]]; then
     PUBLIC_API_URL=""
@@ -194,7 +213,11 @@ ensure_env() {
   fi
 
   if is_blank "${GEMINI_API_KEY:-}"; then
-    prompt GEMINI_API_KEY "GEMINI_API_KEY (optional, blank to skip AI)" || true
+    if [[ -t 0 ]]; then
+      prompt GEMINI_API_KEY "GEMINI_API_KEY (optional, blank to skip AI)" || true
+    else
+      log "GEMINI_API_KEY not set — AI features will be off."
+    fi
   fi
 
   if is_blank "${SMTP_FROM:-}" || [[ "${SMTP_FROM:-}" == *"noreply@maischool.ayushdixit.work"* ]]; then
@@ -217,9 +240,16 @@ ensure_env() {
     upsert_env .env GEMINI_API_KEY "$GEMINI_API_KEY"
   fi
 
-  [[ -z "$(env_get .env JWT_AUDIENCE)" ]] && upsert_env .env JWT_AUDIENCE "postgraphile"
-  [[ -z "$(env_get .env JWT_ISSUER)" ]] && upsert_env .env JWT_ISSUER "mai-school"
-  [[ -z "$(env_get .env MAI_GRAPHQL_DB_USER)" ]] && upsert_env .env MAI_GRAPHQL_DB_USER "mai_graphql"
+  if [[ -z "$(env_get .env JWT_AUDIENCE)" ]]; then
+    upsert_env .env JWT_AUDIENCE "postgraphile"
+  fi
+  if [[ -z "$(env_get .env JWT_ISSUER)" ]]; then
+    upsert_env .env JWT_ISSUER "mai-school"
+  fi
+  if [[ -z "$(env_get .env MAI_GRAPHQL_DB_USER)" ]]; then
+    upsert_env .env MAI_GRAPHQL_DB_USER "mai_graphql"
+  fi
+  return 0
 }
 
 wait_stack() {
