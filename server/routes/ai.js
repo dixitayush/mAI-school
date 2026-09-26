@@ -5,6 +5,7 @@ require('dotenv').config();
 const { requireAuth, requireRole, requireTenant } = require('../middleware/auth');
 const { saveFile } = require('./files');
 const { logAudit } = require('../lib/audit');
+const ai = require('../ai');
 const gemini = require('../services/geminiService');
 const { getAppPool } = require('../db/pool');
 
@@ -23,7 +24,6 @@ const norm = (s) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-/** Fetch a tenant-scoped class roster for fuzzy matching. */
 async function getRoster(institutionId, classId) {
   const { rows } = await pool.query(
     `SELECT s.id, u.full_name AS name, s.roll_number
@@ -36,7 +36,6 @@ async function getRoster(institutionId, classId) {
   return rows;
 }
 
-/** Best-effort match of an extracted row to a roster student. */
 function matchStudent(extracted, roster) {
   const roll = norm(extracted.roll_number);
   if (roll) {
@@ -54,9 +53,88 @@ function matchStudent(extracted, roster) {
   return partial ? partial.id : null;
 }
 
+function parseJsonLoose(text) {
+  let t = text.trim();
+  t = t.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+  const start = t.indexOf('{');
+  const startArr = t.indexOf('[');
+  const begin = start === -1 ? startArr : startArr === -1 ? start : Math.min(start, startArr);
+  if (begin > 0) t = t.slice(begin);
+  const lastObj = t.lastIndexOf('}');
+  const lastArr = t.lastIndexOf(']');
+  const end = Math.max(lastObj, lastArr);
+  if (end !== -1) t = t.slice(0, end + 1);
+  return JSON.parse(t);
+}
+
+function normalizeOCRRows(parsed) {
+  const rows = Array.isArray(parsed) ? parsed : parsed.rows || [];
+  return {
+    date: Array.isArray(parsed) ? null : parsed.date || null,
+    rows: rows.map((r) => ({
+      roll_number: r.roll_number ? String(r.roll_number).trim() : null,
+      name: (r.name || '').trim(),
+      status: ['present', 'absent', 'late'].includes((r.status || '').toLowerCase())
+        ? r.status.toLowerCase()
+        : 'present',
+      confidence: typeof r.confidence === 'number' ? Math.max(0, Math.min(1, r.confidence)) : 0.5,
+    })),
+  };
+}
+
+async function extractWithOpenAI(fileBuffer, mimeType, roster, auth) {
+  const rosterHint =
+    roster.length
+      ? `\nKnown class roster (match extracted names/rolls to these where possible):\n${roster
+          .map((r) => `- ${r.roll_number ? r.roll_number + ': ' : ''}${r.name}`)
+          .join('\n')}`
+      : '';
+
+  const prompt = `You are an OCR assistant for a school attendance register.
+Read the handwritten/printed attendance sheet in the image and return STRICT JSON only.
+
+Output schema:
+{
+  "date": "YYYY-MM-DD or null if not visible",
+  "rows": [
+    {
+      "roll_number": "string or null",
+      "name": "student full name as written",
+      "status": "present | absent | late",
+      "confidence": 0.0-1.0
+    }
+  ]
+}
+
+Rules:
+- Map ticks/P/✓/present to "present"; A/absent/cross to "absent"; L/late to "late".
+- confidence reflects how sure you are of that row's reading (handwriting clarity).
+- Do not invent students. Only include rows you can read.${rosterHint}`;
+
+  const base64 = fileBuffer.toString('base64');
+  const messages = [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
+      ],
+    },
+  ];
+
+  const result = await ai.generate({
+    feature: 'attendance.ocr',
+    messages,
+    tenantId: auth.institution_id,
+    userId: auth.user_id,
+    temperature: 0.1,
+  });
+
+  return normalizeOCRRows(parseJsonLoose(result.content));
+}
+
 // ---------------------------------------------------------------
-// POST /api/ai/attendance/extract  (teacher/admin/principal)
-// Upload register image -> Gemini OCR -> persist import + rows for review.
+// POST /api/ai/attendance/extract
 // ---------------------------------------------------------------
 router.post(
   '/attendance/extract',
@@ -69,10 +147,10 @@ router.post(
     if (!ALLOWED.has(req.file.mimetype)) {
       return res.status(415).json({ error: `Unsupported file type: ${req.file.mimetype}` });
     }
-    if (!gemini.isConfigured()) {
-      return res
-        .status(503)
-        .json({ error: 'AI is not configured. Add GEMINI_API_KEY on the server.' });
+
+    const useOpenAI = ai.isConfigured();
+    if (!useOpenAI && !gemini.isConfigured()) {
+      return res.status(503).json({ error: 'AI is not configured on the server.' });
     }
 
     const { institution_id, user_id } = req.auth;
@@ -80,12 +158,14 @@ router.post(
 
     try {
       const roster = await getRoster(institution_id, classId);
+      const rosterHints = roster.map((r) => ({ roll_number: r.roll_number, name: r.name }));
 
-      const extraction = await gemini.extractAttendanceFromImage(
-        req.file.buffer,
-        req.file.mimetype,
-        roster.map((r) => ({ roll_number: r.roll_number, name: r.name }))
-      );
+      let extraction;
+      if (useOpenAI) {
+        extraction = await extractWithOpenAI(req.file.buffer, req.file.mimetype, rosterHints, req.auth);
+      } else {
+        extraction = await gemini.extractAttendanceFromImage(req.file.buffer, req.file.mimetype, rosterHints);
+      }
 
       const saved = await saveFile(institution_id, user_id, req.file, 'attendance_register');
 
@@ -145,8 +225,11 @@ router.post(
       });
     } catch (err) {
       console.error('[ai] extract failed:', err);
-      if (err.code === 'GEMINI_NOT_CONFIGURED') {
+      if (err.code === 'GEMINI_NOT_CONFIGURED' || err.code === 'AI_NOT_CONFIGURED') {
         return res.status(503).json({ error: 'AI is not configured on the server.' });
+      }
+      if (err.code === 'AI_QUOTA_EXCEEDED') {
+        return res.status(429).json({ error: err.message });
       }
       res.status(500).json({ error: err.message || 'Extraction failed' });
     }
@@ -154,9 +237,7 @@ router.post(
 );
 
 // ---------------------------------------------------------------
-// POST /api/ai/attendance/commit  (teacher/admin/principal)
-// Apply the reviewed/edited rows -> upsert into attendance.
-// Body: { import_id, date, rows: [{ student_id, status }] }
+// POST /api/ai/attendance/commit
 // ---------------------------------------------------------------
 router.post(
   '/attendance/commit',
@@ -175,7 +256,6 @@ router.post(
     try {
       await client.query('BEGIN');
 
-      // Guard: only commit students that belong to this tenant.
       const valid = await client.query(
         `SELECT s.id FROM students s
            JOIN users u ON u.id = s.user_id
@@ -228,7 +308,7 @@ router.post(
 );
 
 // ---------------------------------------------------------------
-// GET /api/ai/attendance/imports  -> recent import history (tenant-scoped)
+// GET /api/ai/attendance/imports
 // ---------------------------------------------------------------
 router.get(
   '/attendance/imports',
@@ -252,6 +332,653 @@ router.get(
     } catch (err) {
       console.error('[ai] imports list failed:', err);
       res.status(500).json({ error: 'Failed to load imports' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/lesson-plan  (teacher)
+// ---------------------------------------------------------------
+router.post(
+  '/lesson-plan',
+  requireAuth,
+  requireRole('teacher', 'admin', 'principal'),
+  requireTenant,
+  async (req, res) => {
+    const { grade, subject, topic, duration, objectives } = req.body;
+    if (!grade || !subject || !topic) {
+      return res.status(400).json({ error: 'grade, subject, and topic are required' });
+    }
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+
+    try {
+      const messages = ai.buildPrompt('lesson.plan.v1', { grade, subject, topic, duration, objectives });
+      const result = await ai.generate({
+        feature: 'lesson.plan',
+        messages,
+        tenantId: req.auth.institution_id,
+        userId: req.auth.user_id,
+      });
+      res.json({ success: true, content: result.content, model: result.model, tier: result.tier });
+    } catch (err) {
+      console.error('[ai] lesson-plan failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Lesson plan generation failed' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/worksheet  (teacher)
+// ---------------------------------------------------------------
+router.post(
+  '/worksheet',
+  requireAuth,
+  requireRole('teacher', 'admin', 'principal'),
+  requireTenant,
+  async (req, res) => {
+    const { grade, subject, topic, questionTypes, count, difficulty } = req.body;
+    if (!grade || !subject || !topic) {
+      return res.status(400).json({ error: 'grade, subject, and topic are required' });
+    }
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+
+    try {
+      const messages = ai.buildPrompt('worksheet.generate.v1', {
+        grade, subject, topic, questionTypes, count, difficulty,
+      });
+      const result = await ai.generate({
+        feature: 'worksheet.generate',
+        messages,
+        tenantId: req.auth.institution_id,
+        userId: req.auth.user_id,
+      });
+
+      let questions;
+      try {
+        questions = parseJsonLoose(result.content);
+      } catch {
+        questions = null;
+      }
+
+      res.json({
+        success: true,
+        content: result.content,
+        questions,
+        model: result.model,
+        tier: result.tier,
+      });
+    } catch (err) {
+      console.error('[ai] worksheet failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Worksheet generation failed' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/question-paper  (teacher)
+// ---------------------------------------------------------------
+router.post(
+  '/question-paper',
+  requireAuth,
+  requireRole('teacher', 'admin', 'principal'),
+  requireTenant,
+  async (req, res) => {
+    const { grade, subject, chapters, difficulty, marks, distribution } = req.body;
+    if (!grade || !subject) {
+      return res.status(400).json({ error: 'grade and subject are required' });
+    }
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+
+    try {
+      const messages = ai.buildPrompt('question.generate.v1', {
+        grade, subject, chapters, difficulty, marks, distribution,
+      });
+      const result = await ai.generate({
+        feature: 'question.generate',
+        messages,
+        tenantId: req.auth.institution_id,
+        userId: req.auth.user_id,
+      });
+
+      let questions;
+      try {
+        questions = parseJsonLoose(result.content);
+      } catch {
+        questions = null;
+      }
+
+      res.json({
+        success: true,
+        content: result.content,
+        questions,
+        model: result.model,
+        tier: result.tier,
+      });
+    } catch (err) {
+      console.error('[ai] question-paper failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Question paper generation failed' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/feedback  (teacher)
+// ---------------------------------------------------------------
+router.post(
+  '/feedback',
+  requireAuth,
+  requireRole('teacher', 'admin', 'principal'),
+  requireTenant,
+  async (req, res) => {
+    const { studentName, subject, performance, rubric } = req.body;
+    if (!studentName || !subject || !performance) {
+      return res.status(400).json({ error: 'studentName, subject, and performance are required' });
+    }
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+
+    try {
+      const messages = ai.buildPrompt('feedback.draft.v1', { studentName, subject, performance, rubric });
+      const result = await ai.generate({
+        feature: 'feedback.draft',
+        messages,
+        tenantId: req.auth.institution_id,
+        userId: req.auth.user_id,
+      });
+      res.json({ success: true, content: result.content, model: result.model, tier: result.tier });
+    } catch (err) {
+      console.error('[ai] feedback failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Feedback generation failed' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/tutor  (student)
+// ---------------------------------------------------------------
+router.post(
+  '/tutor',
+  requireAuth,
+  requireTenant,
+  async (req, res) => {
+    const { grade, subject, mode, message } = req.body;
+    if (!message) return res.status(400).json({ error: 'message is required' });
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+
+    const clean = ai.safety.sanitizeInput(message, 4000);
+    if (ai.safety.detectSafetyRisk(clean)) {
+      return res.json({ success: true, reply: ai.safety.ESCALATION_RESPONSE });
+    }
+
+    try {
+      const messages = ai.buildPrompt('tutor.chat.v1', {
+        grade: grade || '?',
+        subject: subject || 'General',
+        mode: mode || 'explain',
+        context: null,
+        message: clean,
+      });
+      const result = await ai.generate({
+        feature: 'tutor.chat',
+        messages,
+        tenantId: req.auth.institution_id,
+        userId: req.auth.user_id,
+      });
+      res.json({ success: true, reply: result.content, model: result.model, tier: result.tier });
+    } catch (err) {
+      console.error('[ai] tutor failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Tutor response failed' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/principal-brief  (principal/admin)
+// ---------------------------------------------------------------
+router.post(
+  '/principal-brief',
+  requireAuth,
+  requireRole('principal', 'admin', 'mai_admin'),
+  requireTenant,
+  async (req, res) => {
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+
+    const { institution_id, user_id } = req.auth;
+    try {
+      const inst = await pool.query(`SELECT name FROM institutions WHERE id = $1`, [institution_id]);
+      const schoolName = inst.rows[0]?.name || 'School';
+
+      const [counts, attToday, feeStatus, recentExams] = await Promise.all([
+        pool.query(
+          `SELECT
+             (SELECT count(*) FROM students s JOIN users u ON u.id=s.user_id WHERE u.institution_id=$1) students,
+             (SELECT count(*) FROM users WHERE institution_id=$1 AND role='teacher') teachers,
+             (SELECT count(*) FROM classes WHERE institution_id=$1) classes`,
+          [institution_id]
+        ),
+        pool.query(
+          `SELECT count(*) FILTER (WHERE a.status='present') present,
+                  count(*) FILTER (WHERE a.status='absent') absent,
+                  count(*) total
+             FROM attendance a
+             JOIN students s ON s.id = a.student_id
+             JOIN users u ON u.id = s.user_id
+            WHERE u.institution_id = $1 AND a.date = CURRENT_DATE`,
+          [institution_id]
+        ),
+        pool.query(
+          `SELECT f.status, count(*)::int cnt, COALESCE(sum(f.amount),0)::numeric total
+             FROM fees f WHERE f.institution_id = $1 GROUP BY f.status`,
+          [institution_id]
+        ),
+        pool.query(
+          `SELECT e.title, e.subject, e.exam_date, c.name AS class_name
+             FROM exams e JOIN classes c ON c.id = e.class_id
+            WHERE c.institution_id = $1
+            ORDER BY e.exam_date DESC LIMIT 10`,
+          [institution_id]
+        ),
+      ]);
+
+      const context = {
+        date: new Date().toISOString().slice(0, 10),
+        totals: counts.rows[0],
+        attendance_today: attToday.rows[0],
+        fee_summary: feeStatus.rows,
+        recent_exams: recentExams.rows,
+      };
+
+      const messages = ai.buildPrompt('principal.brief.v1', { schoolName, context });
+      const result = await ai.generate({
+        feature: 'principal.brief',
+        messages,
+        tenantId: institution_id,
+        userId: user_id,
+      });
+      res.json({ success: true, content: result.content, model: result.model, tier: result.tier });
+    } catch (err) {
+      console.error('[ai] principal-brief failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Brief generation failed' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/rubric  (teacher)
+// ---------------------------------------------------------------
+router.post(
+  '/rubric',
+  requireAuth,
+  requireRole('teacher', 'admin', 'principal'),
+  requireTenant,
+  async (req, res) => {
+    const { grade, subject, assignmentType, criteria } = req.body;
+    if (!grade || !subject) return res.status(400).json({ error: 'grade and subject are required' });
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+    try {
+      const messages = ai.buildPrompt('rubric.generate.v1', { grade, subject, assignmentType, criteria });
+      const result = await ai.generate({
+        feature: 'rubric.generate', messages,
+        tenantId: req.auth.institution_id, userId: req.auth.user_id,
+      });
+      let rubric;
+      try { rubric = parseJsonLoose(result.content); } catch { rubric = null; }
+      res.json({ success: true, content: result.content, rubric, model: result.model, tier: result.tier });
+    } catch (err) {
+      console.error('[ai] rubric failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Rubric generation failed' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/study-plan  (student)
+// ---------------------------------------------------------------
+router.post(
+  '/study-plan',
+  requireAuth,
+  requireTenant,
+  async (req, res) => {
+    const { grade, subject, examDate, topics, availableTime } = req.body;
+    if (!subject) return res.status(400).json({ error: 'subject is required' });
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+    try {
+      const messages = ai.buildPrompt('study.plan.v1', { grade: grade || '?', subject, examDate, topics, availableTime });
+      const result = await ai.generate({
+        feature: 'study.plan', messages,
+        tenantId: req.auth.institution_id, userId: req.auth.user_id,
+      });
+      let plan;
+      try { plan = parseJsonLoose(result.content); } catch { plan = null; }
+      res.json({ success: true, content: result.content, plan, model: result.model, tier: result.tier });
+    } catch (err) {
+      console.error('[ai] study-plan failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Study plan generation failed' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/flashcards  (student)
+// ---------------------------------------------------------------
+router.post(
+  '/flashcards',
+  requireAuth,
+  requireTenant,
+  async (req, res) => {
+    const { grade, subject, topic, count } = req.body;
+    if (!subject || !topic) return res.status(400).json({ error: 'subject and topic are required' });
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+    try {
+      const messages = ai.buildPrompt('flashcard.generate.v1', { grade: grade || '?', subject, topic, count });
+      const result = await ai.generate({
+        feature: 'flashcard.generate', messages,
+        tenantId: req.auth.institution_id, userId: req.auth.user_id,
+      });
+      let flashcards;
+      try { flashcards = parseJsonLoose(result.content); } catch { flashcards = null; }
+      res.json({ success: true, content: result.content, flashcards, model: result.model, tier: result.tier });
+    } catch (err) {
+      console.error('[ai] flashcards failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Flashcard generation failed' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/learning-plan  (student/teacher)
+// ---------------------------------------------------------------
+router.post(
+  '/learning-plan',
+  requireAuth,
+  requireTenant,
+  async (req, res) => {
+    const { studentName, grade, subjects, results, attendance, goals } = req.body;
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+    try {
+      const messages = ai.buildPrompt('learning.plan.v1', { studentName, grade: grade || '?', subjects, results, attendance, goals });
+      const result = await ai.generate({
+        feature: 'learning.plan', messages,
+        tenantId: req.auth.institution_id, userId: req.auth.user_id,
+      });
+      res.json({ success: true, content: result.content, model: result.model, tier: result.tier });
+    } catch (err) {
+      console.error('[ai] learning-plan failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Learning plan generation failed' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/weekly-report  (principal/admin)
+// ---------------------------------------------------------------
+router.post(
+  '/weekly-report',
+  requireAuth,
+  requireRole('principal', 'admin', 'mai_admin'),
+  requireTenant,
+  async (req, res) => {
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+    const { institution_id, user_id } = req.auth;
+    try {
+      const inst = await pool.query(`SELECT name FROM institutions WHERE id = $1`, [institution_id]);
+      const schoolName = inst.rows[0]?.name || 'School';
+
+      const [counts, attWeek, feeStatus, recentExams, assignments] = await Promise.all([
+        pool.query(
+          `SELECT (SELECT count(*) FROM students s JOIN users u ON u.id=s.user_id WHERE u.institution_id=$1) students,
+                  (SELECT count(*) FROM users WHERE institution_id=$1 AND role='teacher') teachers`,
+          [institution_id]
+        ),
+        pool.query(
+          `SELECT count(*) FILTER (WHERE a.status='present')::int present,
+                  count(*) FILTER (WHERE a.status='absent')::int absent, count(*)::int total
+             FROM attendance a JOIN students s ON s.id = a.student_id JOIN users u ON u.id = s.user_id
+            WHERE u.institution_id = $1 AND a.date >= CURRENT_DATE - INTERVAL '7 days'`, [institution_id]
+        ),
+        pool.query(`SELECT status, count(*)::int cnt, COALESCE(sum(amount),0)::numeric total FROM fees WHERE institution_id = $1 GROUP BY status`, [institution_id]),
+        pool.query(`SELECT e.title, e.subject, e.exam_date, c.name AS class_name FROM exams e JOIN classes c ON c.id = e.class_id WHERE c.institution_id = $1 AND e.exam_date >= CURRENT_DATE - 7 ORDER BY e.exam_date DESC LIMIT 10`, [institution_id]),
+        pool.query(`SELECT count(*)::int total, count(*) FILTER (WHERE due_date < CURRENT_DATE)::int overdue FROM assignments a JOIN classes c ON c.id = a.class_id WHERE c.institution_id = $1`, [institution_id]),
+      ]);
+
+      const context = {
+        week_of: new Date().toISOString().slice(0, 10),
+        totals: counts.rows[0],
+        attendance_7d: attWeek.rows[0],
+        fee_summary: feeStatus.rows,
+        recent_exams: recentExams.rows,
+        assignments: assignments.rows[0],
+      };
+
+      const messages = ai.buildPrompt('weekly.report.v1', { schoolName, context });
+      const result = await ai.generate({ feature: 'weekly.report', messages, tenantId: institution_id, userId: user_id });
+      res.json({ success: true, content: result.content, model: result.model, tier: result.tier });
+    } catch (err) {
+      console.error('[ai] weekly-report failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Weekly report generation failed' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/parent-digest  (parent — for own child)
+// ---------------------------------------------------------------
+router.post(
+  '/parent-digest',
+  requireAuth,
+  requireRole('parent'),
+  requireTenant,
+  async (req, res) => {
+    const { student_id } = req.body;
+    if (!student_id) return res.status(400).json({ error: 'student_id is required' });
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+
+    const { user_id, institution_id } = req.auth;
+    try {
+      // Verify parent-child link
+      const link = await pool.query(
+        `SELECT 1 FROM guardians g JOIN student_guardian sg ON sg.guardian_id = g.id
+          WHERE g.user_id = $1 AND sg.student_id = $2`, [user_id, student_id]
+      );
+      if (link.rows.length === 0) return res.status(403).json({ error: 'Not authorized' });
+
+      const [studentInfo, att, results, assignments] = await Promise.all([
+        pool.query(`SELECT u.full_name FROM students s JOIN users u ON u.id = s.user_id WHERE s.id = $1`, [student_id]),
+        pool.query(
+          `SELECT count(*) FILTER (WHERE status='present')::int present, count(*) FILTER (WHERE status='absent')::int absent, count(*)::int total
+             FROM attendance WHERE student_id = $1 AND date >= CURRENT_DATE - 7`, [student_id]
+        ),
+        pool.query(`SELECT e.title, e.subject, r.marks_obtained, e.total_marks FROM results r JOIN exams e ON e.id = r.exam_id WHERE r.student_id = $1 ORDER BY e.exam_date DESC LIMIT 5`, [student_id]),
+        pool.query(
+          `SELECT a.title, a.due_date, sub.status AS submission_status FROM assignments a JOIN students s ON s.class_id = a.class_id LEFT JOIN assignment_submissions sub ON sub.assignment_id = a.id AND sub.student_id = s.id WHERE s.id = $1 ORDER BY a.due_date DESC LIMIT 10`, [student_id]
+        ),
+      ]);
+
+      const childName = studentInfo.rows[0]?.full_name || 'Student';
+      const context = { attendance_7d: att.rows[0], recent_results: results.rows, assignments: assignments.rows };
+
+      const messages = ai.buildPrompt('parent.digest.v1', { childName, context });
+      const result = await ai.generate({ feature: 'parent.digest', messages, tenantId: institution_id, userId: user_id });
+      res.json({ success: true, content: result.content });
+    } catch (err) {
+      console.error('[ai] parent-digest failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Digest generation failed' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// GET /api/ai/usage  (admin/principal)
+// ---------------------------------------------------------------
+router.get(
+  '/usage',
+  requireAuth,
+  requireRole('admin', 'principal', 'mai_admin'),
+  requireTenant,
+  async (req, res) => {
+    try {
+      const days = Math.min(Number(req.query.days) || 30, 90);
+      const stats = await ai.getUsageStats(req.auth.institution_id, days);
+      res.json({ success: true, days, stats });
+    } catch (err) {
+      console.error('[ai] usage failed:', err);
+      res.status(500).json({ error: 'Failed to load usage stats' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/feedback  (PRD §92 — AI feedback loop)
+// ---------------------------------------------------------------
+router.post(
+  '/feedback',
+  requireAuth,
+  requireTenant,
+  async (req, res) => {
+    const { ai_generation_id, rating, reason } = req.body;
+    if (!rating || !['helpful', 'not_helpful', 'report'].includes(rating)) {
+      return res.status(400).json({ error: 'rating must be helpful, not_helpful, or report' });
+    }
+    try {
+      await pool.query(
+        `INSERT INTO ai_feedback (ai_generation_id, user_id, rating, reason)
+         VALUES ($1, $2, $3, $4)`,
+        [ai_generation_id || null, req.auth.user_id, rating, reason || null]
+      );
+      res.json({ success: true });
+    } catch (err) {
+      console.error('[ai] feedback save failed:', err);
+      res.status(500).json({ error: 'Failed to save feedback' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/meeting-agenda  (PRD §29 — AI Meeting Assistant)
+// ---------------------------------------------------------------
+router.post(
+  '/meeting-agenda',
+  requireAuth,
+  requireRole('admin', 'principal'),
+  requireTenant,
+  async (req, res) => {
+    const { meetingType, attendees, topics, date } = req.body;
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+
+    const { institution_id, user_id } = req.auth;
+    try {
+      const inst = await pool.query(`SELECT name FROM institutions WHERE id = $1`, [institution_id]);
+      const schoolName = inst.rows[0]?.name || 'School';
+
+      const [pendingActions, recentIssues] = await Promise.all([
+        pool.query(
+          `SELECT title, status FROM tickets WHERE institution_id = $1 AND status NOT IN ('resolved', 'closed') ORDER BY created_at DESC LIMIT 10`,
+          [institution_id]
+        ).catch(() => ({ rows: [] })),
+        pool.query(
+          `SELECT title, body FROM announcements WHERE institution_id = $1 ORDER BY created_at DESC LIMIT 5`,
+          [institution_id]
+        ).catch(() => ({ rows: [] })),
+      ]);
+
+      const messages = [
+        {
+          role: 'system',
+          content: `${ai.safety.sanitizeInput(ai.buildPrompt('chatbot.v1', { role: 'admin', context: {}, message: '' })[0].content.slice(0, 200))}
+
+Generate a professional meeting agenda with these sections:
+1. Meeting Details (date, time, attendees)
+2. Opening / Previous Minutes
+3. Agenda Items (with time allocation)
+4. Data/Reports to Review
+5. Discussion Points
+6. Action Items from Previous Meeting
+7. AOB (Any Other Business)
+8. Next Meeting Date
+
+Be specific and actionable. Use available school data.`,
+        },
+        {
+          role: 'user',
+          content: `Create a meeting agenda for ${schoolName}:
+Meeting type: ${meetingType || 'Staff Meeting'}
+Date: ${date || new Date().toISOString().slice(0, 10)}
+Attendees: ${attendees || 'All staff'}
+${topics ? `Key topics: ${topics}` : ''}
+Pending issues: ${JSON.stringify(pendingActions.rows).slice(0, 2000)}
+Recent announcements: ${JSON.stringify(recentIssues.rows).slice(0, 2000)}`,
+        },
+      ];
+
+      const result = await ai.generate({
+        feature: 'principal.brief',
+        messages,
+        tenantId: institution_id,
+        userId: user_id,
+      });
+      res.json({ success: true, content: result.content, model: result.model, tier: result.tier });
+    } catch (err) {
+      console.error('[ai] meeting-agenda failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Meeting agenda generation failed' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// POST /api/ai/meeting-notes  (PRD §29 — post-meeting summary)
+// ---------------------------------------------------------------
+router.post(
+  '/meeting-notes',
+  requireAuth,
+  requireRole('admin', 'principal'),
+  requireTenant,
+  async (req, res) => {
+    const { rawNotes, meetingType } = req.body;
+    if (!rawNotes) return res.status(400).json({ error: 'rawNotes is required' });
+    if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
+
+    try {
+      const messages = [
+        {
+          role: 'system',
+          content: `You are a school meeting assistant. Process the raw meeting notes and produce a structured summary:
+1. Meeting Summary (2-3 sentences)
+2. Key Decisions
+3. Action Items (with owner and deadline)
+4. Follow-ups Required
+5. Next Steps
+
+Be concise and actionable. This will be reviewed before being saved as official minutes.`,
+        },
+        {
+          role: 'user',
+          content: `Meeting type: ${meetingType || 'Staff Meeting'}\n\nRaw notes:\n${ai.safety.sanitizeInput(rawNotes, 8000)}`,
+        },
+      ];
+
+      const result = await ai.generate({
+        feature: 'summary',
+        messages,
+        tenantId: req.auth.institution_id,
+        userId: req.auth.user_id,
+      });
+      res.json({ success: true, content: result.content, model: result.model, tier: result.tier });
+    } catch (err) {
+      console.error('[ai] meeting-notes failed:', err);
+      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
+      res.status(500).json({ error: 'Meeting notes generation failed' });
     }
   }
 );

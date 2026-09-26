@@ -2,6 +2,7 @@ const express = require('express');
 require('dotenv').config();
 
 const { requireAuth, requireTenant } = require('../middleware/auth');
+const ai = require('../ai');
 const gemini = require('../services/geminiService');
 const { getAppPool } = require('../db/pool');
 
@@ -10,10 +11,6 @@ const pool = getAppPool();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// ---------------------------------------------------------------
-// Build a grounding context strictly scoped to the caller's tenant + role.
-// Never trust client-supplied ids — everything derives from req.auth.
-// ---------------------------------------------------------------
 async function buildContext(auth) {
   const { role, user_id, institution_id } = auth;
   const ctx = { role, generated_at: new Date().toISOString() };
@@ -85,22 +82,6 @@ async function buildContext(auth) {
       [stu.id]
     );
     ctx.fees = fees.rows;
-
-    const oc = await pool.query(
-      `SELECT title, class_date, start_time, end_time, provider, meeting_link
-         FROM online_classes
-        WHERE class_id = $1 AND class_date >= CURRENT_DATE
-        ORDER BY class_date ASC LIMIT 10`,
-      [stu.class_id]
-    );
-    ctx.upcoming_online_classes = oc.rows;
-
-    const tt = await pool.query(
-      `SELECT day_of_week, period_no, subject, start_time, end_time, room
-         FROM timetable_periods WHERE class_id = $1 ORDER BY day_of_week, period_no`,
-      [stu.class_id]
-    );
-    ctx.timetable = tt.rows;
   } else if (role === 'teacher') {
     const classes = await pool.query(
       `SELECT id, name, grade_level FROM classes
@@ -138,16 +119,8 @@ async function buildContext(auth) {
         [user_id]
       );
       ctx.assignments = asg.rows;
-
-      const oc = await pool.query(
-        `SELECT title, class_date, start_time, provider FROM online_classes
-          WHERE class_id = ANY($1::uuid[]) AND class_date >= CURRENT_DATE
-          ORDER BY class_date ASC LIMIT 10`,
-        [classIds]
-      );
-      ctx.upcoming_online_classes = oc.rows;
     }
-  } else if (role === 'admin' || role === 'principal' || role === 'opsadmin' || role === 'mai_admin') {
+  } else if (['admin', 'principal', 'opsadmin', 'mai_admin'].includes(role)) {
     const counts = await pool.query(
       `SELECT
          (SELECT count(*) FROM students s JOIN users u ON u.id=s.user_id WHERE u.institution_id=$1) students,
@@ -172,53 +145,37 @@ async function buildContext(auth) {
     const fees = await pool.query(
       `SELECT f.status, count(*) cnt, COALESCE(sum(f.amount),0) total
          FROM fees f
-         JOIN students s ON s.id = f.student_id
-         JOIN users u ON u.id = s.user_id
-        WHERE u.institution_id = $1
+        WHERE f.institution_id = $1
         GROUP BY f.status`,
       [institution_id]
     );
     ctx.fees_summary = fees.rows;
-
-    const holidays = await pool.query(
-      `SELECT title, start_date, end_date, type FROM holidays
-        WHERE institution_id = $1 AND end_date >= CURRENT_DATE
-        ORDER BY start_date ASC LIMIT 10`,
-      [institution_id]
-    );
-    ctx.upcoming_holidays = holidays.rows;
-
-    const exams = await pool.query(
-      `SELECT e.title, e.subject, e.exam_date, c.name AS class_name
-         FROM exams e JOIN classes c ON c.id = e.class_id
-        WHERE c.institution_id = $1 AND e.exam_date >= CURRENT_DATE
-        ORDER BY e.exam_date ASC LIMIT 15`,
-      [institution_id]
-    );
-    ctx.upcoming_exams = exams.rows;
   }
 
   return ctx;
 }
 
-// ---------------------------------------------------------------
-// POST /api/chatbot  { message, session_id? }
-// Persists the exchange and returns the assistant reply + session id.
-// ---------------------------------------------------------------
 router.post('/', requireAuth, requireTenant, async (req, res) => {
-  const message = (req.body?.message || '').toString().trim();
+  const message = ai.safety.sanitizeInput(req.body?.message, 4000);
   if (!message) return res.status(400).json({ error: 'Message is required' });
-  if (message.length > 4000) return res.status(400).json({ error: 'Message too long' });
-  if (!gemini.isConfigured()) {
-    return res
-      .status(503)
-      .json({ error: 'AI is not configured. Add GEMINI_API_KEY on the server.' });
+
+  // Safety check
+  if (ai.safety.detectSafetyRisk(message)) {
+    return res.json({
+      success: true,
+      session_id: req.body?.session_id || null,
+      reply: ai.safety.ESCALATION_RESPONSE,
+    });
+  }
+
+  const useOpenAI = ai.isConfigured();
+  if (!useOpenAI && !gemini.isConfigured()) {
+    return res.status(503).json({ error: 'AI is not configured on the server.' });
   }
 
   const { role, user_id, institution_id } = req.auth;
 
   try {
-    // Resolve / create the session (tenant + user scoped).
     let sessionId = req.body?.session_id || null;
     if (sessionId && !UUID_RE.test(sessionId)) sessionId = null;
     if (sessionId) {
@@ -237,7 +194,6 @@ router.post('/', requireAuth, requireTenant, async (req, res) => {
       sessionId = created.rows[0].id;
     }
 
-    // Prior history for this session (oldest first), capped.
     const hist = await pool.query(
       `SELECT role, content FROM chat_messages
         WHERE session_id = $1 ORDER BY created_at ASC LIMIT 20`,
@@ -245,7 +201,26 @@ router.post('/', requireAuth, requireTenant, async (req, res) => {
     );
 
     const context = await buildContext(req.auth);
-    const reply = await gemini.chat(role, context, hist.rows, message);
+    let reply;
+
+    if (useOpenAI) {
+      const messages = ai.buildPrompt('chatbot.v1', { role, context, message });
+      // Add history
+      for (const h of hist.rows) {
+        messages.push({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content });
+      }
+      messages.push({ role: 'user', content: message });
+
+      const result = await ai.generate({
+        feature: 'chatbot',
+        messages,
+        tenantId: institution_id,
+        userId: user_id,
+      });
+      reply = result.content;
+    } else {
+      reply = await gemini.chat(role, context, hist.rows, message);
+    }
 
     await pool.query(
       `INSERT INTO chat_messages (session_id, role, content) VALUES ($1, 'user', $2), ($1, 'assistant', $3)`,
@@ -255,16 +230,16 @@ router.post('/', requireAuth, requireTenant, async (req, res) => {
     res.json({ success: true, session_id: sessionId, reply });
   } catch (err) {
     console.error('[chatbot] failed:', err);
-    if (err.code === 'GEMINI_NOT_CONFIGURED') {
+    if (err.code === 'AI_NOT_CONFIGURED' || err.code === 'GEMINI_NOT_CONFIGURED') {
       return res.status(503).json({ error: 'AI is not configured on the server.' });
     }
-    res.status(500).json({ error: err.message || 'Chat failed' });
+    if (err.code === 'AI_QUOTA_EXCEEDED') {
+      return res.status(429).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'Chat failed' });
   }
 });
 
-// ---------------------------------------------------------------
-// GET /api/chatbot/history?session_id=...  -> messages for one session
-// ---------------------------------------------------------------
 router.get('/history', requireAuth, requireTenant, async (req, res) => {
   const sessionId = req.query.session_id;
   if (!sessionId) return res.json({ messages: [] });

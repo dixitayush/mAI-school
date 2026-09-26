@@ -1,4 +1,6 @@
 require('dotenv').config();
+const { validateEnv } = require('./lib/env');
+const env = validateEnv();
 
 const express = require('express');
 const { postgraphile } = require('postgraphile');
@@ -10,6 +12,11 @@ const {
   signAccessToken,
   verifyAccessToken,
   extractBearer,
+  createSession,
+  rotateRefreshToken,
+  revokeSession,
+  revokeAllSessions,
+  getActiveSessions,
 } = require('./middleware/auth');
 const {
   corsOptions,
@@ -76,9 +83,12 @@ if (isProd || process.env.TRUST_PROXY === '1') {
   app.set('trust proxy', 1);
 }
 
+const { requestLogger } = require('./lib/logger');
+
 app.use(helmetMiddleware());
 app.use(cors(corsOptions()));
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
+app.use(requestLogger());
 
 /** Liveness — no DB. Registered before rate limits for Docker / Traefik probes. */
 app.get('/health', (_req, res) => {
@@ -114,6 +124,31 @@ const attendanceRoutes = require('./routes/attendance');
 const { filesRouter } = require('./routes/files');
 const { platformRouter } = require('./routes/platform');
 const { publicRouter } = require('./routes/public');
+const webhookRoutes = require('./routes/webhooks');
+const notificationRoutes = require('./routes/notifications');
+const parentRoutes = require('./routes/parents');
+const documentRoutes = require('./routes/documents');
+const admissionRoutes = require('./routes/admissions');
+const communicationRoutes = require('./routes/communication');
+const eventRoutes = require('./routes/events');
+const studentRoutes = require('./routes/students');
+const importRoutes = require('./routes/imports');
+const setupRoutes = require('./routes/setup');
+const libraryRoutes = require('./routes/library');
+const transportRoutes = require('./routes/transport');
+const inventoryRoutes = require('./routes/inventory');
+const leaveRoutes = require('./routes/leave');
+const helpdeskRoutes = require('./routes/helpdesk');
+const surveyRoutes = require('./routes/surveys');
+const consentRoutes = require('./routes/consent');
+const interventionRoutes = require('./routes/interventions');
+const workflowRoutes = require('./routes/workflows');
+const searchRoutes = require('./routes/search');
+const featureFlagRoutes = require('./routes/featureFlags');
+const auditRoutes = require('./routes/audit');
+const dashboardRoutes = require('./routes/dashboard');
+const billingRoutes = require('./routes/billing');
+const brandingRoutes = require('./routes/branding');
 
 // Use Routes
 app.use('/api/ai', aiRoutes);
@@ -124,6 +159,31 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/files', filesRouter);
 
 app.use('/api/public', publicRouter(pool));
+app.use('/api/webhooks', webhookRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/parents', parentRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/admissions', admissionRoutes);
+app.use('/api/communication', communicationRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/students', studentRoutes);
+app.use('/api/data', importRoutes);
+app.use('/api/setup', setupRoutes);
+app.use('/api/library', libraryRoutes);
+app.use('/api/transport', transportRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/leave', leaveRoutes);
+app.use('/api/helpdesk', helpdeskRoutes);
+app.use('/api/surveys', surveyRoutes);
+app.use('/api/consent', consentRoutes);
+app.use('/api/interventions', interventionRoutes);
+app.use('/api/workflows', workflowRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/feature-flags', featureFlagRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/branding', brandingRoutes);
 
 function mountPostGraphile() {
   const graphqlPool = getGraphqlPool();
@@ -266,14 +326,22 @@ app.post('/login', loginLimiter, async (req, res) => {
 
     const user = verifyResult.rows[0];
 
-    const token = signAccessToken({
+    const accessToken = signAccessToken({
       role: user.role,
       user_id: user.id,
       institution_id: user.institution_id || null,
     });
 
+    const session = await createSession(pool, {
+      userId: user.id,
+      institutionId: user.institution_id || null,
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
     res.json({
-      token,
+      token: accessToken,
+      refreshToken: session.refreshToken,
       role: user.role,
       user: { id: user.id, full_name: user.full_name },
       institution: institutionPayload,
@@ -335,7 +403,197 @@ app.post(
   }
 );
 
+// Refresh token endpoint
+app.post('/auth/refresh', async (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken) {
+    return res.status(400).json({ error: 'refreshToken is required' });
+  }
+  try {
+    const result = await rotateRefreshToken(pool, refreshToken);
+    if (result.error) {
+      return res.status(401).json({ error: result.error });
+    }
+    res.json({
+      token: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: result.user,
+    });
+  } catch (err) {
+    console.error('[auth/refresh]', err);
+    res.status(500).json({ error: 'Token refresh failed' });
+  }
+});
+
+// Logout — revoke current session
+app.post('/auth/logout', requireAuth, async (req, res) => {
+  const { refreshToken } = req.body;
+  if (refreshToken) {
+    const { hashToken } = require('./middleware/auth');
+    const hash = hashToken(refreshToken);
+    await pool.query(
+      `UPDATE user_sessions SET revoked_at = NOW()
+       WHERE refresh_token_hash = $1 AND user_id = $2`,
+      [hash, req.auth.user_id]
+    );
+  }
+  res.json({ success: true });
+});
+
+// Session management
+app.get('/auth/sessions', requireAuth, async (req, res) => {
+  try {
+    const sessions = await getActiveSessions(pool, req.auth.user_id);
+    res.json({ sessions });
+  } catch (err) {
+    console.error('[auth/sessions]', err);
+    res.status(500).json({ error: 'Failed to fetch sessions' });
+  }
+});
+
+app.delete('/auth/sessions/:sessionId', requireAuth, async (req, res) => {
+  try {
+    await revokeSession(pool, req.params.sessionId, req.auth.user_id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[auth/sessions]', err);
+    res.status(500).json({ error: 'Failed to revoke session' });
+  }
+});
+
+app.post('/auth/sessions/revoke-all', requireAuth, async (req, res) => {
+  try {
+    await revokeAllSessions(pool, req.auth.user_id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[auth/sessions]', err);
+    res.status(500).json({ error: 'Failed to revoke sessions' });
+  }
+});
+
+// Password reset endpoints (PRD §8.2)
+app.post('/auth/forgot-password', authRateLimiter(), async (req, res) => {
+  const { email, institution_slug } = req.body;
+  if (!email) return res.status(400).json({ error: 'email is required' });
+
+  try {
+    const slug = institution_slug || resolveInstitutionSlug(req);
+    let userQuery;
+    if (slug) {
+      userQuery = await pool.query(
+        `SELECT u.id, u.full_name, u.username FROM users u
+         JOIN institutions i ON i.id = u.institution_id
+         WHERE u.username = $1 AND i.slug = $2`,
+        [email, slug]
+      );
+    } else {
+      userQuery = await pool.query(
+        `SELECT id, full_name, username FROM users WHERE username = $1 AND role = 'mai_admin'`,
+        [email]
+      );
+    }
+
+    // Always return success to prevent email enumeration
+    if (userQuery.rows.length === 0) {
+      return res.json({ success: true, message: 'If an account exists, a reset email will be sent.' });
+    }
+
+    const user = userQuery.rows[0];
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await pool.query(
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
+      [user.id, tokenHash, expiresAt]
+    );
+
+    const resetUrl = `${process.env.PUBLIC_API_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
+    const emailService = require('./services/emailService');
+    await emailService.sendAsync({
+      to: email,
+      subject: 'Reset your password',
+      html: emailService.renderTemplate('password-reset', {
+        name: user.full_name,
+        body: `<h2 style="margin:0 0 20px;color:#111827;font-size:18px">Password Reset</h2>
+          <p style="color:#374151;line-height:1.6">Hi ${user.full_name || 'there'},</p>
+          <p style="color:#374151;line-height:1.6">Click the link below to reset your password. This link expires in 1 hour.</p>
+          <p style="margin:24px 0"><a href="${resetUrl}" style="background:#6FA371;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Reset Password</a></p>
+          <p style="color:#9ca3af;font-size:13px">If you didn't request this, you can safely ignore this email.</p>`,
+      }),
+    });
+
+    res.json({ success: true, message: 'If an account exists, a reset email will be sent.' });
+  } catch (err) {
+    console.error('[auth/forgot-password]', err);
+    res.status(500).json({ error: 'Password reset request failed' });
+  }
+});
+
+app.post('/auth/reset-password', async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) {
+    return res.status(400).json({ error: 'token and password are required' });
+  }
+
+  const pwCheck = validatePassword(password);
+  if (!pwCheck.ok) {
+    return res.status(400).json({ error: pwCheck.error });
+  }
+
+  try {
+    const crypto = require('crypto');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const { rows } = await pool.query(
+      `SELECT id, user_id, expires_at, used_at FROM password_reset_tokens
+       WHERE token_hash = $1`,
+      [tokenHash]
+    );
+
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    const resetToken = rows[0];
+    if (resetToken.used_at) {
+      return res.status(400).json({ error: 'This reset token has already been used' });
+    }
+    if (new Date(resetToken.expires_at) < new Date()) {
+      return res.status(400).json({ error: 'Reset token has expired' });
+    }
+
+    await pool.query(
+      `UPDATE users SET password_hash = crypt($2, gen_salt('bf')) WHERE id = $1`,
+      [resetToken.user_id, password]
+    );
+
+    await pool.query(
+      `UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1`,
+      [resetToken.id]
+    );
+
+    // Revoke all sessions for security
+    await revokeAllSessions(pool, resetToken.user_id);
+
+    const { logAudit } = require('./lib/audit');
+    await logAudit(pool, { user_id: resetToken.user_id, institution_id: null }, {
+      action: 'password.reset',
+      entityType: 'user',
+      entityId: resetToken.user_id,
+      req,
+    });
+
+    res.json({ success: true, message: 'Password has been reset. Please log in.' });
+  } catch (err) {
+    console.error('[auth/reset-password]', err);
+    res.status(500).json({ error: 'Password reset failed' });
+  }
+});
+
 const { initDb } = require('./db/init');
+const jobQueue = require('./lib/jobQueue');
 
 let server = null;
 let shuttingDown = false;
@@ -351,6 +609,7 @@ async function shutdown(signal) {
   forceTimer.unref?.();
 
   try {
+    jobQueue.stop();
     if (server) {
       await new Promise((resolve) => server.close(resolve));
     }
@@ -367,6 +626,13 @@ async function shutdown(signal) {
 initDb()
   .then(() => {
     mountPostGraphile();
+    // Register job handlers
+    const emailService = require('./services/emailService');
+    jobQueue.registerHandler('email.send', async (payload) => {
+      return emailService.send(payload);
+    });
+
+    jobQueue.start();
     server = app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
       if (!isProd) {
