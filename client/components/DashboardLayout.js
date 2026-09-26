@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { Bell, Menu, Search, User, X } from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { Menu, Search, User, X, Loader2 } from "lucide-react";
+import NotificationBell from "@/components/NotificationBell";
+import CommandPalette from "@/components/CommandPalette";
 import { motion } from "framer-motion";
 import Sidebar from "@/components/Sidebar";
 import NotificationListener from "@/components/NotificationListener";
 import ChatWidget from "@/components/ChatWidget";
 import { useTenantPaths } from "@/lib/useTenantPaths";
 import { useSession } from "@/lib/useSession";
+import { apiFetch } from "@/lib/api";
 
 const ROLE_META = {
   mai_admin: {
@@ -36,6 +39,11 @@ const ROLE_META = {
     subtitle: "Operations",
     ring: "from-cyan-500 to-blue-600",
   },
+  parent: {
+    searchPlaceholder: "Search announcements, events…",
+    subtitle: "Parent",
+    ring: "from-pink-500 to-rose-600",
+  },
   student: {
     searchPlaceholder: "Search exams, results, fees…",
     subtitle: "Student",
@@ -49,8 +57,96 @@ const DISPLAY_FALLBACK = {
   teacher: "Teacher",
   principal: "Principal",
   opsadmin: "Ops Admin",
+  parent: "Parent",
   student: "Student",
 };
+
+const RESULT_LINKS = {
+  students: (r, to) => to(`/admin/users/students`),
+  teachers: (r, to) => to(`/admin/users/teachers`),
+  classes: (r, to) => to(`/admin/classes`),
+  announcements: (r, to) => to(`/admin/announcements`),
+  events: (r, to) => to(`/admin/holidays`),
+};
+
+function GlobalSearch({ placeholder, to }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const timer = useRef(null);
+
+  const doSearch = useCallback(async (q) => {
+    if (!q || q.length < 2) { setResults([]); setOpen(false); return; }
+    setSearching(true);
+    try {
+      const data = await apiFetch(`/api/search?q=${encodeURIComponent(q)}`);
+      const flat = [];
+      Object.entries(data.results || {}).forEach(([type, items]) => {
+        items.forEach((item) => flat.push({ ...item, _type: type }));
+      });
+      setResults(flat.slice(0, 8));
+      setOpen(flat.length > 0);
+    } catch {
+      setResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  const onChange = (e) => {
+    const v = e.target.value;
+    setQuery(v);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => doSearch(v), 300);
+  };
+
+  useEffect(() => {
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative w-full min-w-0 lg:max-w-2xl xl:max-w-3xl">
+      {searching ? (
+        <Loader2 className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-400" aria-hidden />
+      ) : (
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden />
+      )}
+      <input
+        type="search"
+        value={query}
+        onChange={onChange}
+        onFocus={() => results.length > 0 && setOpen(true)}
+        placeholder={placeholder}
+        className="h-11 w-full min-h-[44px] rounded-full border border-zinc-200/90 bg-zinc-50/80 py-2 pl-10 pr-4 text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-primary-300 focus:bg-white focus:ring-4 focus:ring-primary-500/15 sm:text-sm"
+      />
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-80 overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl">
+          {results.map((r, i) => {
+            const href = RESULT_LINKS[r._type]?.(r, to) || "#";
+            return (
+              <a
+                key={`${r._type}-${r.id}-${i}`}
+                href={href}
+                onClick={() => { setOpen(false); setQuery(""); }}
+                className="flex items-center gap-3 px-4 py-3 text-sm transition hover:bg-zinc-50"
+              >
+                <span className="shrink-0 rounded-lg bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-zinc-500">
+                  {r._type}
+                </span>
+                <span className="truncate font-medium text-zinc-800">{r.name || r.title || r.full_name || "—"}</span>
+                {r.email && <span className="ml-auto truncate text-xs text-zinc-400">{r.email}</span>}
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function DashboardLayout({ children, userRole = "admin" }) {
   const { to } = useTenantPaths();
@@ -156,14 +252,7 @@ export default function DashboardLayout({ children, userRole = "admin" }) {
               )}
 
               <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-3">
-                <button
-                  type="button"
-                  className="relative flex h-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-zinc-600 transition hover:bg-zinc-100"
-                  aria-label="Notifications"
-                >
-                  <Bell className="h-5 w-5" aria-hidden />
-                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border-2 border-white bg-red-500" />
-                </button>
+                <NotificationBell />
 
                 <Link
                   href={role === "mai_admin" ? "/profile" : to("/profile")}
@@ -188,17 +277,7 @@ export default function DashboardLayout({ children, userRole = "admin" }) {
               </div>
             </div>
 
-            <div className="relative w-full min-w-0 lg:max-w-2xl xl:max-w-3xl">
-              <Search
-                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
-                aria-hidden
-              />
-              <input
-                type="search"
-                placeholder={meta.searchPlaceholder}
-                className="h-11 w-full min-h-[44px] rounded-full border border-zinc-200/90 bg-zinc-50/80 py-2 pl-10 pr-4 text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-primary-300 focus:bg-white focus:ring-4 focus:ring-primary-500/15 sm:text-sm"
-              />
-            </div>
+            <GlobalSearch placeholder={meta.searchPlaceholder} to={to} />
           </div>
         </header>
 
@@ -214,6 +293,7 @@ export default function DashboardLayout({ children, userRole = "admin" }) {
       </div>
 
       {role !== "mai_admin" && <ChatWidget userRole={role} />}
+      <CommandPalette />
     </div>
   );
 }

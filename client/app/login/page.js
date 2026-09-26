@@ -455,6 +455,12 @@ export default function LoginPage() {
                     </>
                   )}
                 </motion.button>
+
+                <div className="mt-3 text-center">
+                  <Link href="/login/forgot-password" className="text-xs font-medium text-zinc-500 transition hover:text-primary-600">
+                    Forgot password?
+                  </Link>
+                </div>
               </form>
 
               {isMaiLoginHost && (

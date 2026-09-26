@@ -101,4 +101,32 @@ router.get('/actions', requireAuth, requireRole('admin', 'principal', 'mai_admin
   }
 });
 
+// GET /api/audit/stats — security overview stats
+router.get('/stats', requireAuth, requireRole('admin', 'principal'), requireTenant, async (req, res) => {
+  const { institution_id } = req.auth;
+  try {
+    const [failedLogins, activeSessions] = await Promise.all([
+      pool.query(
+        `SELECT count(*)::int FROM audit_log
+         WHERE institution_id = $1 AND action = 'auth.login_failed'
+           AND created_at > now() - interval '24 hours'`,
+        [institution_id]
+      ),
+      pool.query(
+        `SELECT count(*)::int FROM sessions
+         WHERE institution_id = $1 AND expires_at > now()`,
+        [institution_id]
+      ).catch(() => ({ rows: [{ count: 0 }] })),
+    ]);
+    res.json({
+      failed_logins_24h: failedLogins.rows[0].count,
+      active_sessions: activeSessions.rows[0].count,
+      mfa_enabled: 0,
+    });
+  } catch (err) {
+    console.error('[audit] stats failed:', err);
+    res.status(500).json({ error: 'Failed to load stats' });
+  }
+});
+
 module.exports = router;
