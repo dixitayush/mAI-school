@@ -1,6 +1,5 @@
 const express = require('express');
 const multer = require('multer');
-require('dotenv').config();
 const { requireAuth, requireTenant } = require('../middleware/auth');
 const { getAppPool } = require('../db/pool');
 

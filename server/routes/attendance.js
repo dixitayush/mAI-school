@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const nodemailer = require('nodemailer');
-require('dotenv').config();
 const { requireAuth, requireRole, requireTenant } = require('../middleware/auth');
 const { getAppPool } = require('../db/pool');
 

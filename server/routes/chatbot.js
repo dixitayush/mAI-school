@@ -1,6 +1,4 @@
 const express = require('express');
-require('dotenv').config();
-
 const { requireAuth, requireTenant } = require('../middleware/auth');
 const ai = require('../ai');
 const gemini = require('../services/geminiService');

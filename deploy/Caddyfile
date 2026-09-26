@@ -31,10 +31,10 @@
 		}
 	}
 
-	# POST /login and POST /register are Express; GET /login is Next.js.
+	# POST /login, /register, /auth/* are Express; GET /login is Next.js.
 	@authpost {
 		method POST
-		path /login /register
+		path /login /register /auth/*
 	}
 	handle @authpost {
 		reverse_proxy server:5000 {

@@ -1,7 +1,5 @@
 const express = require('express');
 const multer = require('multer');
-require('dotenv').config();
-
 const { requireAuth, requireRole, requireTenant } = require('../middleware/auth');
 const { saveFile } = require('./files');
 const { logAudit } = require('../lib/audit');

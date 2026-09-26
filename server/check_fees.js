@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/mai_school',
