@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
 import { FolderOpen, Upload, Trash2, Loader2, Search, FileText } from "lucide-react";
-import { apiFetch, apiUpload } from "@/lib/api";
+import { apiFetch, uploadFile } from "@/lib/api";
 
 export default function DocumentsPage() {
   const [docs, setDocs] = useState([]);
@@ -30,7 +30,19 @@ export default function DocumentsPage() {
     if (!file) return;
     setUploading(true);
     try {
-      await apiUpload("/api/documents", file, { title: file.name, document_type: "general" });
+      const uploaded = await uploadFile(file, "document");
+      await apiFetch("/api/documents", {
+        method: "POST",
+        body: {
+          owner_type: "institution",
+          owner_id: "self",
+          category: "general",
+          title: file.name,
+          file_id: uploaded?.id || uploaded?.file_id || null,
+          mime_type: file.type,
+          file_size: file.size,
+        },
+      });
       toast.success("Document uploaded");
       fetchDocs();
     } catch (err) { toast.error(err.message); }
@@ -89,8 +101,8 @@ export default function DocumentsPage() {
                 {docs.map((doc) => (
                   <tr key={doc.id} className="hover:bg-zinc-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-zinc-800">{doc.title || doc.filename || "Untitled"}</td>
-                    <td className="px-4 py-3 text-zinc-500 capitalize">{doc.document_type || "—"}</td>
-                    <td className="px-4 py-3 text-zinc-500">{doc.student_name || "—"}</td>
+                    <td className="px-4 py-3 text-zinc-500 capitalize">{doc.category || "—"}</td>
+                    <td className="px-4 py-3 text-zinc-500">{doc.owner_type || "—"}</td>
                     <td className="px-4 py-3 text-zinc-500">{doc.created_at ? new Date(doc.created_at).toLocaleDateString() : "—"}</td>
                     <td className="px-4 py-3">
                       <button onClick={() => handleDelete(doc.id)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600">

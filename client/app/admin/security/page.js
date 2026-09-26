@@ -65,7 +65,7 @@ export default function SecurityCenterPage() {
                   <div key={log.id} className="flex items-center justify-between px-5 py-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-zinc-800">{log.action}</p>
-                      <p className="text-xs text-zinc-500">{log.user_name || log.user_id?.slice(0, 8)} · {log.ip_address || "—"} · {new Date(log.created_at).toLocaleString()}</p>
+                      <p className="text-xs text-zinc-500">{log.actor_name || log.user_name || "—"} · {log.ip_address || "—"} · {new Date(log.created_at).toLocaleString()}</p>
                     </div>
                     <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${SEVERITY[log.severity] || SEVERITY.info}`}>{log.severity}</span>
                   </div>

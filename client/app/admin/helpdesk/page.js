@@ -29,7 +29,7 @@ export default function HelpdeskPage() {
   const [detail, setDetail] = useState(null);
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState("");
-  const [form, setForm] = useState({ subject: "", description: "", priority: "medium", category: "general" });
+  const [form, setForm] = useState({ title: "", description: "", priority: "medium", category: "other" });
   const [submitting, setSubmitting] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -40,7 +40,9 @@ export default function HelpdeskPage() {
         apiFetch("/api/helpdesk/dashboard/stats"),
       ]);
       setTickets(ticketData.tickets || []);
-      setStats(statsData.stats || {});
+      const statsObj = {};
+      for (const s of (statsData.stats || [])) statsObj[s.status] = s.count;
+      setStats(statsObj);
     } catch (err) { toast.error(err.message); }
     finally { setLoading(false); }
   }, []);
@@ -81,7 +83,7 @@ export default function HelpdeskPage() {
       await apiFetch("/api/helpdesk", { method: "POST", body: form });
       toast.success("Ticket created");
       setShowForm(false);
-      setForm({ subject: "", description: "", priority: "medium", category: "general" });
+      setForm({ title: "", description: "", priority: "medium", category: "other" });
       fetchData();
     } catch (err) { toast.error(err.message); }
     finally { setSubmitting(false); }
@@ -99,7 +101,7 @@ export default function HelpdeskPage() {
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-start justify-between">
             <div>
-              <h2 className="text-xl font-bold text-zinc-900">{detail.subject}</h2>
+              <h2 className="text-xl font-bold text-zinc-900">{detail.title}</h2>
               <div className="mt-1 flex items-center gap-2">
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${STATUS_COLORS[detail.status] || ""}`}>{detail.status?.replace("_", " ")}</span>
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${PRIORITY_COLORS[detail.priority] || ""}`}>{detail.priority}</span>
@@ -118,7 +120,7 @@ export default function HelpdeskPage() {
               {comments.length === 0 ? <p className="text-sm text-zinc-400">No comments yet.</p> : comments.map((c, i) => (
                 <div key={i} className="rounded-xl bg-zinc-50 p-3">
                   <p className="text-sm text-zinc-800">{c.content}</p>
-                  <p className="mt-1 text-xs text-zinc-400">{c.author_name || "—"} · {c.created_at ? new Date(c.created_at).toLocaleString() : ""}</p>
+                  <p className="mt-1 text-xs text-zinc-400">{c.user_name || "—"} · {c.created_at ? new Date(c.created_at).toLocaleString() : ""}</p>
                 </div>
               ))}
             </div>
@@ -162,14 +164,14 @@ export default function HelpdeskPage() {
             <button onClick={() => setShowForm(false)} className="text-zinc-400 hover:text-zinc-600"><X className="h-5 w-5" /></button>
           </div>
           <form onSubmit={onSubmit} className="space-y-4">
-            <div><label className="mb-1 block text-sm font-medium text-zinc-700">Subject</label><input required value={form.subject} onChange={set("subject")} className={inputCls} /></div>
+            <div><label className="mb-1 block text-sm font-medium text-zinc-700">Title</label><input required value={form.title} onChange={set("title")} className={inputCls} /></div>
             <div><label className="mb-1 block text-sm font-medium text-zinc-700">Description</label><textarea rows={3} value={form.description} onChange={set("description")} className={inputCls} /></div>
             <div className="grid grid-cols-2 gap-4">
               <div><label className="mb-1 block text-sm font-medium text-zinc-700">Priority</label>
                 <select value={form.priority} onChange={set("priority")} className={inputCls}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select>
               </div>
               <div><label className="mb-1 block text-sm font-medium text-zinc-700">Category</label>
-                <select value={form.category} onChange={set("category")} className={inputCls}><option value="general">General</option><option value="it">IT</option><option value="facilities">Facilities</option><option value="academic">Academic</option></select>
+                <select value={form.category} onChange={set("category")} className={inputCls}><option value="other">General</option><option value="it">IT</option><option value="facilities">Facilities</option><option value="academics">Academic</option><option value="fees">Fees</option><option value="transport">Transport</option><option value="account_access">Account Access</option></select>
               </div>
             </div>
             <button type="submit" disabled={submitting} className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:opacity-60">
@@ -189,8 +191,8 @@ export default function HelpdeskPage() {
             {tickets.map((t) => (
               <button key={t.id} onClick={() => viewTicket(t.id)} className="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-zinc-50">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-zinc-800">{t.subject}</p>
-                  <p className="mt-0.5 truncate text-xs text-zinc-500">{t.requester_name || "—"} · {t.created_at ? new Date(t.created_at).toLocaleDateString() : ""}</p>
+                  <p className="text-sm font-semibold text-zinc-800">{t.title}</p>
+                  <p className="mt-0.5 truncate text-xs text-zinc-500">{t.reporter_name || "—"} · {t.created_at ? new Date(t.created_at).toLocaleDateString() : ""}</p>
                 </div>
                 <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${PRIORITY_COLORS[t.priority] || ""}`}>{t.priority}</span>
                 <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${STATUS_COLORS[t.status] || ""}`}>{t.status?.replace("_", " ")}</span>

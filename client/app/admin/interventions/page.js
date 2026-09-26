@@ -12,7 +12,7 @@ export default function InterventionsPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ student_id: "", type: "academic", description: "" });
+  const [form, setForm] = useState({ student_id: "", concern_type: "academic", title: "", description: "" });
 
   const fetchData = async () => {
     try {
@@ -38,13 +38,13 @@ export default function InterventionsPage() {
 
   const onCreate = async (e) => {
     e.preventDefault();
-    if (!form.student_id || !form.description) return toast.error("Student and description are required");
+    if (!form.student_id || !form.title) return toast.error("Student ID and title are required");
     setCreating(true);
     try {
       await apiFetch("/api/interventions", { method: "POST", body: form });
       toast.success("Intervention created");
       setShowCreate(false);
-      setForm({ student_id: "", type: "academic", description: "" });
+      setForm({ student_id: "", concern_type: "academic", title: "", description: "" });
       fetchData();
     } catch (err) { toast.error(err.message); }
     finally { setCreating(false); }
@@ -59,8 +59,8 @@ export default function InterventionsPage() {
   };
 
   const inputCls = "w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20";
-  const STATUS = { active: "bg-amber-100 text-amber-800", monitoring: "bg-blue-100 text-blue-800", resolved: "bg-emerald-100 text-emerald-800", escalated: "bg-red-100 text-red-800" };
-  const TYPE_COLORS = { academic: "bg-violet-100 text-violet-800", behavioral: "bg-amber-100 text-amber-800", attendance: "bg-blue-100 text-blue-800", wellbeing: "bg-pink-100 text-pink-800" };
+  const STATUS = { open: "bg-amber-100 text-amber-800", in_progress: "bg-blue-100 text-blue-800", monitoring: "bg-cyan-100 text-cyan-800", resolved: "bg-emerald-100 text-emerald-800", escalated: "bg-red-100 text-red-800" };
+  const TYPE_COLORS = { academic: "bg-violet-100 text-violet-800", behavioral: "bg-amber-100 text-amber-800", attendance: "bg-blue-100 text-blue-800", social_emotional: "bg-pink-100 text-pink-800", health: "bg-emerald-100 text-emerald-800" };
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -97,10 +97,11 @@ export default function InterventionsPage() {
       {showCreate && (
         <motion.form initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} onSubmit={onCreate} className="mb-6 space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <input value={form.student_id} onChange={e => setForm(f => ({ ...f, student_id: e.target.value }))} placeholder="Student ID" className={inputCls} required />
-          <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className={inputCls}>
-            <option value="academic">Academic</option><option value="behavioral">Behavioral</option><option value="attendance">Attendance</option><option value="wellbeing">Wellbeing</option>
+          <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Intervention title" className={inputCls} required />
+          <select value={form.concern_type} onChange={e => setForm(f => ({ ...f, concern_type: e.target.value }))} className={inputCls}>
+            <option value="academic">Academic</option><option value="behavioral">Behavioral</option><option value="attendance">Attendance</option><option value="social_emotional">Social/Emotional</option><option value="health">Health</option>
           </select>
-          <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe the concern..." rows={3} className={inputCls} required />
+          <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe the concern..." rows={3} className={inputCls} />
           <div className="flex gap-2">
             <button type="submit" disabled={creating} className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:opacity-60">
               {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Create
@@ -120,12 +121,12 @@ export default function InterventionsPage() {
             <div key={int.id} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-semibold text-zinc-900">{int.student_name || `Student ${int.student_id?.slice(0, 8)}`}</p>
-                  <p className="mt-0.5 text-xs text-zinc-500">{int.description?.slice(0, 100)}</p>
+                  <p className="font-semibold text-zinc-900">{int.title || int.student_name || `Student ${int.student_id?.slice(0, 8)}`}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">{int.student_name} · {int.description?.slice(0, 80)}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${TYPE_COLORS[int.type] || TYPE_COLORS.academic}`}>{int.type}</span>
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS[int.status] || STATUS.active}`}>{int.status}</span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${TYPE_COLORS[int.concern_type] || TYPE_COLORS.academic}`}>{int.concern_type}</span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS[int.status] || STATUS.open}`}>{int.status}</span>
                 </div>
               </div>
               <div className="mt-3 flex gap-2">

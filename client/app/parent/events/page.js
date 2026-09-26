@@ -37,8 +37,8 @@ export default function ParentEventsPage() {
           {events.map((ev) => (
             <div key={ev.id} className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div className="text-center">
-                <p className="text-2xl font-bold text-zinc-900">{new Date(ev.event_date).getDate()}</p>
-                <p className="text-xs font-semibold uppercase text-zinc-500">{new Date(ev.event_date).toLocaleString("default", { month: "short" })}</p>
+                <p className="text-2xl font-bold text-zinc-900">{new Date(ev.start_date).getDate()}</p>
+                <p className="text-xs font-semibold uppercase text-zinc-500">{new Date(ev.start_date).toLocaleString("default", { month: "short" })}</p>
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-zinc-900">{ev.title}</p>

@@ -11,7 +11,7 @@ export default function WorkflowsPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: "", trigger_event: "", description: "" });
+  const [form, setForm] = useState({ name: "", trigger_type: "", description: "" });
 
   const fetchWorkflows = async () => {
     try {
@@ -25,13 +25,13 @@ export default function WorkflowsPage() {
 
   const onCreate = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.trigger_event) return toast.error("Name and trigger are required");
+    if (!form.name || !form.trigger_type) return toast.error("Name and trigger are required");
     setCreating(true);
     try {
       await apiFetch("/api/workflows", { method: "POST", body: form });
       toast.success("Workflow created");
       setShowCreate(false);
-      setForm({ name: "", trigger_event: "", description: "" });
+      setForm({ name: "", trigger_type: "", description: "" });
       fetchWorkflows();
     } catch (err) { toast.error(err.message); }
     finally { setCreating(false); }
@@ -39,8 +39,8 @@ export default function WorkflowsPage() {
 
   const toggleActive = async (wf) => {
     try {
-      await apiFetch(`/api/workflows/${wf.id}`, { method: "PATCH", body: { active: !wf.active } });
-      toast.success(wf.active ? "Workflow paused" : "Workflow activated");
+      await apiFetch(`/api/workflows/${wf.id}`, { method: "PATCH", body: { is_active: !wf.is_active } });
+      toast.success(wf.is_active ? "Workflow paused" : "Workflow activated");
       fetchWorkflows();
     } catch (err) { toast.error(err.message); }
   };
@@ -81,13 +81,15 @@ export default function WorkflowsPage() {
       {showCreate && (
         <motion.form initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} onSubmit={onCreate} className="mb-6 space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Workflow name" className={inputCls} required />
-          <select value={form.trigger_event} onChange={e => setForm(f => ({ ...f, trigger_event: e.target.value }))} className={inputCls} required>
-            <option value="">Select trigger event...</option>
-            <option value="leave_request">Leave Request Submitted</option>
-            <option value="expense_submitted">Expense Submitted</option>
+          <select value={form.trigger_type} onChange={e => setForm(f => ({ ...f, trigger_type: e.target.value }))} className={inputCls} required>
+            <option value="">Select trigger...</option>
+            <option value="attendance_below">Attendance Below Threshold</option>
             <option value="fee_overdue">Fee Overdue</option>
-            <option value="attendance_below_threshold">Attendance Below Threshold</option>
             <option value="new_admission">New Admission</option>
+            <option value="result_published">Result Published</option>
+            <option value="assignment_overdue">Assignment Overdue</option>
+            <option value="absent_consecutive">Consecutive Absences</option>
+            <option value="custom">Custom</option>
           </select>
           <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Description (optional)" rows={2} className={inputCls} />
           <div className="flex gap-2">
@@ -109,15 +111,15 @@ export default function WorkflowsPage() {
             <div key={wf.id} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div>
                 <p className="font-semibold text-zinc-900">{wf.name}</p>
-                <p className="mt-0.5 text-xs text-zinc-500">Trigger: {wf.trigger_event} {wf.description ? `· ${wf.description}` : ""}</p>
+                <p className="mt-0.5 text-xs text-zinc-500">Trigger: {wf.trigger_type} {wf.description ? `· ${wf.description}` : ""}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${wf.active ? "bg-emerald-100 text-emerald-800" : "bg-zinc-100 text-zinc-600"}`}>
-                  {wf.active ? "Active" : "Paused"}
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${wf.is_active ? "bg-emerald-100 text-emerald-800" : "bg-zinc-100 text-zinc-600"}`}>
+                  {wf.is_active ? "Active" : "Paused"}
                 </span>
                 <button onClick={() => triggerWf(wf.id)} title="Trigger manually" className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-50 hover:text-primary-600"><Play className="h-4 w-4" /></button>
-                <button onClick={() => toggleActive(wf)} title={wf.active ? "Pause" : "Activate"} className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-50 hover:text-amber-600">
-                  {wf.active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                <button onClick={() => toggleActive(wf)} title={wf.is_active ? "Pause" : "Activate"} className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-50 hover:text-amber-600">
+                  {wf.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                 </button>
                 <button onClick={() => deleteWf(wf.id)} title="Delete" className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
               </div>

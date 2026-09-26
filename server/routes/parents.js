@@ -321,6 +321,28 @@ router.delete(
 );
 
 // ---------------------------------------------------------------
+// GET /api/parents/digest-preferences  (parent)
+// ---------------------------------------------------------------
+router.get(
+  '/digest-preferences',
+  requireAuth,
+  requireRole('parent'),
+  requireTenant,
+  async (req, res) => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT weekly_digest_enabled, digest_day FROM guardians WHERE user_id = $1`,
+        [req.auth.user_id]
+      );
+      res.json(rows[0] || { weekly_digest_enabled: true, digest_day: 'monday' });
+    } catch (err) {
+      console.error('[parents] digest pref get failed:', err);
+      res.status(500).json({ error: 'Failed to load preferences' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
 // PATCH /api/parents/digest-preferences  (parent)
 // Update digest preferences
 // ---------------------------------------------------------------

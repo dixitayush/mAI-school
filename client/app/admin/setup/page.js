@@ -13,7 +13,7 @@ export default function SetupPage() {
 
   useEffect(() => {
     apiFetch("/api/setup")
-      .then((data) => setChecklist(data.checklist || []))
+      .then((data) => setChecklist(data.items || data.checklist || []))
       .catch((err) => toast.error(err.message))
       .finally(() => setLoading(false));
   }, []);
@@ -24,7 +24,7 @@ export default function SetupPage() {
       await apiFetch(`/api/setup/${item}`, { method: "PATCH" });
       toast.success(`${item.replace(/_/g, " ")} marked complete`);
       const data = await apiFetch("/api/setup");
-      setChecklist(data.checklist || []);
+      setChecklist(data.items || data.checklist || []);
     } catch (err) { toast.error(err.message); }
     finally { setCompleting(null); }
   };

@@ -7,8 +7,9 @@ import { AlertTriangle, Loader2, Bell } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 const STATUS_COLORS = {
-  active: "bg-amber-100 text-amber-800",
-  monitoring: "bg-blue-100 text-blue-800",
+  open: "bg-amber-100 text-amber-800",
+  in_progress: "bg-blue-100 text-blue-800",
+  monitoring: "bg-cyan-100 text-cyan-800",
   resolved: "bg-emerald-100 text-emerald-800",
   escalated: "bg-red-100 text-red-800",
 };
@@ -17,7 +18,7 @@ export default function PrincipalInterventionsPage() {
   const [interventions, setInterventions] = useState([]);
   const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState({ status: "", type: "" });
+  const [filter, setFilter] = useState({ status: "", concern_type: "" });
 
   const load = async () => {
     try {
@@ -48,7 +49,7 @@ export default function PrincipalInterventionsPage() {
 
   const filtered = interventions.filter((i) => {
     if (filter.status && i.status !== filter.status) return false;
-    if (filter.type && i.type !== filter.type) return false;
+    if (filter.concern_type && i.concern_type !== filter.concern_type) return false;
     return true;
   });
 
@@ -76,8 +77,8 @@ export default function PrincipalInterventionsPage() {
         </div>
       </div>
 
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {["active", "monitoring", "escalated", "resolved"].map((s) => (
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {["open", "in_progress", "monitoring", "escalated", "resolved"].map((s) => (
           <div key={s} className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">{s}</p>
             <p className="mt-1 text-2xl font-bold text-zinc-900">{statusCounts[s] || 0}</p>
@@ -114,21 +115,23 @@ export default function PrincipalInterventionsPage() {
           className="rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
         >
           <option value="">All statuses</option>
-          <option value="active">Active</option>
+          <option value="open">Open</option>
+          <option value="in_progress">In Progress</option>
           <option value="monitoring">Monitoring</option>
           <option value="escalated">Escalated</option>
           <option value="resolved">Resolved</option>
         </select>
         <select
-          value={filter.type}
-          onChange={(e) => setFilter((f) => ({ ...f, type: e.target.value }))}
+          value={filter.concern_type}
+          onChange={(e) => setFilter((f) => ({ ...f, concern_type: e.target.value }))}
           className="rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
         >
           <option value="">All types</option>
           <option value="academic">Academic</option>
           <option value="behavioral">Behavioral</option>
           <option value="attendance">Attendance</option>
-          <option value="emotional">Emotional</option>
+          <option value="social_emotional">Social/Emotional</option>
+          <option value="health">Health</option>
         </select>
       </div>
 
@@ -151,8 +154,8 @@ export default function PrincipalInterventionsPage() {
                 {filtered.map((intv) => (
                   <tr key={intv.id} className="hover:bg-zinc-50 transition-colors">
                     <td className="px-5 py-3 font-medium text-zinc-800">{intv.student_name || intv.student_id?.slice(0, 8) || "—"}</td>
-                    <td className="px-5 py-3 text-zinc-600 capitalize">{intv.type}</td>
-                    <td className="px-5 py-3 text-zinc-600">{intv.teacher_name || intv.created_by?.slice(0, 8) || "—"}</td>
+                    <td className="px-5 py-3 text-zinc-600 capitalize">{intv.concern_type}</td>
+                    <td className="px-5 py-3 text-zinc-600">{intv.owner_name || intv.created_by_name || "—"}</td>
                     <td className="px-5 py-3">
                       <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_COLORS[intv.status] || "bg-zinc-100 text-zinc-700"}`}>
                         {intv.status}

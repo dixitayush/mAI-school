@@ -97,7 +97,7 @@ export default function CertificatesPage() {
         </div>
         {verifyResult && (
           <div className={`mt-3 rounded-xl p-3 text-sm ${verifyResult.valid ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
-            {verifyResult.valid ? `Valid certificate — ${verifyResult.type} for ${verifyResult.student_name}, issued ${new Date(verifyResult.issued_at).toLocaleDateString()}` : "Invalid or expired certificate code."}
+            {verifyResult.valid ? `Valid certificate — ${verifyResult.type} for ${verifyResult.student}, issued ${new Date(verifyResult.issued_at).toLocaleDateString()}` : "Invalid or expired certificate code."}
           </div>
         )}
       </div>

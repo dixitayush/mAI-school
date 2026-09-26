@@ -45,7 +45,7 @@ export default function ParentCommunicationPage() {
     if (!reply.trim()) return;
     setSending(true);
     try {
-      await apiFetch(`/api/communication/threads/${activeThread.id}/messages`, { method: "POST", body: { body: reply } });
+      await apiFetch(`/api/communication/threads/${activeThread.id}/messages`, { method: "POST", body: { content: reply } });
       setReply("");
       openThread(activeThread);
     } catch (err) { toast.error(err.message); }
@@ -57,7 +57,16 @@ export default function ParentCommunicationPage() {
     if (!form.subject || !form.message) return toast.error("Subject and message required");
     setCreating(true);
     try {
-      const data = await apiFetch("/api/communication/threads", { method: "POST", body: form });
+      const data = await apiFetch("/api/communication/threads", {
+        method: "POST",
+        body: { subject: form.subject, thread_type: "parent_teacher" },
+      });
+      if (data.thread?.id && form.message) {
+        await apiFetch(`/api/communication/threads/${data.thread.id}/messages`, {
+          method: "POST",
+          body: { content: form.message },
+        });
+      }
       toast.success("Message sent");
       setShowCreate(false);
       setForm({ subject: "", message: "" });
@@ -89,7 +98,7 @@ export default function ParentCommunicationPage() {
                     <p className="text-sm font-semibold text-zinc-800">{msg.sender_name || "User"}</p>
                     <p className="text-xs text-zinc-400">{new Date(msg.created_at).toLocaleString()}</p>
                   </div>
-                  <p className="text-sm text-zinc-700 whitespace-pre-wrap">{msg.body}</p>
+                  <p className="text-sm text-zinc-700 whitespace-pre-wrap">{msg.content || msg.body}</p>
                 </div>
               ))}
               <div ref={endRef} />

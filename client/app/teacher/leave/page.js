@@ -22,7 +22,7 @@ export default function TeacherLeavePage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ leave_type_id: "", from_date: "", to_date: "", reason: "" });
+  const [form, setForm] = useState({ leave_type_id: "", start_date: "", end_date: "", reason: "" });
 
   const load = async () => {
     try {
@@ -50,7 +50,7 @@ export default function TeacherLeavePage() {
       await apiFetch("/api/leave/requests", { method: "POST", body: form });
       toast.success("Leave request submitted");
       setShowForm(false);
-      setForm({ leave_type_id: "", from_date: "", to_date: "", reason: "" });
+      setForm({ leave_type_id: "", start_date: "", end_date: "", reason: "" });
       load();
     } catch (err) {
       toast.error(err.message);
@@ -121,11 +121,11 @@ export default function TeacherLeavePage() {
             <div />
             <div>
               <label className="mb-1.5 block text-sm font-medium text-zinc-700">From</label>
-              <input type="date" value={form.from_date} onChange={(e) => setForm((f) => ({ ...f, from_date: e.target.value }))} required className={inputCls} />
+              <input type="date" value={form.start_date} onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))} required className={inputCls} />
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-zinc-700">To</label>
-              <input type="date" value={form.to_date} onChange={(e) => setForm((f) => ({ ...f, to_date: e.target.value }))} required className={inputCls} />
+              <input type="date" value={form.end_date} onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))} required className={inputCls} />
             </div>
           </div>
           <div>
@@ -165,8 +165,8 @@ export default function TeacherLeavePage() {
                 {requests.map((r) => (
                   <tr key={r.id} className="hover:bg-zinc-50 transition-colors">
                     <td className="px-5 py-3 font-medium text-zinc-800">{r.leave_type_name || r.leave_type || "—"}</td>
-                    <td className="px-5 py-3 text-zinc-600">{r.from_date ? new Date(r.from_date).toLocaleDateString() : "—"}</td>
-                    <td className="px-5 py-3 text-zinc-600">{r.to_date ? new Date(r.to_date).toLocaleDateString() : "—"}</td>
+                    <td className="px-5 py-3 text-zinc-600">{r.start_date ? new Date(r.start_date).toLocaleDateString() : "—"}</td>
+                    <td className="px-5 py-3 text-zinc-600">{r.end_date ? new Date(r.end_date).toLocaleDateString() : "—"}</td>
                     <td className="max-w-xs truncate px-5 py-3 text-zinc-500">{r.reason || "—"}</td>
                     <td className="px-5 py-3">
                       <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_COLORS[r.status] || "bg-zinc-100 text-zinc-700"}`}>

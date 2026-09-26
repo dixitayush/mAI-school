@@ -7,8 +7,9 @@ import { AlertTriangle, Loader2, Plus, X, Bell } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 const STATUS_COLORS = {
-  active: "bg-amber-100 text-amber-800",
-  monitoring: "bg-blue-100 text-blue-800",
+  open: "bg-amber-100 text-amber-800",
+  in_progress: "bg-blue-100 text-blue-800",
+  monitoring: "bg-cyan-100 text-cyan-800",
   resolved: "bg-emerald-100 text-emerald-800",
   escalated: "bg-red-100 text-red-800",
 };
@@ -22,7 +23,7 @@ export default function TeacherInterventionsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ student_id: "", type: "academic", description: "" });
+  const [form, setForm] = useState({ student_id: "", concern_type: "academic", title: "", description: "" });
 
   const load = async () => {
     try {
@@ -58,7 +59,7 @@ export default function TeacherInterventionsPage() {
       await apiFetch("/api/interventions", { method: "POST", body: form });
       toast.success("Intervention created");
       setShowForm(false);
-      setForm({ student_id: "", type: "academic", description: "" });
+      setForm({ student_id: "", concern_type: "academic", title: "", description: "" });
       load();
     } catch (err) {
       toast.error(err.message);
@@ -134,18 +135,23 @@ export default function TeacherInterventionsPage() {
               <input value={form.student_id} onChange={(e) => setForm((f) => ({ ...f, student_id: e.target.value }))} required className={inputCls} placeholder="Student UUID" />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-zinc-700">Type</label>
-              <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className={inputCls}>
+              <label className="mb-1.5 block text-sm font-medium text-zinc-700">Concern Type</label>
+              <select value={form.concern_type} onChange={(e) => setForm((f) => ({ ...f, concern_type: e.target.value }))} className={inputCls}>
                 <option value="academic">Academic</option>
                 <option value="behavioral">Behavioral</option>
                 <option value="attendance">Attendance</option>
-                <option value="emotional">Emotional/Wellbeing</option>
+                <option value="social_emotional">Social/Emotional</option>
+                <option value="health">Health</option>
               </select>
             </div>
           </div>
           <div>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-700">Title</label>
+            <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required className={inputCls} placeholder="Brief title for this intervention" />
+          </div>
+          <div>
             <label className="mb-1.5 block text-sm font-medium text-zinc-700">Description</label>
-            <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} required className={inputCls} />
+            <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} className={inputCls} />
           </div>
           <button
             type="submit"
@@ -180,7 +186,7 @@ export default function TeacherInterventionsPage() {
                 {interventions.map((intv) => (
                   <tr key={intv.id} className="hover:bg-zinc-50 transition-colors">
                     <td className="px-5 py-3 font-medium text-zinc-800">{intv.student_name || intv.student_id?.slice(0, 8) || "—"}</td>
-                    <td className="px-5 py-3 text-zinc-600 capitalize">{intv.type}</td>
+                    <td className="px-5 py-3 text-zinc-600 capitalize">{intv.concern_type}</td>
                     <td className="px-5 py-3">
                       <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_COLORS[intv.status] || "bg-zinc-100 text-zinc-700"}`}>
                         {intv.status}

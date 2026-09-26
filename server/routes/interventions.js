@@ -48,6 +48,33 @@ router.get('/', requireAuth, requireRole('teacher', 'admin', 'principal'), requi
   } catch (err) { res.status(500).json({ error: 'Failed to load interventions' }); }
 });
 
+// Support signals — MUST be before /:id to avoid matching "signals" as a UUID
+router.get('/signals', requireAuth, requireRole('teacher', 'admin', 'principal'), requireTenant, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT ss.*, u.full_name AS student_name
+         FROM support_signals ss
+         JOIN students s ON s.id = ss.student_id
+         JOIN users u ON u.id = s.user_id
+        WHERE ss.institution_id = $1 AND ss.acknowledged = false
+        ORDER BY ss.created_at DESC LIMIT 50`,
+      [req.auth.institution_id]
+    );
+    res.json({ signals: rows });
+  } catch (err) { res.status(500).json({ error: 'Failed to load signals' }); }
+});
+
+// Acknowledge signal
+router.patch('/signals/:id/acknowledge', requireAuth, requireRole('teacher', 'admin', 'principal'), requireTenant, async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE support_signals SET acknowledged = true, acknowledged_by = $1 WHERE id = $2 AND institution_id = $3`,
+      [req.auth.user_id, req.params.id, req.auth.institution_id]
+    );
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to acknowledge' }); }
+});
+
 // Get intervention detail
 router.get('/:id', requireAuth, requireRole('teacher', 'admin', 'principal'), requireTenant, async (req, res) => {
   try {
@@ -99,33 +126,6 @@ router.post('/:id/notes', requireAuth, requireRole('teacher', 'admin', 'principa
     );
     res.json({ success: true, note: rows[0] });
   } catch (err) { res.status(500).json({ error: 'Failed to add note' }); }
-});
-
-// Support signals
-router.get('/signals', requireAuth, requireRole('teacher', 'admin', 'principal'), requireTenant, async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      `SELECT ss.*, u.full_name AS student_name
-         FROM support_signals ss
-         JOIN students s ON s.id = ss.student_id
-         JOIN users u ON u.id = s.user_id
-        WHERE ss.institution_id = $1 AND ss.acknowledged = false
-        ORDER BY ss.created_at DESC LIMIT 50`,
-      [req.auth.institution_id]
-    );
-    res.json({ signals: rows });
-  } catch (err) { res.status(500).json({ error: 'Failed to load signals' }); }
-});
-
-// Acknowledge signal
-router.patch('/signals/:id/acknowledge', requireAuth, requireRole('teacher', 'admin', 'principal'), requireTenant, async (req, res) => {
-  try {
-    await pool.query(
-      `UPDATE support_signals SET acknowledged = true, acknowledged_by = $1 WHERE id = $2 AND institution_id = $3`,
-      [req.auth.user_id, req.params.id, req.auth.institution_id]
-    );
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Failed to acknowledge' }); }
 });
 
 module.exports = router;
