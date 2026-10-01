@@ -3,6 +3,8 @@ const { requireAuth, requireRole, requireTenant } = require('../middleware/auth'
 const { logAudit } = require('../lib/audit');
 const { getAppPool } = require('../db/pool');
 
+const workflowEngine = require('../services/workflowEngine');
+
 const router = express.Router();
 const pool = getAppPool();
 
@@ -77,8 +79,18 @@ router.patch('/:id', requireAuth, requireRole('admin', 'principal'), requireTena
       `UPDATE workflows SET ${updates.join(', ')} WHERE id = $1 AND institution_id = $2 RETURNING *`, params
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Workflow not found' });
+    await logAudit(pool, req.auth, {
+      action: 'workflow.update',
+      entityType: 'workflow',
+      entityId: rows[0].id,
+      metadata: { fields: allowed.filter((k) => req.body[k] !== undefined) },
+      req,
+    });
     res.json({ success: true, workflow: rows[0] });
-  } catch (err) { res.status(500).json({ error: 'Update failed' }); }
+  } catch (err) {
+    console.error('[workflows] update failed:', err);
+    res.status(500).json({ error: 'Update failed' });
+  }
 });
 
 // Delete workflow
@@ -93,27 +105,50 @@ router.delete('/:id', requireAuth, requireRole('admin'), requireTenant, async (r
   } catch (err) { res.status(500).json({ error: 'Delete failed' }); }
 });
 
-// Manually trigger a workflow (for testing)
-router.post('/:id/trigger', requireAuth, requireRole('admin'), requireTenant, async (req, res) => {
+/**
+ * Run a workflow now. This evaluates the trigger and applies the actions
+ * through the engine; the previous version only wrote a hollow "completed"
+ * execution row without doing any of the work.
+ */
+router.post('/:id/trigger', requireAuth, requireRole('admin', 'principal'), requireTenant, async (req, res) => {
   try {
     const wf = await pool.query(
-      `SELECT * FROM workflows WHERE id = $1 AND institution_id = $2 AND is_active = true`,
+      `SELECT id, name, is_active FROM workflows WHERE id = $1 AND institution_id = $2`,
       [req.params.id, req.auth.institution_id]
     );
-    if (wf.rows.length === 0) return res.status(404).json({ error: 'Workflow not found or inactive' });
+    if (wf.rows.length === 0) return res.status(404).json({ error: 'Workflow not found' });
+    if (!wf.rows[0].is_active) return res.status(400).json({ error: 'Workflow is inactive' });
 
-    const { rows } = await pool.query(
-      `INSERT INTO workflow_executions (workflow_id, trigger_data, status)
-       VALUES ($1, $2, 'completed') RETURNING *`,
-      [req.params.id, JSON.stringify(req.body.trigger_data || {})]
-    );
+    const result = await workflowEngine.runWorkflow({
+      workflow_id: req.params.id,
+      institution_id: req.auth.institution_id,
+      trigger_data: req.body.trigger_data || {},
+    });
 
-    await pool.query(
-      `UPDATE workflows SET last_run_at = NOW() WHERE id = $1`, [req.params.id]
-    );
+    await logAudit(pool, req.auth, {
+      action: 'workflow.trigger',
+      entityType: 'workflow',
+      entityId: req.params.id,
+      metadata: { matched: result.matched, status: result.status },
+      req,
+    });
 
-    res.json({ success: true, execution: rows[0] });
-  } catch (err) { res.status(500).json({ error: 'Trigger failed' }); }
+    const exec = await pool.query('SELECT * FROM workflow_executions WHERE id = $1', [result.execution_id]);
+    res.json({
+      success: true,
+      matched: result.matched,
+      actions: result.actions,
+      execution: exec.rows[0],
+    });
+  } catch (err) {
+    console.error('[workflows] trigger failed:', err);
+    res.status(500).json({ error: err.message || 'Trigger failed' });
+  }
+});
+
+// Trigger types the UI can offer, straight from the engine.
+router.get('/meta/triggers', requireAuth, requireRole('admin', 'principal'), requireTenant, (_req, res) => {
+  res.json({ trigger_types: workflowEngine.TRIGGERS });
 });
 
 module.exports = router;

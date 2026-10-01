@@ -6,10 +6,11 @@ import { motion } from "framer-motion";
 import { Shield, Search, ChevronLeft, ChevronRight, Loader2, Filter } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
+/** Matches the audit_log.severity CHECK constraint. */
 const SEVERITY_COLORS = {
-  low: "bg-zinc-100 text-zinc-700",
-  medium: "bg-amber-100 text-amber-800",
-  high: "bg-red-100 text-red-800",
+  info: "bg-zinc-100 text-zinc-700",
+  warning: "bg-amber-100 text-amber-800",
+  critical: "bg-red-100 text-red-800",
 };
 
 export default function AuditLogPage() {
@@ -29,6 +30,7 @@ export default function AuditLogPage() {
       if (filters.severity) params.set("severity", filters.severity);
       if (filters.from) params.set("from", filters.from);
       if (filters.to) params.set("to", filters.to);
+      if (filters.q) params.set("q", filters.q);
       const data = await apiFetch(`/api/audit?${params}`);
       setLogs(data.logs || []);
       setTotal(data.total || 0);
@@ -77,10 +79,17 @@ export default function AuditLogPage() {
           className="rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
         >
           <option value="">All severity</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
+          <option value="info">Info</option>
+          <option value="warning">Warning</option>
+          <option value="critical">Critical</option>
         </select>
+        <input
+          type="search"
+          value={filters.q}
+          onChange={(e) => { setFilters((f) => ({ ...f, q: e.target.value })); setPage(1); }}
+          className="w-48 rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+          placeholder="Search action or actor"
+        />
         <input
           type="date"
           value={filters.from}
@@ -135,8 +144,8 @@ export default function AuditLogPage() {
                       {log.entity_type}{log.entity_id ? ` #${log.entity_id.slice(0, 8)}` : ""}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${SEVERITY_COLORS[log.severity] || SEVERITY_COLORS.low}`}>
-                        {log.severity || "low"}
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${SEVERITY_COLORS[log.severity] || SEVERITY_COLORS.info}`}>
+                        {log.severity || "info"}
                       </span>
                     </td>
                     <td className="max-w-xs truncate px-4 py-3 text-zinc-400">

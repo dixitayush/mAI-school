@@ -72,7 +72,8 @@ router.get('/', requireAuth, requireTenant, async (req, res) => {
       if (['admin', 'principal', 'teacher', 'mai_admin'].includes(role)) {
         searches.push(
           pool.query(
-            `SELECT id, name, 'class' AS type, section AS subtitle
+            `SELECT id, name, 'class' AS type,
+                    ('Grade ' || grade_level::text) AS subtitle
              FROM classes WHERE institution_id = $1 AND LOWER(name) LIKE $2
              LIMIT $3`,
             [institution_id, query, limit]
@@ -85,9 +86,9 @@ router.get('/', requireAuth, requireTenant, async (req, res) => {
       searches.push(
         pool.query(
           `SELECT id, title AS name, 'announcement' AS type,
-                  LEFT(message, 80) AS subtitle
+                  LEFT(content, 80) AS subtitle
            FROM announcements WHERE institution_id = $1
-             AND (LOWER(title) LIKE $2 OR LOWER(message) LIKE $2)
+             AND (LOWER(title) LIKE $2 OR LOWER(content) LIKE $2)
            ORDER BY created_at DESC LIMIT $3`,
           [institution_id, query, limit]
         ).then(r => results.push(...r.rows))
@@ -98,10 +99,10 @@ router.get('/', requireAuth, requireTenant, async (req, res) => {
       searches.push(
         pool.query(
           `SELECT id, title AS name, 'event' AS type,
-                  event_date::text AS subtitle
+                  start_date::text AS subtitle
            FROM events WHERE institution_id = $1
-             AND LOWER(title) LIKE $2
-           ORDER BY event_date DESC LIMIT $3`,
+             AND (LOWER(title) LIKE $2 OR LOWER(COALESCE(description, '')) LIKE $2)
+           ORDER BY start_date DESC LIMIT $3`,
           [institution_id, query, limit]
         ).then(r => results.push(...r.rows))
       );

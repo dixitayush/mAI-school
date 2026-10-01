@@ -828,7 +828,16 @@ router.get(
     try {
       const days = Math.min(Number(req.query.days) || 30, 90);
       const stats = await ai.getUsageStats(req.auth.institution_id, days);
-      res.json({ success: true, days, stats });
+      res.json({
+        success: true,
+        days,
+        stats,
+        configured: ai.isConfigured(),
+        limits: {
+          daily_tenant_limit: Number(process.env.AI_DAILY_TENANT_LIMIT) || 1000,
+          daily_user_limit: Number(process.env.AI_DAILY_USER_LIMIT) || 100,
+        },
+      });
     } catch (err) {
       console.error('[ai] usage failed:', err);
       res.status(500).json({ error: 'Failed to load usage stats' });
@@ -837,10 +846,14 @@ router.get(
 );
 
 // ---------------------------------------------------------------
-// POST /api/ai/feedback  (PRD §92 — AI feedback loop)
+// POST /api/ai/rating  (PRD §92 — AI feedback loop)
+//
+// Not '/feedback': that path is already taken by the teacher feedback-drafting
+// endpoint above, which shadowed this handler so ratings never reached the
+// ai_feedback table.
 // ---------------------------------------------------------------
 router.post(
-  '/feedback',
+  '/rating',
   requireAuth,
   requireTenant,
   async (req, res) => {
@@ -885,7 +898,7 @@ router.post(
           [institution_id]
         ).catch(() => ({ rows: [] })),
         pool.query(
-          `SELECT title, body FROM announcements WHERE institution_id = $1 ORDER BY created_at DESC LIMIT 5`,
+          `SELECT title, content FROM announcements WHERE institution_id = $1 ORDER BY created_at DESC LIMIT 5`,
           [institution_id]
         ).catch(() => ({ rows: [] })),
       ]);

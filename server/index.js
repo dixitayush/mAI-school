@@ -623,6 +623,20 @@ async function shutdown(signal) {
   }
 }
 
+/**
+ * A rejected promise that nobody awaited (a fire-and-forget notification, say)
+ * terminates Node by default, which turns one bad write into a full outage.
+ * Log it and keep serving; an uncaught synchronous throw is still fatal, so
+ * that one shuts down cleanly instead of leaving the pools open.
+ */
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason instanceof Error ? reason.stack : reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err?.stack || err);
+  shutdown('uncaughtException');
+});
+
 // Initialize DB first (creates mai_graphql + RLS), then mount GraphQL so auth succeeds.
 initDb()
   .then(() => {
@@ -632,6 +646,16 @@ initDb()
     jobQueue.registerHandler('email.send', async (payload) => {
       return emailService.send(payload);
     });
+
+    // Import/Export Center (PRD §42). Without these the queued jobs are dead
+    // letters and every import stays stuck in "importing".
+    const dataTransfer = require('./services/dataTransfer');
+    jobQueue.registerHandler('import.process', (payload) => dataTransfer.processImport(payload));
+    jobQueue.registerHandler('export.process', (payload) => dataTransfer.processExport(payload));
+
+    // Workflow rules (PRD §37) evaluated on demand from the admin screen.
+    const workflowEngine = require('./services/workflowEngine');
+    jobQueue.registerHandler('workflow.run', (payload) => workflowEngine.runWorkflow(payload));
 
     jobQueue.start();
     server = app.listen(PORT, () => {

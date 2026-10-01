@@ -75,11 +75,31 @@ router.post('/:id/maintenance', requireAuth, requireRole('admin', 'opsadmin'), r
   const { type, description, cost, performed_by, performed_at, next_due } = req.body;
   if (!type) return res.status(400).json({ error: 'type is required' });
   try {
+    const owned = await pool.query('SELECT id FROM assets WHERE id = $1 AND institution_id = $2', [
+      req.params.id,
+      req.auth.institution_id,
+    ]);
+    if (owned.rows.length === 0) return res.status(404).json({ error: 'Asset not found' });
+
     const { rows } = await pool.query(
       `INSERT INTO asset_maintenance (asset_id, type, description, cost, performed_by, performed_at, next_due)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [req.params.id, type, description || null, cost || null, performed_by || null, performed_at || null, next_due || null]
     );
+    // An open repair should show on the asset row, not just in its history.
+    if (type === 'repair') {
+      await pool.query(
+        `UPDATE assets SET status = 'under_repair', updated_at = NOW()
+          WHERE id = $1 AND institution_id = $2 AND status <> 'disposed'`,
+        [req.params.id, req.auth.institution_id]
+      );
+    }
+    await logAudit(pool, req.auth, {
+      action: 'asset.maintenance',
+      entityType: 'asset',
+      entityId: req.params.id,
+      metadata: { type },
+    });
     res.json({ success: true, maintenance: rows[0] });
   } catch (err) {
     console.error('[inventory] maintenance failed:', err);
@@ -87,17 +107,49 @@ router.post('/:id/maintenance', requireAuth, requireRole('admin', 'opsadmin'), r
   }
 });
 
-// Asset stats
+// Asset stats — headline counters plus the category/status breakdown.
 router.get('/stats', requireAuth, requireRole('admin', 'opsadmin', 'principal'), requireTenant, async (req, res) => {
   try {
+    const [totals, breakdown] = await Promise.all([
+      pool.query(
+        `SELECT count(*)::int AS total,
+                count(*) FILTER (WHERE status = 'available')::int AS available,
+                count(*) FILTER (WHERE status = 'assigned')::int AS assigned,
+                count(*) FILTER (WHERE status = 'under_repair')::int AS under_repair,
+                count(*) FILTER (WHERE status = 'disposed')::int AS disposed,
+                COALESCE(sum(purchase_cost), 0)::float AS total_value
+           FROM assets WHERE institution_id = $1`,
+        [req.auth.institution_id]
+      ),
+      pool.query(
+        `SELECT category, status, count(*)::int AS count
+           FROM assets WHERE institution_id = $1
+           GROUP BY category, status ORDER BY category, status`,
+        [req.auth.institution_id]
+      ),
+    ]);
+    res.json({ stats: { ...totals.rows[0], breakdown: breakdown.rows } });
+  } catch (err) {
+    console.error('[inventory] stats failed:', err);
+    res.status(500).json({ error: 'Failed to load stats' });
+  }
+});
+
+// Maintenance history for an asset
+router.get('/:id/maintenance', requireAuth, requireRole('admin', 'opsadmin', 'principal'), requireTenant, async (req, res) => {
+  try {
     const { rows } = await pool.query(
-      `SELECT category, status, count(*)::int AS count
-         FROM assets WHERE institution_id = $1
-         GROUP BY category, status ORDER BY category, status`,
-      [req.auth.institution_id]
+      `SELECT m.* FROM asset_maintenance m
+         JOIN assets a ON a.id = m.asset_id
+        WHERE m.asset_id = $1 AND a.institution_id = $2
+        ORDER BY COALESCE(m.performed_at, m.created_at::date) DESC`,
+      [req.params.id, req.auth.institution_id]
     );
-    res.json({ stats: rows });
-  } catch (err) { res.status(500).json({ error: 'Failed to load stats' }); }
+    res.json({ maintenance: rows });
+  } catch (err) {
+    console.error('[inventory] maintenance list failed:', err);
+    res.status(500).json({ error: 'Failed to load maintenance history' });
+  }
 });
 
 module.exports = router;

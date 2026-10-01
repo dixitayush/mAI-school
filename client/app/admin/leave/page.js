@@ -29,7 +29,7 @@ export default function LeavePage() {
         apiFetch("/api/leave/types"),
       ]);
       setRequests(reqData.requests || []);
-      setTypes(typeData.types || []);
+      setTypes(typeData.leave_types || typeData.types || []);
     } catch (err) { toast.error(err.message); }
     finally { setLoading(false); }
   }, [statusFilter]);

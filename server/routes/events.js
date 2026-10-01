@@ -3,8 +3,20 @@ const { requireAuth, requireRole, requireTenant } = require('../middleware/auth'
 const { logAudit } = require('../lib/audit');
 const { getAppPool } = require('../db/pool');
 
+/** Mirrors the events CHECK constraints (migration 031). */
+const EVENT_TYPES = [
+  'holiday', 'exam', 'meeting', 'parent_meeting', 'event',
+  'deadline', 'sports', 'cultural', 'workshop', 'other',
+];
+const VISIBILITIES = ['all', 'staff', 'students', 'parents', 'class'];
+
 const router = express.Router();
 const pool = getAppPool();
+
+// Vocabulary for the event form.
+router.get('/meta', requireAuth, requireTenant, (_req, res) => {
+  res.json({ event_types: EVENT_TYPES, visibilities: VISIBILITIES });
+});
 
 // Create event
 router.post(
@@ -21,6 +33,15 @@ router.post(
     if (!title || !event_type || !start_date) {
       return res.status(400).json({ error: 'title, event_type, and start_date are required' });
     }
+    if (!EVENT_TYPES.includes(event_type)) {
+      return res.status(400).json({ error: `event_type must be one of: ${EVENT_TYPES.join(', ')}` });
+    }
+    if (visibility && !VISIBILITIES.includes(visibility)) {
+      return res.status(400).json({ error: `visibility must be one of: ${VISIBILITIES.join(', ')}` });
+    }
+    if (end_date && new Date(end_date) < new Date(start_date)) {
+      return res.status(400).json({ error: 'end_date cannot be before start_date' });
+    }
 
     try {
       const { rows } = await pool.query(
@@ -34,6 +55,13 @@ router.post(
           class_id || null, req.auth.user_id, metadata || '{}',
         ]
       );
+      await logAudit(pool, req.auth, {
+        action: 'event.create',
+        entityType: 'event',
+        entityId: rows[0].id,
+        metadata: { event_type, start_date },
+        req,
+      });
       res.json({ success: true, event: rows[0] });
     } catch (err) {
       console.error('[events] create failed:', err);
@@ -88,6 +116,12 @@ router.patch(
   async (req, res) => {
     const allowed = ['title', 'description', 'event_type', 'start_date', 'end_date',
       'start_time', 'end_time', 'all_day', 'location', 'visibility', 'class_id', 'metadata'];
+    if (req.body.event_type !== undefined && !EVENT_TYPES.includes(req.body.event_type)) {
+      return res.status(400).json({ error: `event_type must be one of: ${EVENT_TYPES.join(', ')}` });
+    }
+    if (req.body.visibility !== undefined && !VISIBILITIES.includes(req.body.visibility)) {
+      return res.status(400).json({ error: `visibility must be one of: ${VISIBILITIES.join(', ')}` });
+    }
     const updates = [];
     const params = [req.params.id, req.auth.institution_id];
     let idx = 3;

@@ -4,9 +4,45 @@ const { requireAuth, requireRole, requireTenant } = require('../middleware/auth'
 const { logAudit } = require('../lib/audit');
 const { getAppPool } = require('../db/pool');
 
+const dataTransfer = require('../services/dataTransfer');
+
 const router = express.Router();
 const pool = getAppPool();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+/**
+ * Enqueue a job, falling back to running it inline. Without the fallback a
+ * worker that is not polling leaves imports stuck in "importing" forever.
+ */
+async function runJob(type, payload, inlineFn) {
+  try {
+    const jobQueue = require('../lib/jobQueue');
+    return { queued: true, job_id: await jobQueue.enqueue(type, payload) };
+  } catch (err) {
+    console.error(`[imports] enqueue ${type} failed, running inline:`, err.message);
+    await inlineFn();
+    return { queued: false };
+  }
+}
+
+// What the UI offers in its import/export pickers.
+router.get('/types', requireAuth, requireRole('admin', 'principal'), requireTenant, (_req, res) => {
+  res.json({
+    import_types: dataTransfer.IMPORT_TYPES,
+    export_types: dataTransfer.EXPORT_TYPES,
+    required_columns: dataTransfer.REQUIRED_COLUMNS,
+    template_columns: dataTransfer.TEMPLATE_COLUMNS,
+  });
+});
+
+// Blank CSV with the right header row.
+router.get('/import/template/:type', requireAuth, requireRole('admin', 'principal'), requireTenant, (req, res) => {
+  const csv = dataTransfer.csvTemplate(req.params.type);
+  if (!csv) return res.status(404).json({ error: 'Unknown import type' });
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${req.params.type}-template.csv"`);
+  res.send(csv);
+});
 
 // Start CSV import
 router.post(
@@ -18,18 +54,22 @@ router.post(
   async (req, res) => {
     const { type } = req.body;
     if (!type) return res.status(400).json({ error: 'type is required' });
+    if (!dataTransfer.IMPORT_TYPES.includes(type)) {
+      return res.status(400).json({ error: `Unsupported type. Expected one of: ${dataTransfer.IMPORT_TYPES.join(', ')}` });
+    }
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
     try {
-      const lines = req.file.buffer.toString('utf-8').split('\n').filter(l => l.trim());
-      const headers = lines[0]?.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-      const rows = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-        const row = {};
-        headers.forEach((h, j) => { row[h] = vals[j] || ''; });
-        rows.push(row);
+      const { headers, rows, missing } = dataTransfer.validateCsv(type, req.file.buffer.toString('utf-8'));
+      if (rows.length === 0) {
+        return res.status(400).json({ error: 'The file has a header row but no data rows' });
+      }
+      if (missing.length > 0) {
+        return res.status(400).json({
+          error: `Missing required column(s): ${missing.join(', ')}`,
+          headers,
+          required: dataTransfer.REQUIRED_COLUMNS[type],
+        });
       }
 
       // Save file reference
@@ -47,6 +87,7 @@ router.post(
         entityType: 'data_import',
         entityId: importRows[0].id,
         metadata: { type, rows: rows.length },
+        req,
       });
 
       res.json({
@@ -77,23 +118,33 @@ router.post(
       );
       if (imp.rows.length === 0) return res.status(404).json({ error: 'Import not found or already processed' });
 
-      // Mark as importing — the actual import would be handled by a background job
       await pool.query(
         `UPDATE data_imports SET status = 'importing', started_at = NOW() WHERE id = $1`,
         [req.params.id]
       );
 
-      // Enqueue background job
-      try {
-        const jobQueue = require('../lib/jobQueue');
-        jobQueue.enqueue('import.process', {
-          import_id: req.params.id,
-          institution_id: req.auth.institution_id,
-          type: imp.rows[0].type,
-        });
-      } catch { /* job enqueue best-effort */ }
+      const payload = {
+        import_id: req.params.id,
+        institution_id: req.auth.institution_id,
+        type: imp.rows[0].type,
+      };
+      const { queued } = await runJob('import.process', payload, () =>
+        dataTransfer.processImport(payload)
+      );
 
-      res.json({ success: true, message: 'Import started in background' });
+      await logAudit(pool, req.auth, {
+        action: 'import.confirm',
+        entityType: 'data_import',
+        entityId: req.params.id,
+        metadata: { type: imp.rows[0].type },
+        req,
+      });
+
+      res.json({
+        success: true,
+        queued,
+        message: queued ? 'Import started in background' : 'Import completed',
+      });
     } catch (err) {
       console.error('[imports] confirm failed:', err);
       res.status(500).json({ error: 'Confirm failed' });
@@ -123,8 +174,13 @@ router.post(
   requireRole('admin', 'principal'),
   requireTenant,
   async (req, res) => {
-    const { type, format, filters } = req.body;
+    // The export screen historically sent `entity`; accept both spellings.
+    const type = req.body.type || req.body.entity;
+    const { format, filters } = req.body;
     if (!type) return res.status(400).json({ error: 'type is required' });
+    if (!dataTransfer.EXPORT_TYPES.includes(type)) {
+      return res.status(400).json({ error: `Unsupported type. Expected one of: ${dataTransfer.EXPORT_TYPES.join(', ')}` });
+    }
 
     try {
       const { rows } = await pool.query(
@@ -133,26 +189,27 @@ router.post(
         [req.auth.institution_id, type, format || 'csv', JSON.stringify(filters || {}), req.auth.user_id]
       );
 
-      // Enqueue background job
-      try {
-        const jobQueue = require('../lib/jobQueue');
-        jobQueue.enqueue('export.process', {
-          export_id: rows[0].id,
-          institution_id: req.auth.institution_id,
-          type,
-          format: format || 'csv',
-          filters: filters || {},
-        });
-      } catch { /* best-effort */ }
+      const payload = {
+        export_id: rows[0].id,
+        institution_id: req.auth.institution_id,
+        type,
+        format: format || 'csv',
+        filters: filters || {},
+      };
+      const { queued } = await runJob('export.process', payload, () =>
+        dataTransfer.processExport(payload)
+      );
 
       await logAudit(pool, req.auth, {
         action: 'export.request',
         entityType: 'data_export',
         entityId: rows[0].id,
         metadata: { type },
+        req,
       });
 
-      res.json({ success: true, export: rows[0] });
+      const fresh = await pool.query('SELECT * FROM data_exports WHERE id = $1', [rows[0].id]);
+      res.json({ success: true, queued, export: fresh.rows[0] || rows[0] });
     } catch (err) {
       console.error('[imports] export request failed:', err);
       res.status(500).json({ error: 'Export request failed' });
@@ -173,6 +230,48 @@ router.get('/exports', requireAuth, requireRole('admin', 'principal'), requireTe
     );
     res.json({ exports: rows });
   } catch (err) { res.status(500).json({ error: 'Failed to load exports' }); }
+});
+
+// Single import, with the per-row errors the processor recorded.
+router.get('/imports/:id', requireAuth, requireRole('admin', 'principal'), requireTenant, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT di.*, u.full_name AS uploaded_by_name
+         FROM data_imports di
+         LEFT JOIN users u ON u.id = di.uploaded_by
+        WHERE di.id = $1 AND di.institution_id = $2`,
+      [req.params.id, req.auth.institution_id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Import not found' });
+    res.json({ import: rows[0] });
+  } catch (err) {
+    console.error('[imports] detail failed:', err);
+    res.status(500).json({ error: 'Failed to load import' });
+  }
+});
+
+// Download a finished export's CSV.
+router.get('/exports/:id/download', requireAuth, requireRole('admin', 'principal'), requireTenant, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT de.status, de.type, f.data, f.filename, f.mime_type
+         FROM data_exports de
+         LEFT JOIN files f ON f.id = de.file_id
+        WHERE de.id = $1 AND de.institution_id = $2`,
+      [req.params.id, req.auth.institution_id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Export not found' });
+    const exp = rows[0];
+    if (exp.status !== 'completed' || !exp.data) {
+      return res.status(409).json({ error: `Export is ${exp.status}` });
+    }
+    res.setHeader('Content-Type', exp.mime_type || 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${exp.filename || `${exp.type}.csv`}"`);
+    res.send(exp.data);
+  } catch (err) {
+    console.error('[imports] export download failed:', err);
+    res.status(500).json({ error: 'Failed to download export' });
+  }
 });
 
 module.exports = router;

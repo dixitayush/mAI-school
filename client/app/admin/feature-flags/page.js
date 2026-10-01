@@ -41,26 +41,27 @@ const FLAG_DESCRIPTIONS = {
 };
 
 export default function FeatureFlagsPage() {
-  const [flags, setFlags] = useState({});
+  // The API returns an array of { name, enabled, updated_at }.
+  const [flags, setFlags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(null);
 
   useEffect(() => {
     apiFetch("/api/feature-flags")
-      .then((data) => setFlags(data.flags || {}))
+      .then((data) => setFlags(Array.isArray(data.flags) ? data.flags : []))
       .catch((err) => toast.error(err.message))
       .finally(() => setLoading(false));
   }, []);
 
-  const toggle = async (flag) => {
-    setToggling(flag);
+  const toggle = async (name, enabled) => {
+    setToggling(name);
     try {
-      const data = await apiFetch(`/api/feature-flags/${flag}`, {
+      const data = await apiFetch(`/api/feature-flags/${name}`, {
         method: "PATCH",
-        body: { enabled: !flags[flag] },
+        body: { enabled: !enabled },
       });
-      setFlags((f) => ({ ...f, [flag]: data.enabled }));
-      toast.success(`${FLAG_LABELS[flag] || flag} ${data.enabled ? "enabled" : "disabled"}`);
+      setFlags((list) => list.map((f) => (f.name === name ? { ...f, enabled: data.enabled } : f)));
+      toast.success(`${FLAG_LABELS[name] || name} ${data.enabled ? "enabled" : "disabled"}`);
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -93,7 +94,7 @@ export default function FeatureFlagsPage() {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-3"
       >
-        {Object.entries(flags).map(([flag, enabled]) => (
+        {flags.map(({ name: flag, enabled }) => (
           <div
             key={flag}
             className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-md"
@@ -104,7 +105,7 @@ export default function FeatureFlagsPage() {
             </div>
             <button
               type="button"
-              onClick={() => toggle(flag)}
+              onClick={() => toggle(flag, enabled)}
               disabled={toggling === flag}
               className={`relative h-7 w-12 shrink-0 rounded-full transition ${
                 enabled ? "bg-primary-600" : "bg-zinc-300"

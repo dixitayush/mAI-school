@@ -33,7 +33,7 @@ export default function TeacherLeavePage() {
       ]);
       setRequests(req.requests || []);
       setBalance(bal.balance || []);
-      setTypes(tp.types || []);
+      setTypes(tp.leave_types || tp.types || []);
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -91,10 +91,13 @@ export default function TeacherLeavePage() {
       {balance.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {balance.map((b) => (
-            <div key={b.type || b.leave_type} className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">{b.type || b.leave_type}</p>
-              <p className="mt-1 text-2xl font-bold text-zinc-900">{b.remaining ?? b.available ?? "—"}</p>
-              <p className="text-xs text-zinc-500">of {b.total ?? b.allocated ?? "—"} days</p>
+            <div key={b.id} className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">{b.name}</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">{b.remaining ?? "—"}</p>
+              <p className="text-xs text-zinc-500">of {b.days_per_year ?? "—"} days</p>
+              {b.pending > 0 && (
+                <p className="mt-1 text-xs font-medium text-amber-600">{b.pending} day(s) pending</p>
+              )}
             </div>
           ))}
         </motion.div>

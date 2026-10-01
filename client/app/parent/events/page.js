@@ -16,7 +16,19 @@ export default function ParentEventsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const TYPE_COLORS = { general: "bg-blue-100 text-blue-800", academic: "bg-primary-100 text-primary-800", sports: "bg-amber-100 text-amber-800", cultural: "bg-violet-100 text-violet-800", pta: "bg-pink-100 text-pink-800" };
+  // Keys match the events.event_type CHECK constraint (migration 031).
+  const TYPE_COLORS = {
+    event: "bg-blue-100 text-blue-800",
+    holiday: "bg-rose-100 text-rose-800",
+    exam: "bg-primary-100 text-primary-800",
+    meeting: "bg-zinc-100 text-zinc-700",
+    parent_meeting: "bg-pink-100 text-pink-800",
+    deadline: "bg-orange-100 text-orange-800",
+    sports: "bg-amber-100 text-amber-800",
+    cultural: "bg-violet-100 text-violet-800",
+    workshop: "bg-sky-100 text-sky-800",
+    other: "bg-zinc-100 text-zinc-700",
+  };
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -44,7 +56,7 @@ export default function ParentEventsPage() {
                 <p className="font-semibold text-zinc-900">{ev.title}</p>
                 <p className="mt-0.5 text-xs text-zinc-500">{ev.location || ""} {ev.description ? `· ${ev.description.slice(0, 80)}` : ""}</p>
               </div>
-              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${TYPE_COLORS[ev.event_type] || TYPE_COLORS.general}`}>{ev.event_type}</span>
+              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${TYPE_COLORS[ev.event_type] || TYPE_COLORS.other}`}>{String(ev.event_type).replace(/_/g, " ")}</span>
             </div>
           ))}
         </div>

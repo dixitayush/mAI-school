@@ -12,7 +12,7 @@ export default function ParentConsentPage() {
 
   useEffect(() => {
     apiFetch("/api/consent/types")
-      .then((data) => setConsents(data.consent_types || data.types || []))
+      .then((data) => setConsents(data.consent_types || data.consent_types || []))
       .catch((err) => toast.error(err.message))
       .finally(() => setLoading(false));
   }, []);
@@ -32,7 +32,7 @@ export default function ParentConsentPage() {
       await apiFetch("/api/consent/record", { method: "POST", body: { consent_type_id: consentId, student_id: studentId, granted } });
       toast.success(granted ? "Consent granted" : "Consent declined");
       const data = await apiFetch("/api/consent/types");
-      setConsents(data.consent_types || data.types || []);
+      setConsents(data.consent_types || data.consent_types || []);
     } catch (err) { toast.error(err.message); }
   };
 

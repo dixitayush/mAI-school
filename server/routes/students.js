@@ -6,6 +6,40 @@ const { getAppPool } = require('../db/pool');
 const router = express.Router();
 const pool = getAppPool();
 
+/**
+ * Roster list — the picker behind transport assignment, document upload,
+ * certificate generation and consent screens, which all need id + name pairs.
+ */
+router.get('/', requireAuth, requireRole('admin', 'principal', 'teacher', 'opsadmin'), requireTenant, async (req, res) => {
+  const { class_id, section, search, lifecycle_status } = req.query;
+  const limit = Math.min(Number(req.query.limit) || 500, 1000);
+  try {
+    let query = `SELECT s.id, s.user_id, s.roll_number, s.section, s.class_id, s.lifecycle_status,
+                        u.full_name, u.username, c.name AS class_name, c.grade_level
+                   FROM students s
+                   JOIN users u ON u.id = s.user_id
+                   LEFT JOIN classes c ON c.id = s.class_id
+                  WHERE u.institution_id = $1`;
+    const params = [req.auth.institution_id];
+    let idx = 2;
+    if (class_id) { query += ` AND s.class_id = $${idx++}`; params.push(class_id); }
+    if (section) { query += ` AND s.section = $${idx++}`; params.push(section); }
+    if (lifecycle_status) { query += ` AND s.lifecycle_status = $${idx++}`; params.push(lifecycle_status); }
+    if (search) {
+      query += ` AND (u.full_name ILIKE $${idx} OR s.roll_number ILIKE $${idx})`;
+      params.push(`%${search}%`);
+      idx++;
+    }
+    query += ` ORDER BY c.name NULLS LAST, s.section NULLS LAST, s.roll_number NULLS LAST, u.full_name LIMIT $${idx}`;
+    params.push(limit);
+    const { rows } = await pool.query(query, params);
+    res.json({ students: rows });
+  } catch (err) {
+    console.error('[students] list failed:', err);
+    res.status(500).json({ error: 'Failed to load students' });
+  }
+});
+
 // Get student profile with extended fields
 router.get('/:id', requireAuth, requireTenant, async (req, res) => {
   try {

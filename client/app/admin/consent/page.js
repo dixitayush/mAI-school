@@ -6,17 +6,28 @@ import { motion } from "framer-motion";
 import { ShieldCheck, Plus, Loader2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
+/** Mirrors the consent_types.category CHECK constraint (migration 037). */
+const CATEGORIES = [
+  { value: "photography", label: "Photography" },
+  { value: "excursion", label: "Excursion" },
+  { value: "online_class", label: "Online class" },
+  { value: "data_processing", label: "Data processing" },
+  { value: "transport", label: "Transport" },
+  { value: "optional_service", label: "Optional service" },
+  { value: "other", label: "Other" },
+];
+
 export default function ConsentPage() {
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "", required: false });
+  const [form, setForm] = useState({ name: "", description: "", category: "photography", required: false });
 
   const fetchTypes = async () => {
     try {
       const data = await apiFetch("/api/consent/types");
-      setTypes(data.types || []);
+      setTypes(data.consent_types || []);
     } catch (err) { toast.error(err.message); }
     finally { setLoading(false); }
   };
@@ -31,7 +42,7 @@ export default function ConsentPage() {
       await apiFetch("/api/consent/types", { method: "POST", body: form });
       toast.success("Consent type created");
       setShowCreate(false);
-      setForm({ name: "", description: "", required: false });
+      setForm({ name: "", description: "", category: "photography", required: false });
       fetchTypes();
     } catch (err) { toast.error(err.message); }
     finally { setCreating(false); }
@@ -57,6 +68,9 @@ export default function ConsentPage() {
       {showCreate && (
         <motion.form initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} onSubmit={onCreate} className="mb-6 space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Consent type name (e.g. Field Trip, Photo Release)" className={inputCls} required />
+          <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className={inputCls} required>
+            {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
           <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Description" rows={2} className={inputCls} />
           <div className="flex items-center gap-3">
             <button type="button" onClick={() => setForm(f => ({ ...f, required: !f.required }))} className={`relative h-6 w-11 rounded-full transition ${form.required ? "bg-primary-600" : "bg-zinc-300"}`}>
@@ -83,7 +97,10 @@ export default function ConsentPage() {
             <div key={t.id} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div>
                 <p className="font-semibold text-zinc-900">{t.name}</p>
-                <p className="mt-0.5 text-xs text-zinc-500">{t.description || "No description"}</p>
+                <p className="mt-0.5 text-xs text-zinc-500">
+                  <span className="capitalize">{(t.category || "other").replace(/_/g, " ")}</span>
+                  {" · "}{t.description || "No description"}
+                </p>
               </div>
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${t.required ? "bg-amber-100 text-amber-800" : "bg-zinc-100 text-zinc-600"}`}>
                 {t.required ? "Required" : "Optional"}

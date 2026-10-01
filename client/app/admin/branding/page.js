@@ -3,13 +3,15 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
-import { Palette, Save, Loader2, Upload, Eye } from "lucide-react";
+import { Palette, Save, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 export default function BrandingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
+    name: "",
+    logo_url: "",
     primary_color: "#6fa371",
     secondary_color: "#3b82f6",
     favicon_url: "",
@@ -20,7 +22,7 @@ export default function BrandingPage() {
     address: "",
     website: "",
     timezone: "Asia/Kolkata",
-    locale: "en-IN",
+    locale: "en",
     currency: "INR",
     date_format: "DD/MM/YYYY",
   });
@@ -28,12 +30,15 @@ export default function BrandingPage() {
   useEffect(() => {
     apiFetch("/api/branding")
       .then((data) => {
-        if (data.branding) {
-          setForm((f) => ({
-            ...f,
-            ...Object.fromEntries(Object.entries(data.branding).filter(([, v]) => v != null)),
-          }));
-        }
+        // The endpoint returns the fields flat and also under `branding`.
+        const branding = data?.branding || data;
+        if (!branding) return;
+        setForm((f) => ({
+          ...f,
+          ...Object.fromEntries(
+            Object.entries(branding).filter(([k, v]) => k in f && v != null)
+          ),
+        }));
       })
       .catch((err) => toast.error(err.message))
       .finally(() => setLoading(false));
@@ -81,6 +86,27 @@ export default function BrandingPage() {
         onSubmit={onSave}
         className="space-y-6"
       >
+        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold text-zinc-900">Identity</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-zinc-700">School name</label>
+              <input required value={form.name} onChange={set("name")} className={inputCls} />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-zinc-700">Logo URL</label>
+              <input type="url" value={form.logo_url} onChange={set("logo_url")} className={inputCls} placeholder="https://..." />
+            </div>
+          </div>
+          {form.logo_url ? (
+            <div className="mt-4 flex items-center gap-3 rounded-xl bg-zinc-50 p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={form.logo_url} alt="School logo preview" className="h-10 w-auto object-contain" />
+              <span className="text-xs text-zinc-500">Logo preview</span>
+            </div>
+          ) : null}
+        </div>
+
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold text-zinc-900">Colors</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

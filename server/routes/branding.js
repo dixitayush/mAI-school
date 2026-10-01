@@ -26,7 +26,9 @@ router.get('/', requireAuth, requireTenant, async (req, res) => {
       [req.auth.institution_id]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Institution not found' });
-    res.json(rows[0]);
+    // Nested under `branding` for the settings screen; fields stay at the top
+    // level so existing callers keep working.
+    res.json({ branding: rows[0], ...rows[0] });
   } catch (err) {
     console.error('[branding]', err);
     res.status(500).json({ error: 'Failed to load branding' });
@@ -37,7 +39,14 @@ router.get('/', requireAuth, requireTenant, async (req, res) => {
 router.patch('/', requireAuth, requireRole('admin'), requireTenant, async (req, res) => {
   const updates = {};
   for (const field of BRANDING_FIELDS) {
-    if (req.body[field] !== undefined) updates[field] = req.body[field];
+    if (req.body[field] === undefined) continue;
+    const value = req.body[field];
+    // A cleared input arrives as '' — store NULL so the public branding
+    // endpoint reports "unset" rather than an empty image URL.
+    updates[field] = typeof value === 'string' && value.trim() === '' ? null : value;
+  }
+  if (updates.name === null) {
+    return res.status(400).json({ error: 'name cannot be empty' });
   }
 
   if (Object.keys(updates).length === 0) {

@@ -7,17 +7,39 @@ const router = express.Router();
 const pool = getAppPool();
 
 // Manage consent types
+// Mirrors the consent_types_category_check constraint (migration 037).
+const CONSENT_CATEGORIES = [
+  'photography',
+  'excursion',
+  'online_class',
+  'data_processing',
+  'transport',
+  'optional_service',
+  'other',
+];
+
 router.post('/types', requireAuth, requireRole('admin', 'principal'), requireTenant, async (req, res) => {
-  const { name, description, category } = req.body;
+  const { name, description, category, required } = req.body;
   if (!name || !category) return res.status(400).json({ error: 'name and category are required' });
+  if (!CONSENT_CATEGORIES.includes(category)) {
+    return res.status(400).json({ error: `category must be one of: ${CONSENT_CATEGORIES.join(', ')}` });
+  }
   try {
     const { rows } = await pool.query(
-      `INSERT INTO consent_types (institution_id, name, description, category)
-       VALUES ($1,$2,$3,$4) RETURNING *`,
-      [req.auth.institution_id, name, description || null, category]
+      `INSERT INTO consent_types (institution_id, name, description, category, required)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [req.auth.institution_id, name, description || null, category, required === true]
     );
     res.json({ success: true, consent_type: rows[0] });
-  } catch (err) { res.status(500).json({ error: 'Failed to create consent type' }); }
+  } catch (err) {
+    console.error('[consent] create type failed:', err);
+    res.status(500).json({ error: 'Failed to create consent type' });
+  }
+});
+
+// What the create form offers in its category picker.
+router.get('/categories', requireAuth, requireTenant, (_req, res) => {
+  res.json({ categories: CONSENT_CATEGORIES });
 });
 
 router.get('/types', requireAuth, requireTenant, async (req, res) => {
@@ -27,7 +49,10 @@ router.get('/types', requireAuth, requireTenant, async (req, res) => {
       [req.auth.institution_id]
     );
     res.json({ consent_types: rows });
-  } catch (err) { res.status(500).json({ error: 'Failed to load consent types' }); }
+  } catch (err) {
+    console.error('[consent] load types failed:', err);
+    res.status(500).json({ error: 'Failed to load consent types' });
+  }
 });
 
 // Record consent (parent grants/revokes)
@@ -92,7 +117,10 @@ router.get('/student/:studentId', requireAuth, requireTenant, async (req, res) =
       [req.params.studentId, req.auth.institution_id]
     );
     res.json({ consents: rows });
-  } catch (err) { res.status(500).json({ error: 'Failed to load consents' }); }
+  } catch (err) {
+    console.error('[consent] load consents failed:', err);
+    res.status(500).json({ error: 'Failed to load consents' });
+  }
 });
 
 module.exports = router;

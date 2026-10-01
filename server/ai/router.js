@@ -45,6 +45,39 @@ const FEATURE_TIERS = {
   'intervention.plan': 'reasoning',
 };
 
+/**
+ * USD per 1M tokens, keyed by model prefix (longest match wins).
+ * Used only to populate ai_requests.estimated_cost so the governance screen
+ * can show spend; keep in sync with the provider's price list.
+ */
+const MODEL_PRICING = {
+  'gpt-4o-mini': { input: 0.15, output: 0.60 },
+  'gpt-4o': { input: 2.50, output: 10.00 },
+  'gpt-4.1-mini': { input: 0.40, output: 1.60 },
+  'gpt-4.1': { input: 2.00, output: 8.00 },
+  'o4-mini': { input: 1.10, output: 4.40 },
+  'gemini-2.5-flash': { input: 0.30, output: 2.50 },
+  'gemini-2.5-pro': { input: 1.25, output: 10.00 },
+};
+const DEFAULT_PRICING = { input: 2.50, output: 10.00 };
+
+function priceFor(model) {
+  if (!model) return DEFAULT_PRICING;
+  const name = String(model).toLowerCase();
+  let best = null;
+  for (const key of Object.keys(MODEL_PRICING)) {
+    if (name.startsWith(key) && (!best || key.length > best.length)) best = key;
+  }
+  return best ? MODEL_PRICING[best] : DEFAULT_PRICING;
+}
+
+/** Cost in whole USD (not cents) for a request's token counts. */
+function estimateCost(model, inputTokens = 0, outputTokens = 0) {
+  const p = priceFor(model);
+  const cost = ((inputTokens || 0) * p.input + (outputTokens || 0) * p.output) / 1e6;
+  return Number(cost.toFixed(6));
+}
+
 function getTier(feature) {
   return FEATURE_TIERS[feature] || 'standard';
 }
@@ -86,22 +119,26 @@ async function checkQuota(tenantId, userId) {
 async function logRequest({ tenantId, userId, feature, tier, model, result, startMs, error }) {
   const pool = getAppPool();
   const latencyMs = Date.now() - startMs;
+  const inputTokens = result?.inputTokens || 0;
+  const outputTokens = result?.outputTokens || 0;
 
   try {
     await pool.query(
       `INSERT INTO ai_requests
-         (tenant_id, user_id, feature, model, tier, input_tokens, output_tokens, latency_ms, status, error_message)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+         (tenant_id, user_id, feature, model, tier, input_tokens, output_tokens,
+          latency_ms, status, estimated_cost, error_message)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
         tenantId,
         userId,
         feature,
         model,
         tier,
-        result?.inputTokens || 0,
-        result?.outputTokens || 0,
+        inputTokens,
+        outputTokens,
         latencyMs,
         error ? 'error' : 'success',
+        estimateCost(result?.model || model, inputTokens, outputTokens),
         error ? String(error).slice(0, 500) : null,
       ]
     );
@@ -162,24 +199,103 @@ async function stream({ feature, messages, tenantId, userId, temperature, maxTok
   return provider.streamText({ model, messages, temperature, maxTokens });
 }
 
+/**
+ * Usage/cost rollup for the AI governance screen.
+ *
+ * The dashboard needs headline totals, a per-feature breakdown and a daily
+ * series, so this returns one object rather than the raw GROUP BY rows the
+ * earlier version handed back (which rendered as all-zero tiles).
+ * `estimated_cost` is stored in whole currency units, so costs come back as
+ * such — the caller must not divide by 100.
+ */
 async function getUsageStats(tenantId, days = 30) {
   const pool = getAppPool();
-  const { rows } = await pool.query(
-    `SELECT
-       count(*)::int AS total_requests,
-       sum(input_tokens)::int AS total_input_tokens,
-       sum(output_tokens)::int AS total_output_tokens,
-       count(*) FILTER (WHERE status = 'error')::int AS errors,
-       feature,
-       tier
-     FROM ai_requests
-     WHERE tenant_id = $1
-       AND created_at >= CURRENT_DATE - ($2 || ' days')::interval
-     GROUP BY feature, tier
-     ORDER BY total_requests DESC`,
-    [tenantId, String(days)]
-  );
-  return rows;
+  const window = String(days);
+
+  const [totalsRes, featureRes, tierRes, dailyRes] = await Promise.all([
+    pool.query(
+      `SELECT
+         count(*)::int AS total_requests,
+         COALESCE(sum(input_tokens), 0)::int AS total_input_tokens,
+         COALESCE(sum(output_tokens), 0)::int AS total_output_tokens,
+         COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)), 0)::int AS total_tokens,
+         COALESCE(sum(estimated_cost), 0)::float AS total_cost,
+         count(*) FILTER (WHERE status = 'error')::int AS errors,
+         count(*) FILTER (WHERE status = 'timeout')::int AS timeouts,
+         COALESCE(round(avg(latency_ms))::int, 0) AS avg_latency_ms
+       FROM ai_requests
+       WHERE tenant_id = $1
+         AND created_at >= CURRENT_DATE - ($2 || ' days')::interval`,
+      [tenantId, window]
+    ),
+    pool.query(
+      `SELECT feature,
+              count(*)::int AS count,
+              COALESCE(sum(estimated_cost), 0)::float AS cost,
+              COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)), 0)::int AS tokens,
+              count(*) FILTER (WHERE status = 'error')::int AS errors
+         FROM ai_requests
+        WHERE tenant_id = $1
+          AND created_at >= CURRENT_DATE - ($2 || ' days')::interval
+        GROUP BY feature
+        ORDER BY count DESC`,
+      [tenantId, window]
+    ),
+    pool.query(
+      `SELECT COALESCE(tier, 'unknown') AS tier,
+              count(*)::int AS count,
+              COALESCE(sum(estimated_cost), 0)::float AS cost
+         FROM ai_requests
+        WHERE tenant_id = $1
+          AND created_at >= CURRENT_DATE - ($2 || ' days')::interval
+        GROUP BY tier
+        ORDER BY count DESC`,
+      [tenantId, window]
+    ),
+    pool.query(
+      `SELECT created_at::date AS date,
+              count(*)::int AS requests,
+              COALESCE(sum(estimated_cost), 0)::float AS cost,
+              COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)), 0)::int AS tokens
+         FROM ai_requests
+        WHERE tenant_id = $1
+          AND created_at >= CURRENT_DATE - ($2 || ' days')::interval
+        GROUP BY created_at::date
+        ORDER BY date DESC`,
+      [tenantId, window]
+    ),
+  ]);
+
+  const totals = totalsRes.rows[0] || {};
+  const by_feature = {};
+  for (const r of featureRes.rows) {
+    by_feature[r.feature] = {
+      count: r.count,
+      cost: r.cost,
+      tokens: r.tokens,
+      errors: r.errors,
+    };
+  }
+
+  return {
+    total_requests: totals.total_requests || 0,
+    total_input_tokens: totals.total_input_tokens || 0,
+    total_output_tokens: totals.total_output_tokens || 0,
+    total_tokens: totals.total_tokens || 0,
+    total_cost: totals.total_cost || 0,
+    errors: totals.errors || 0,
+    timeouts: totals.timeouts || 0,
+    avg_latency_ms: totals.avg_latency_ms || 0,
+    by_feature,
+    by_tier: tierRes.rows,
+    daily: dailyRes.rows.map((r) => ({
+      date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date),
+      requests: r.requests,
+      cost: r.cost,
+      tokens: r.tokens,
+    })),
+    features: featureRes.rows,
+  };
 }
 
 module.exports = {
@@ -189,6 +305,8 @@ module.exports = {
   isConfigured,
   checkQuota,
   getUsageStats,
+  estimateCost,
+  MODEL_PRICING,
   getTier,
   getModel,
   MODELS,

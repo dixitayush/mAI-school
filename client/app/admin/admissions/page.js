@@ -6,16 +6,39 @@ import { motion } from "framer-motion";
 import { ClipboardCheck, Plus, Loader2, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
+/** Mirrors the admissions.status CHECK constraint (migration 029). */
+const STATUSES = [
+  "inquiry",
+  "application_started",
+  "documents_pending",
+  "submitted",
+  "under_review",
+  "interview",
+  "assessment",
+  "selected",
+  "fee_pending",
+  "enrolled",
+  "rejected",
+  "withdrawn",
+];
+
+/** The six stages shown as counter tiles; the rest stay available in the dropdown. */
+const PIPELINE_TILES = ["inquiry", "submitted", "under_review", "interview", "selected", "enrolled"];
+
 const STATUS_COLORS = {
   inquiry: "bg-zinc-100 text-zinc-700",
-  applied: "bg-blue-100 text-blue-800",
+  application_started: "bg-zinc-100 text-zinc-700",
+  documents_pending: "bg-orange-100 text-orange-800",
+  submitted: "bg-blue-100 text-blue-800",
   under_review: "bg-amber-100 text-amber-800",
-  accepted: "bg-emerald-100 text-emerald-800",
+  interview: "bg-indigo-100 text-indigo-800",
+  assessment: "bg-sky-100 text-sky-800",
+  selected: "bg-emerald-100 text-emerald-800",
+  fee_pending: "bg-yellow-100 text-yellow-800",
   enrolled: "bg-primary-100 text-primary-800",
   rejected: "bg-red-100 text-red-800",
+  withdrawn: "bg-zinc-200 text-zinc-600",
 };
-
-const STATUSES = ["inquiry", "applied", "under_review", "accepted", "enrolled", "rejected"];
 
 const EMPTY_FORM = {
   applicant_name: "", date_of_birth: "", gender: "male", requested_grade: "",
@@ -43,9 +66,12 @@ export default function AdmissionsPage() {
         apiFetch(`/api/admissions?${params}`),
         apiFetch("/api/admissions/pipeline/summary"),
       ]);
-      setApps(listData.applications || []);
+      setApps(listData.admissions || []);
       setTotal(listData.total || 0);
-      setSummary(summaryData.summary || {});
+      // The API returns `pipeline` as [{ status, count }]; the tiles index by status.
+      setSummary(
+        Object.fromEntries((summaryData.pipeline || []).map((r) => [r.status, r.count]))
+      );
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -98,11 +124,11 @@ export default function AdmissionsPage() {
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {STATUSES.map((s) => (
+        {PIPELINE_TILES.map((s) => (
           <button key={s} onClick={() => { setStatusFilter(statusFilter === s ? "" : s); setPage(1); }}
             className={`rounded-2xl border p-4 text-center transition ${statusFilter === s ? "border-primary-300 bg-primary-50 ring-2 ring-primary-500/20" : "border-zinc-200 bg-white shadow-sm hover:shadow-md"}`}>
             <p className="text-2xl font-bold text-zinc-900">{summary[s] || 0}</p>
-            <p className="mt-1 text-xs font-medium capitalize text-zinc-500">{s.replace("_", " ")}</p>
+            <p className="mt-1 text-xs font-medium capitalize text-zinc-500">{s.replace(/_/g, " ")}</p>
           </button>
         ))}
       </div>
@@ -151,14 +177,14 @@ export default function AdmissionsPage() {
                     <td className="px-4 py-3 text-zinc-600">{app.requested_grade}</td>
                     <td className="px-4 py-3 text-zinc-500">{app.guardian_name || "—"}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${STATUS_COLORS[app.status] || "bg-zinc-100 text-zinc-700"}`}>{app.status?.replace("_", " ")}</span>
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${STATUS_COLORS[app.status] || "bg-zinc-100 text-zinc-700"}`}>{app.status?.replace(/_/g, " ")}</span>
                     </td>
                     <td className="px-4 py-3 text-zinc-500">{app.created_at ? new Date(app.created_at).toLocaleDateString() : "—"}</td>
                     <td className="px-4 py-3">
                       <select value="" onChange={(e) => { if (e.target.value) updateStatus(app.id, e.target.value); }}
                         className="rounded-lg border border-zinc-200 px-2 py-1 text-xs text-zinc-600">
                         <option value="">Move to...</option>
-                        {STATUSES.filter((s) => s !== app.status).map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+                        {STATUSES.filter((s) => s !== app.status).map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
                       </select>
                     </td>
                   </tr>

@@ -143,9 +143,13 @@ function helmetMiddleware() {
 }
 
 /**
- * Multi-tenant rate-limit key: institution_id (from JWT when present) + client IP.
- * One noisy tenant cannot exhaust another tenant's budget on a shared IP (NAT),
- * and unauthenticated traffic still keys by IP alone.
+ * Rate-limit key for authenticated traffic: tenant + user.
+ *
+ * Keying on tenant+IP alone meant every signed-in user of one school shared a
+ * single budget, so a few dashboards open at once exhausted it and the whole
+ * app started answering "Too many requests". Per-user keying keeps the
+ * cross-tenant isolation while giving each account its own allowance.
+ * Unauthenticated traffic still keys by IP.
  */
 function tenantRateLimitKey(req) {
   const ip = clientIpKey(req);
@@ -154,7 +158,8 @@ function tenantRateLimitKey(req) {
   try {
     const p = verifyAccessToken(token);
     const tenant = p.institution_id != null && p.institution_id !== '' ? String(p.institution_id) : 'platform';
-    return `t:${tenant}:${ip}`;
+    const user = p.user_id != null && p.user_id !== '' ? String(p.user_id) : ip;
+    return `t:${tenant}:u:${user}`;
   } catch {
     return `anon:${ip}`;
   }
@@ -188,7 +193,7 @@ function authRateLimiter() {
 function apiRateLimiter() {
   return rateLimit({
     windowMs: 60 * 1000,
-    max: Number(process.env.API_RATE_LIMIT_MAX) || 200,
+    max: Number(process.env.API_RATE_LIMIT_MAX) || 600,
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: tenantRateLimitKey,
@@ -202,7 +207,7 @@ function apiRateLimiter() {
 function graphqlRateLimiter() {
   return rateLimit({
     windowMs: 60 * 1000,
-    max: Number(process.env.GRAPHQL_RATE_LIMIT_MAX) || 120,
+    max: Number(process.env.GRAPHQL_RATE_LIMIT_MAX) || 400,
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: tenantRateLimitKey,

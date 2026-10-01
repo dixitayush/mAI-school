@@ -131,7 +131,12 @@ router.post('/threads/:threadId/messages', requireAuth, requireTenant, async (re
       [threadId, req.auth.user_id]
     );
 
-    // Notify other participants
+    // Notify other participants.
+    //
+    // notify() takes a single options object — passing the pool as a first
+    // argument left every field undefined, so the insert hit the tenant_id
+    // NOT NULL constraint. The call was also un-awaited, so that rejection
+    // escaped this try/catch and took the process down with it.
     try {
       const notificationService = require('../services/notificationService');
       const participants = await pool.query(
@@ -139,19 +144,20 @@ router.post('/threads/:threadId/messages', requireAuth, requireTenant, async (re
         [threadId, req.auth.user_id]
       );
       const senderName = await pool.query(`SELECT full_name FROM users WHERE id = $1`, [req.auth.user_id]);
+      const body = `${senderName.rows[0]?.full_name || 'Someone'}: ${content.slice(0, 100)}`;
 
-      for (const p of participants.rows) {
-        notificationService.notify(pool, {
-          tenantId: req.auth.institution_id,
-          recipientId: p.user_id,
-          type: 'message',
-          title: 'New message',
-          body: `${senderName.rows[0]?.full_name || 'Someone'}: ${content.slice(0, 100)}`,
-          entityType: 'message_thread',
-          entityId: threadId,
-        });
-      }
-    } catch { /* notifications are best-effort */ }
+      await notificationService.notifyBulk({
+        tenantId: req.auth.institution_id,
+        recipientIds: participants.rows.map((p) => p.user_id),
+        type: 'message',
+        title: 'New message',
+        body,
+        entityType: 'message_thread',
+        entityId: threadId,
+      });
+    } catch (notifyErr) {
+      console.error('[communication] notify failed:', notifyErr.message);
+    }
 
     res.json({ success: true, message: rows[0] });
   } catch (err) {
