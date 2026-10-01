@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, gql } from "@apollo/client";
 import {
   ClipboardList,
@@ -22,6 +23,7 @@ const GET_STUDENT_ASSIGNMENTS = gql`
       nodes {
         id
         classId
+        section
       }
     }
   }
@@ -37,9 +39,11 @@ const GET_CLASS_ASSIGNMENTS = gql`
         dueDate
         createdAt
         fileId
+        section
         assignmentSubmissionsByAssignmentId {
           nodes {
             id
+            studentId
             comment
             grade
             remarks
@@ -92,7 +96,10 @@ function StudentAssignmentsContent() {
     variables: { userId: user?.id },
     skip: !user?.id,
   });
-  const classId = sData?.allStudents?.nodes?.[0]?.classId;
+  const me = sData?.allStudents?.nodes?.[0];
+  const classId = me?.classId;
+  const mySection = me?.section || null;
+  const myStudentId = me?.id || null;
 
   const { data, loading, refetch } = useQuery(GET_CLASS_ASSIGNMENTS, {
     variables: { classId },
@@ -109,7 +116,9 @@ function StudentAssignmentsContent() {
     );
   }
 
-  const assignments = data?.allAssignments?.nodes || [];
+  const assignments = (data?.allAssignments?.nodes || []).filter(
+    (a) => !a.section || !mySection || a.section === mySection
+  );
 
   return (
     <div className="space-y-6">
@@ -141,6 +150,7 @@ function StudentAssignmentsContent() {
             <AssignmentCard
               key={a.id}
               assignment={a}
+              myStudentId={myStudentId}
               onSubmit={async ({ comment, fileId }) => {
                 try {
                   await submitAssignment({
@@ -160,8 +170,9 @@ function StudentAssignmentsContent() {
   );
 }
 
-function AssignmentCard({ assignment: a, onSubmit }) {
-  const mine = a.assignmentSubmissionsByAssignmentId?.nodes?.[0] || null;
+function AssignmentCard({ assignment: a, myStudentId, onSubmit }) {
+  const mine =
+    a.assignmentSubmissionsByAssignmentId?.nodes?.find((n) => n.studentId === myStudentId) || null;
   const [comment, setComment] = useState("");
   const [fileId, setFileId] = useState(null);
   const [busy, setBusy] = useState(false);

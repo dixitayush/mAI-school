@@ -1,46 +1,17 @@
 "use client";
 
-import { useState } from 'react';
-import { useQuery, useMutation, gql } from '@apollo/client';
+import { useCallback, useEffect, useState } from 'react';
+import { useMutation, gql } from '@apollo/client';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
 import DataTable from '@/components/DataTable';
 import StudentModal from '@/components/StudentModal';
+import StudentFilterBar from '@/components/StudentFilterBar';
+import Pagination from '@/components/Pagination';
+import Uuid from '@/components/Uuid';
 import { Mail, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { apiBase, authHeaders } from '@/lib/api';
-
-const GET_STUDENTS = gql`
-  query GetStudents {
-    allStudents {
-      nodes {
-        id
-        enrollmentDate
-        classId
-        parentName
-        parentEmail
-        parentPhone
-        parentAddress
-        userByUserId {
-          id
-          fullName
-          username
-          profileByUserId {
-            email
-          }
-        }
-        classByClassId {
-          name
-        }
-      }
-    }
-    allClasses {
-      nodes {
-        id
-        name
-      }
-    }
-  }
-`;
+import { apiBase, authHeaders, apiFetch } from '@/lib/api';
+import { useFilterOptions, toQuery } from '@/lib/useFilterOptions';
 
 const CREATE_STUDENT = gql`
   mutation CreateStudent(
@@ -112,8 +83,9 @@ const DELETE_STUDENT = gql`
   }
 `;
 
+const PAGE_SIZE = 50;
+
 function StudentsContent() {
-  const { loading, error, data, refetch } = useQuery(GET_STUDENTS);
   const [createStudent] = useMutation(CREATE_STUDENT);
   const [updateStudent] = useMutation(UPDATE_STUDENT);
   const [deleteStudent] = useMutation(DELETE_STUDENT);
@@ -122,16 +94,63 @@ function StudentsContent() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
-  // Helper to extract email safely
-  const getEmail = (row) => row.userByUserId?.profileByUserId?.email;
+  // The roster is fetched a page at a time with the filters applied server
+  // side: a 500–1000 student school cannot be loaded into the browser at once.
+  const [filters, setFilters] = useState({
+    session_id: '', class_id: '', section: '', grade_level: '', lifecycle_status: '', search: '', page: 1,
+  });
+  const [result, setResult] = useState({ students: [], total: 0, total_pages: 1, page: 1 });
+  const [loading, setLoading] = useState(true);
+  const { options } = useFilterOptions();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch(`/api/students${toQuery({ ...filters, limit: PAGE_SIZE })}`);
+      setResult({
+        students: data.students || [],
+        total: data.total || 0,
+        total_pages: data.total_pages || 1,
+        page: data.page || 1,
+      });
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
+
+  // Debounced so typing in the search box does not fire a request per keystroke.
+  useEffect(() => {
+    const t = setTimeout(load, filters.search ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [load, filters.search]);
+
+  const refetch = load;
+  const rows = result.students;
+  const getEmail = (row) => row.email;
 
   const columns = [
-    { header: 'Name', accessor: 'userByUserId.fullName', render: (row) => row.userByUserId?.fullName },
-    { header: 'Username', accessor: 'userByUserId.username', render: (row) => row.userByUserId?.username },
-    { header: 'Email', accessor: 'email', render: (row) => getEmail(row) },
-    { header: 'Parent', accessor: 'parentName', render: (row) => row.parentName || '-' },
-    { header: 'Class', accessor: 'classByClassId.name', render: (row) => row.classByClassId?.name || 'Unassigned' },
-    { header: 'Enrollment Date', accessor: 'enrollmentDate' },
+    {
+      header: 'Student ID',
+      accessor: 'id',
+      render: (row) => <Uuid value={row.id} label="Student ID" />,
+    },
+    { header: 'Name', accessor: 'full_name', render: (row) => row.full_name },
+    { header: 'Username', accessor: 'username', render: (row) => row.username },
+    { header: 'Roll No', accessor: 'roll_number', render: (row) => row.roll_number || '-' },
+    {
+      header: 'Class',
+      accessor: 'class_name',
+      render: (row) => (row.class_name ? `${row.class_name}${row.section ? ` · ${row.section}` : ''}` : 'Unassigned'),
+    },
+    { header: 'Email', accessor: 'email', render: (row) => row.email || '-' },
+    { header: 'Parent', accessor: 'parent_name', render: (row) => row.parent_name || '-' },
+    {
+      header: 'Status',
+      accessor: 'lifecycle_status',
+      render: (row) => <span className="capitalize">{row.lifecycle_status || '-'}</span>,
+    },
     {
       header: 'Actions',
       accessor: 'actions',
@@ -154,20 +173,26 @@ function StudentsContent() {
   };
 
   const handleEdit = (row) => {
-    // Transform data for the modal
-    const studentForModal = {
+    // StudentModal still reads the GraphQL-shaped nesting.
+    setSelectedStudent({
       ...row,
+      classId: row.class_id,
+      parentName: row.parent_name,
+      parentEmail: row.parent_email,
+      parentPhone: row.parent_phone,
+      parentAddress: row.parent_address,
       userByUserId: {
-        ...row.userByUserId,
-        email: getEmail(row) // Flatten email for the modal
-      }
-    };
-    setSelectedStudent(studentForModal);
+        id: row.user_id,
+        fullName: row.full_name,
+        username: row.username,
+        email: row.email,
+      },
+    });
     setModalOpen(true);
   };
 
   const handleDelete = async (row) => {
-    if (confirm(`Are you sure you want to delete ${row.userByUserId?.fullName}? This action cannot be undone.`)) {
+    if (confirm(`Are you sure you want to delete ${row.full_name}? This action cannot be undone.`)) {
       try {
         await deleteStudent({
           variables: { studentId: row.id }
@@ -230,7 +255,7 @@ function StudentsContent() {
         body: JSON.stringify({
           to: email || 'student@example.com',
           subject: 'Welcome to mAI-school',
-          text: `Hello ${row.userByUserId?.fullName}, welcome to mAI-school!`
+          text: `Hello ${row.full_name}, welcome to mAI-school!`
         })
       });
       const data = await res.json();
@@ -258,14 +283,31 @@ function StudentsContent() {
         <p className="text-zinc-500">Manage student records, enrollments, and classes.</p>
       </div>
 
+      <StudentFilterBar
+        value={filters}
+        onChange={setFilters}
+        show={['session', 'class', 'section', 'grade', 'status', 'search']}
+        resultCount={result.total}
+      />
+
       <DataTable
         title="All Students"
         columns={columns}
-        data={data?.allStudents?.nodes || []}
+        data={rows}
         isLoading={loading}
         onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        searchable={false}
+        pageSize={PAGE_SIZE}
+      />
+
+      <Pagination
+        page={result.page}
+        totalPages={result.total_pages}
+        total={result.total}
+        limit={PAGE_SIZE}
+        onPage={(p) => setFilters((f) => ({ ...f, page: p }))}
       />
 
       <StudentModal
@@ -273,7 +315,7 @@ function StudentsContent() {
         onClose={() => setModalOpen(false)}
         onSubmit={handleModalSubmit}
         student={selectedStudent}
-        classes={data?.allClasses?.nodes || []}
+        classes={options.classes}
       />
     </div>
   );

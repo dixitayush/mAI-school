@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
 import { ArrowUpDown, Upload, Download, Loader2, FileDown, AlertTriangle, RefreshCw } from "lucide-react";
 import { apiFetch, apiUpload, apiBase, authHeaders } from "@/lib/api";
+import { useFilterOptions } from "@/lib/useFilterOptions";
 
 const STATUS = {
   completed: "bg-emerald-100 text-emerald-800",
@@ -19,9 +20,173 @@ const STATUS = {
 
 const label = (s) => String(s || "").replace(/_/g, " ");
 
+
+const EXPORT_SELECT_CLS =
+  "rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20";
+
+// Option lists that mirror CHECK constraints rather than live data.
+const STATUS_OPTIONS = {
+  fees: ["pending", "partial", "paid", "overdue"],
+  attendance: ["present", "absent", "late"],
+  inventory: ["available", "assigned", "under_repair", "disposed"],
+};
+const CATEGORY_OPTIONS = {
+  inventory: ["computer", "projector", "furniture", "lab_equipment", "sports_equipment", "stationery", "vehicle", "other"],
+};
+const SEVERITY_OPTIONS = ["info", "warning", "critical"];
+
+/**
+ * The filter controls for one export type. Which controls appear comes from the
+ * server's `export_filters` map, so a type can gain a filter without touching
+ * this component.
+ */
+function ExportFilters({ type, supported, value, onChange }) {
+  const { options } = useFilterOptions();
+  const has = (k) => supported.includes(k);
+  const set = (key) => (e) => onChange({ ...value, [key]: e.target.value });
+
+  if (!supported.length) {
+    return <p className="text-xs text-zinc-500">This export has no filters — it includes all records.</p>;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-zinc-50 p-3">
+      {has("session_id") && (
+        <select value={value.session_id || ""} onChange={set("session_id")} className={EXPORT_SELECT_CLS} aria-label="Session">
+          <option value="">Current roster</option>
+          {options.sessions.map((o) => (
+            <option key={o.id} value={o.id}>{o.name}{o.is_current ? " (current)" : ""}</option>
+          ))}
+        </select>
+      )}
+      {has("class_id") && (
+        <select value={value.class_id || ""} onChange={set("class_id")} className={EXPORT_SELECT_CLS} aria-label="Class">
+          <option value="">All classes</option>
+          {options.classes.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+        </select>
+      )}
+      {has("section") && (
+        <select value={value.section || ""} onChange={set("section")} className={EXPORT_SELECT_CLS} aria-label="Section">
+          <option value="">All sections</option>
+          {options.sections.map((o) => <option key={o} value={o}>Section {o}</option>)}
+        </select>
+      )}
+      {has("grade_level") && (
+        <select value={value.grade_level || ""} onChange={set("grade_level")} className={EXPORT_SELECT_CLS} aria-label="Grade">
+          <option value="">All grades</option>
+          {options.grade_levels.map((o) => <option key={o} value={o}>Grade {o}</option>)}
+        </select>
+      )}
+      {has("exam_id") && (
+        <select value={value.exam_id || ""} onChange={set("exam_id")} className={EXPORT_SELECT_CLS} aria-label="Exam">
+          <option value="">All exams</option>
+          {options.exams.map((o) => (
+            <option key={o.id} value={o.id}>{o.title}{o.class_name ? ` · ${o.class_name}` : ""}</option>
+          ))}
+        </select>
+      )}
+      {has("lifecycle_status") && (
+        <select value={value.lifecycle_status || ""} onChange={set("lifecycle_status")} className={EXPORT_SELECT_CLS} aria-label="Lifecycle status">
+          <option value="">Any status</option>
+          {options.lifecycle_statuses.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      )}
+      {has("status") && (
+        <select value={value.status || ""} onChange={set("status")} className={EXPORT_SELECT_CLS} aria-label="Status">
+          <option value="">Any status</option>
+          {(STATUS_OPTIONS[type] || []).map((o) => (
+            <option key={o} value={o} className="capitalize">{o.replace(/_/g, " ")}</option>
+          ))}
+        </select>
+      )}
+      {has("category") && (
+        <select value={value.category || ""} onChange={set("category")} className={EXPORT_SELECT_CLS} aria-label="Category">
+          <option value="">All categories</option>
+          {(CATEGORY_OPTIONS[type] || []).map((o) => (
+            <option key={o} value={o} className="capitalize">{o.replace(/_/g, " ")}</option>
+          ))}
+        </select>
+      )}
+      {has("severity") && (
+        <select value={value.severity || ""} onChange={set("severity")} className={EXPORT_SELECT_CLS} aria-label="Severity">
+          <option value="">Any severity</option>
+          {SEVERITY_OPTIONS.map((o) => <option key={o} value={o} className="capitalize">{o}</option>)}
+        </select>
+      )}
+      {has("date_from") && (
+        <label className="flex items-center gap-1.5 text-xs text-zinc-500">
+          From
+          <input type="date" value={value.date_from || ""} onChange={set("date_from")} className={EXPORT_SELECT_CLS} />
+        </label>
+      )}
+      {has("date_to") && (
+        <label className="flex items-center gap-1.5 text-xs text-zinc-500">
+          To
+          <input type="date" value={value.date_to || ""} onChange={set("date_to")} className={EXPORT_SELECT_CLS} />
+        </label>
+      )}
+      {has("search") && (
+        <input
+          value={value.search || ""}
+          onChange={set("search")}
+          placeholder="Search…"
+          className={`${EXPORT_SELECT_CLS} min-w-[180px]`}
+        />
+      )}
+      {Object.values(value).some((v) => v) && (
+        <button type="button" onClick={() => onChange({})} className="rounded-lg px-2 py-1.5 text-xs font-medium text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700">
+          Reset
+        </button>
+      )}
+    </div>
+  );
+}
+
+
+/**
+ * Target class / section / session for an import.
+ *
+ * Picking a class here means the CSV does not need a class_name column — the
+ * common case is bulk-loading one class's roster from a sheet that only lists
+ * names and roll numbers.
+ */
+function ImportDefaults({ type, value, onChange }) {
+  const { options } = useFilterOptions();
+  if (type !== "students") return null;
+  const set = (key) => (e) => onChange({ ...value, [key]: e.target.value });
+
+  return (
+    <>
+      <label className="mb-1 block text-xs font-medium text-zinc-600">
+        Target class, section &amp; session <span className="font-normal text-zinc-400">(optional)</span>
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={value.default_class_id} onChange={set("default_class_id")} className={EXPORT_SELECT_CLS} aria-label="Target class">
+          <option value="">Use class_name column</option>
+          {options.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <select value={value.default_section} onChange={set("default_section")} className={EXPORT_SELECT_CLS} aria-label="Target section">
+          <option value="">Use section column</option>
+          {options.sections.map((sec) => <option key={sec} value={sec}>Section {sec}</option>)}
+        </select>
+        <select value={value.session_id} onChange={set("session_id")} className={EXPORT_SELECT_CLS} aria-label="Target session">
+          <option value="">Current session</option>
+          {options.sessions.map((o) => (
+            <option key={o.id} value={o.id}>{o.name}{o.is_current ? " (current)" : ""}</option>
+          ))}
+        </select>
+      </div>
+    </>
+  );
+}
+
 export default function ImportsPage() {
   const [imports, setImports] = useState([]);
   const [exports, setExports] = useState([]);
+  const [exportType, setExportType] = useState("students");
+  // Defaults applied to rows that leave the column blank.
+  const [importDefaults, setImportDefaults] = useState({ default_class_id: "", default_section: "", session_id: "" });
+  const [exportFilters, setExportFilters] = useState({});
   const [types, setTypes] = useState({ import_types: [], export_types: [], required_columns: {} });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -52,7 +217,10 @@ export default function ImportsPage() {
     if (!file.name.toLowerCase().endsWith(".csv")) return toast.error("Only CSV files are supported");
     setBusy(true);
     try {
-      const data = await apiUpload("/api/data/import", file, { type: importType });
+      const data = await apiUpload("/api/data/import", file, {
+        type: importType,
+        ...Object.fromEntries(Object.entries(importDefaults).filter(([, v]) => v)),
+      });
       setPreview({ ...data, type: importType });
       toast.success(`${data.total_rows} row(s) ready to import`);
       await refresh();
@@ -106,10 +274,14 @@ export default function ImportsPage() {
     await downloadAuthed(`/api/data/import/template/${type}`, `${type}-template.csv`);
   };
 
-  const startExport = async (type) => {
+  const startExport = async (type, filters = {}) => {
     setBusy(true);
     try {
-      const res = await apiFetch("/api/data/export", { method: "POST", body: { type } });
+      // Drop blank controls so the server only sees filters the user actually set.
+      const active = Object.fromEntries(
+        Object.entries(filters).filter(([, v]) => v !== "" && v !== null && v !== undefined)
+      );
+      const res = await apiFetch("/api/data/export", { method: "POST", body: { type, filters: active } });
       toast.success(res.export?.status === "completed" ? `${type} export ready` : `Export queued for ${type}`);
       await pollExport(res.export.id);
       await refresh();
@@ -223,6 +395,14 @@ export default function ImportsPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <ImportDefaults
+                  type={importType}
+                  value={importDefaults}
+                  onChange={(v) => { setImportDefaults(v); setPreview(null); }}
+                />
               </div>
               <button
                 onClick={() => downloadTemplate(importType)}
@@ -357,19 +537,42 @@ export default function ImportsPage() {
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
           <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-900">Export Data</h2>
-            <div className="flex flex-wrap gap-3">
+            <h2 className="mb-1 text-lg font-semibold text-zinc-900">Export Data</h2>
+            <p className="mb-4 text-sm text-zinc-500">
+              Pick what to export, then narrow it down. Leaving a filter unset includes everything.
+            </p>
+
+            <div className="mb-4 flex flex-wrap gap-2">
               {(types.export_types || []).map((type) => (
                 <button
                   key={type}
-                  onClick={() => startExport(type)}
-                  disabled={busy}
-                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium capitalize text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:opacity-60"
+                  onClick={() => { setExportType(type); setExportFilters({}); }}
+                  className={`rounded-xl border px-3.5 py-2 text-sm font-medium capitalize shadow-sm transition ${
+                    exportType === type
+                      ? "border-primary-600 bg-primary-50 text-primary-700"
+                      : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                  }`}
                 >
-                  <Download className="h-4 w-4" /> {type}
+                  {type}
                 </button>
               ))}
             </div>
+
+            <ExportFilters
+              type={exportType}
+              supported={types.export_filters?.[exportType] || []}
+              value={exportFilters}
+              onChange={setExportFilters}
+            />
+
+            <button
+              onClick={() => startExport(exportType, exportFilters)}
+              disabled={busy}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60"
+            >
+              <Download className="h-4 w-4" />
+              Export <span className="capitalize">{exportType}</span>
+            </button>
           </div>
 
           <div className="rounded-2xl border border-zinc-200 bg-white shadow-sm">

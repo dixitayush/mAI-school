@@ -1,16 +1,15 @@
 "use client";
 
-import { useState, useEffect, Fragment } from 'react';
-import { Combobox, Transition } from '@headlessui/react';
-import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import Modal from './Modal';
 import { toast } from 'react-hot-toast';
+import StudentPicker from "@/components/StudentPicker";
 
 const EMPTY = { amount: '', description: '', dueDate: '', status: 'pending' };
 
-export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [], fee = null }) {
+export default function InvoiceModal({ isOpen, onClose, onSubmit, fee = null }) {
     const isEdit = Boolean(fee);
-    const [query, setQuery] = useState('');
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [formData, setFormData] = useState(EMPTY);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -24,23 +23,12 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [],
                 dueDate: fee.dueDate ?? '',
                 status: fee.status ?? 'pending',
             });
-            setSelectedStudent(students.find((s) => s.id === fee.studentId) || null);
+            setSelectedStudent(fee.studentId ? { id: fee.studentId } : null);
         } else {
             setFormData(EMPTY);
             setSelectedStudent(null);
         }
-        setQuery('');
-    }, [isOpen, fee, students]);
-
-    const filteredStudents =
-        query === ''
-            ? students
-            : students.filter((student) =>
-                student.userByUserId?.fullName
-                    .toLowerCase()
-                    .replace(/\s+/g, '')
-                    .includes(query.toLowerCase().replace(/\s+/g, ''))
-            );
+    }, [isOpen, fee]);
 
     const handleChange = (e) => {
         setFormData({
@@ -69,7 +57,6 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [],
 
             setFormData(EMPTY);
             setSelectedStudent(null);
-            setQuery('');
         } catch (error) {
             console.error("Error submitting invoice:", error);
             toast.error("Error submitting invoice");
@@ -83,7 +70,7 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [],
             isOpen={isOpen}
             onClose={onClose}
             title={isEdit ? 'Edit Invoice' : 'Create New Invoice'}
-            className="overflow-visible" // Allow Combobox dropdown to overflow
+            className="overflow-visible" // let the student picker list overflow the modal
         >
             <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Searchable Student Select */}
@@ -91,73 +78,12 @@ export default function InvoiceModal({ isOpen, onClose, onSubmit, students = [],
                     <label className="block text-sm font-medium text-zinc-700 mb-1">
                         Student *
                     </label>
-                    <Combobox value={selectedStudent} onChange={setSelectedStudent}>
-                        <div className="relative mt-1">
-                            <div className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left border border-zinc-300 focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-transparent sm:text-sm">
-                                <Combobox.Input
-                                    className="w-full border-none py-2 pl-3 pr-10 text-sm leading-5 text-zinc-900 focus:ring-0 outline-none"
-                                    displayValue={(student) => student?.userByUserId?.fullName || ''}
-                                    onChange={(event) => setQuery(event.target.value)}
-                                    placeholder="Search for a student..."
-                                    required
-                                />
-                                <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-2">
-                                    <ChevronsUpDown
-                                        className="h-5 w-5 text-zinc-400"
-                                        aria-hidden="true"
-                                    />
-                                </Combobox.Button>
-                            </div>
-                            <Transition
-                                as={Fragment}
-                                leave="transition ease-in duration-100"
-                                leaveFrom="opacity-100"
-                                leaveTo="opacity-0"
-                                afterLeave={() => setQuery('')}
-                            >
-                                <Combobox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm z-50">
-                                    {filteredStudents.length === 0 && query !== '' ? (
-                                        <div className="relative cursor-default select-none py-2 px-4 text-zinc-700">
-                                            Nothing found.
-                                        </div>
-                                    ) : (
-                                        filteredStudents.map((student) => (
-                                            <Combobox.Option
-                                                key={student.id}
-                                                className={({ active }) =>
-                                                    `relative cursor-default select-none py-2 pl-10 pr-4 ${active ? 'bg-primary-600 text-white' : 'text-zinc-900'
-                                                    }`
-                                                }
-                                                value={student}
-                                            >
-                                                {({ selected, active }) => (
-                                                    <>
-                                                        <span
-                                                            className={`block truncate ${selected ? 'font-medium' : 'font-normal'
-                                                                }`}
-                                                        >
-                                                            {student.userByUserId?.fullName}
-                                                            <span className={`ml-2 text-xs ${active ? 'text-primary-200' : 'text-zinc-500'}`}>
-                                                                ({student.classByClassId?.name || 'No Class'})
-                                                            </span>
-                                                        </span>
-                                                        {selected ? (
-                                                            <span
-                                                                className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? 'text-white' : 'text-primary-600'
-                                                                    }`}
-                                                            >
-                                                                <Check className="h-5 w-5" aria-hidden="true" />
-                                                            </span>
-                                                        ) : null}
-                                                    </>
-                                                )}
-                                            </Combobox.Option>
-                                        ))
-                                    )}
-                                </Combobox.Options>
-                            </Transition>
-                        </div>
-                    </Combobox>
+                    <StudentPicker
+                        label={null}
+                        required
+                        value={selectedStudent?.id || ''}
+                        onChange={(id, student) => setSelectedStudent(student || (id ? { id } : null))}
+                    />
                 </div>
 
                 <div>

@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
 import { Bus, Plus, Loader2, X, MapPin, UserPlus, Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import StudentPicker from "@/components/StudentPicker";
 
 /** Mirrors the transport_vehicles.vehicle_type CHECK constraint (migration 034). */
 const VEHICLE_TYPES = [
@@ -31,7 +32,6 @@ export default function TransportPage() {
   const [vehicles, setVehicles] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [assignments, setAssignments] = useState([]);
-  const [students, setStudents] = useState([]);
   const [stopsByRoute, setStopsByRoute] = useState({});
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("vehicles");
@@ -64,14 +64,6 @@ export default function TransportPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // Students are only needed on the assignment tab.
-  useEffect(() => {
-    if (tab !== "students" || students.length > 0) return;
-    apiFetch("/api/students?limit=1000")
-      .then((d) => setStudents(d.students || []))
-      .catch((err) => toast.error(err.message));
-  }, [tab, students.length]);
 
   const loadStops = useCallback(async (routeId) => {
     try {
@@ -504,20 +496,12 @@ export default function TransportPage() {
           <div className="p-5">
             <form onSubmit={assignStudent} className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-5">
               <Field label="Student">
-                <select
+                <StudentPicker
+                  label={null}
                   required
                   value={assignForm.student_id}
-                  onChange={(e) => setAssignForm((f) => ({ ...f, student_id: e.target.value }))}
-                  className={inputCls}
-                >
-                  <option value="">Select student…</option>
-                  {students.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.full_name}
-                      {s.class_name ? ` — ${s.class_name}${s.section ? `/${s.section}` : ""}` : ""}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(id) => setAssignForm((f) => ({ ...f, student_id: id }))}
+                />
               </Field>
               <Field label="Route">
                 <select

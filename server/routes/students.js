@@ -6,37 +6,151 @@ const { getAppPool } = require('../db/pool');
 const router = express.Router();
 const pool = getAppPool();
 
+/** A value is only usable as a uuid filter if it parses as one. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Roster list — the picker behind transport assignment, document upload,
- * certificate generation and consent screens, which all need id + name pairs.
+ * certificate generation and consent screens, which all need id + name pairs,
+ * and the admin roster screen, which needs filtering and paging over a roll of
+ * 500–1000 students.
+ *
+ * Filters: session_id, class_id, section, grade_level, lifecycle_status,
+ * student_id (uuid) and a free-text `search` that matches name, username,
+ * roll number, admission number and student uuid.
+ *
+ * `session_id` reads the roster as it stood in that session: for any session
+ * other than the current one the class/section come from student_enrollments
+ * rather than the denormalised pointer on students.
  */
 router.get('/', requireAuth, requireRole('admin', 'principal', 'teacher', 'opsadmin'), requireTenant, async (req, res) => {
-  const { class_id, section, search, lifecycle_status } = req.query;
-  const limit = Math.min(Number(req.query.limit) || 500, 1000);
+  const { class_id, section, search, lifecycle_status, session_id, grade_level, student_id } = req.query;
+  const limit = Math.min(Math.max(Number(req.query.limit) || 500, 1), 1000);
+  const page = Math.max(Number(req.query.page) || 1, 1);
+  const offset = (page - 1) * limit;
+
   try {
-    let query = `SELECT s.id, s.user_id, s.roll_number, s.section, s.class_id, s.lifecycle_status,
-                        u.full_name, u.username, c.name AS class_name, c.grade_level
-                   FROM students s
-                   JOIN users u ON u.id = s.user_id
-                   LEFT JOIN classes c ON c.id = s.class_id
-                  WHERE u.institution_id = $1`;
     const params = [req.auth.institution_id];
     let idx = 2;
-    if (class_id) { query += ` AND s.class_id = $${idx++}`; params.push(class_id); }
-    if (section) { query += ` AND s.section = $${idx++}`; params.push(section); }
-    if (lifecycle_status) { query += ` AND s.lifecycle_status = $${idx++}`; params.push(lifecycle_status); }
-    if (search) {
-      query += ` AND (u.full_name ILIKE $${idx} OR s.roll_number ILIKE $${idx})`;
-      params.push(`%${search}%`);
-      idx++;
+
+    // Resolve the session to read. Absent/"current" means the live roster.
+    let sessionRow = null;
+    if (session_id && session_id !== 'current') {
+      if (!UUID_RE.test(session_id)) return res.status(400).json({ error: 'session_id must be a uuid' });
+      const sr = await pool.query(
+        `SELECT id, name, is_current FROM academic_sessions WHERE id = $1 AND institution_id = $2`,
+        [session_id, req.auth.institution_id]
+      );
+      if (sr.rows.length === 0) return res.status(404).json({ error: 'Session not found' });
+      sessionRow = sr.rows[0];
     }
-    query += ` ORDER BY c.name NULLS LAST, s.section NULLS LAST, s.roll_number NULLS LAST, u.full_name LIMIT $${idx}`;
-    params.push(limit);
-    const { rows } = await pool.query(query, params);
-    res.json({ students: rows });
+    // An explicit session is answered strictly from that session's enrollments,
+    // current or not: a student who has not been rolled into the new session is
+    // genuinely not on its roster yet. With no session_id the live roster on
+    // students is used, which is what the non-session-aware screens expect.
+    const scoped = Boolean(sessionRow);
+
+    const placementJoin = scoped
+      ? `JOIN student_enrollments e ON e.student_id = s.id AND e.session_id = $${idx}`
+      : `LEFT JOIN student_enrollments e ON e.student_id = s.id AND e.session_id =
+           (SELECT id FROM academic_sessions WHERE institution_id = $1 AND is_current LIMIT 1)`;
+    if (scoped) { params.push(sessionRow.id); idx++; }
+
+    const classCol = scoped ? 'e.class_id' : 's.class_id';
+    const sectionCol = scoped ? 'e.section' : 's.section';
+    const rollCol = scoped ? 'COALESCE(e.roll_number, s.roll_number)' : 's.roll_number';
+
+    let where = ` WHERE u.institution_id = $1`;
+    if (class_id) {
+      if (!UUID_RE.test(class_id)) return res.status(400).json({ error: 'class_id must be a uuid' });
+      where += ` AND ${classCol} = $${idx++}`; params.push(class_id);
+    }
+    if (section) { where += ` AND ${sectionCol} = $${idx++}`; params.push(section); }
+    if (grade_level) {
+      const g = Number(grade_level);
+      if (!Number.isInteger(g)) return res.status(400).json({ error: 'grade_level must be an integer' });
+      where += ` AND c.grade_level = $${idx++}`; params.push(g);
+    }
+    if (lifecycle_status) { where += ` AND s.lifecycle_status = $${idx++}`; params.push(lifecycle_status); }
+    if (student_id) {
+      if (!UUID_RE.test(student_id)) return res.status(400).json({ error: 'student_id must be a uuid' });
+      where += ` AND s.id = $${idx++}`; params.push(student_id);
+    }
+    if (search) {
+      const term = String(search).trim();
+      // A pasted uuid should find exactly that student; otherwise match the
+      // human identifiers an admin would type.
+      if (UUID_RE.test(term)) {
+        where += ` AND s.id = $${idx++}`; params.push(term);
+      } else {
+        where += ` AND (u.full_name ILIKE $${idx} OR u.username ILIKE $${idx}
+                        OR ${rollCol} ILIKE $${idx} OR s.admission_number ILIKE $${idx})`;
+        params.push(`%${term}%`); idx++;
+      }
+    }
+
+    const from = `FROM students s
+                   JOIN users u ON u.id = s.user_id
+                   ${placementJoin}
+                   LEFT JOIN classes c ON c.id = ${classCol}
+                   LEFT JOIN profiles pr ON pr.user_id = u.id`;
+
+    const countRes = await pool.query(`SELECT count(*)::int AS total ${from}${where}`, params);
+    const total = countRes.rows[0].total;
+
+    const listParams = params.slice();
+    listParams.push(limit, offset);
+    const { rows } = await pool.query(
+      `SELECT s.id, s.user_id, ${rollCol} AS roll_number, ${sectionCol} AS section,
+              ${classCol} AS class_id, s.lifecycle_status, s.admission_number,
+              s.enrollment_date, s.parent_name, s.parent_email, s.parent_phone, s.parent_address,
+              u.full_name, u.username, pr.email, c.name AS class_name, c.grade_level,
+              e.status AS enrollment_status
+         ${from}${where}
+        ORDER BY c.grade_level NULLS LAST, c.name NULLS LAST, ${sectionCol} NULLS LAST,
+                 ${rollCol} NULLS LAST, u.full_name
+        LIMIT $${idx++} OFFSET $${idx++}`,
+      listParams
+    );
+
+    res.json({
+      students: rows,
+      total,
+      page,
+      limit,
+      total_pages: Math.max(Math.ceil(total / limit), 1),
+      session: sessionRow ? { id: sessionRow.id, name: sessionRow.name, is_current: sessionRow.is_current } : null,
+    });
   } catch (err) {
     console.error('[students] list failed:', err);
     res.status(500).json({ error: 'Failed to load students' });
+  }
+});
+
+/** A student's placement in every session — their class history. */
+router.get('/:id/enrollments', requireAuth, requireTenant, async (req, res) => {
+  try {
+    const owned = await pool.query(
+      `SELECT s.id FROM students s JOIN users u ON u.id = s.user_id
+        WHERE s.id = $1 AND u.institution_id = $2`,
+      [req.params.id, req.auth.institution_id]
+    );
+    if (owned.rows.length === 0) return res.status(404).json({ error: 'Student not found' });
+    const { rows } = await pool.query(
+      `SELECT e.id, e.session_id, e.class_id, e.section, e.roll_number, e.status,
+              a.name AS session_name, a.start_date, a.end_date, a.is_current,
+              c.name AS class_name, c.grade_level
+         FROM student_enrollments e
+         JOIN academic_sessions a ON a.id = e.session_id
+         LEFT JOIN classes c ON c.id = e.class_id
+        WHERE e.student_id = $1
+        ORDER BY a.start_date DESC`,
+      [req.params.id]
+    );
+    res.json({ enrollments: rows });
+  } catch (err) {
+    console.error('[students] enrollments failed:', err);
+    res.status(500).json({ error: 'Failed to load enrollment history' });
   }
 });
 

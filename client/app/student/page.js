@@ -28,6 +28,9 @@ const GET_STUDENT_DASHBOARD = gql`
           fullName
           username
         }
+        rollNumber
+        section
+        admissionNumber
         classByClassId {
           name
           gradeLevel
@@ -108,8 +111,12 @@ export default function StudentDashboard() {
             const reportData = {
                 schoolName,
                 name: studentData.userByUserId?.fullName || 'Student',
-                class: studentData.classByClassId?.name || 'N/A',
-                rollNumber: studentData.userByUserId?.username || 'N/A',
+                class: studentData.classByClassId?.name
+                    ? `${studentData.classByClassId.name}${studentData.section ? ` · ${studentData.section}` : ''}`
+                    : 'N/A',
+                // The real roll number, not the login username.
+                rollNumber: studentData.rollNumber || studentData.userByUserId?.username || 'N/A',
+                studentId: studentData.id,
                 results: results.map(r => ({
                     subject: r.examByExamId?.subject || 'N/A',
                     marksObtained: r.marksObtained || 0,
@@ -268,9 +275,26 @@ export default function StudentDashboard() {
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-white opacity-5 rounded-full -ml-24 -mb-24"></div>
                 <div className="relative z-10">
                     <h2 className="mb-2 text-2xl font-bold sm:text-3xl">Hello, {user.full_name.split(' ')[0]}! 👋</h2>
-                    <p className="mb-4 text-sm text-primary-100 sm:text-base">
-                        Class: {studentData?.classByClassId?.name || 'N/A'} · {upcomingExams.length} upcoming exam{upcomingExams.length !== 1 ? 's' : ''}
+                    <p className="mb-3 text-sm text-primary-100 sm:text-base">
+                        Class: {studentData?.classByClassId?.name || 'N/A'}
+                        {studentData?.section ? ` · Section ${studentData.section}` : ''}
+                        {studentData?.rollNumber ? ` · Roll ${studentData.rollNumber}` : ''}
+                        {' · '}{upcomingExams.length} upcoming exam{upcomingExams.length !== 1 ? 's' : ''}
                     </p>
+                    {studentData?.id && (
+                        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-primary-100">
+                            <span>
+                                Student ID:{' '}
+                                <span className="select-all font-mono text-white">{studentData.id}</span>
+                            </span>
+                            {studentData.admissionNumber && (
+                                <span>
+                                    Admission no:{' '}
+                                    <span className="select-all font-mono text-white">{studentData.admissionNumber}</span>
+                                </span>
+                            )}
+                        </div>
+                    )}
                     <div className="flex items-center space-x-2">
                         <Target className="w-5 h-5" />
                         <span className="font-medium">Keep up the excellent work!</span>

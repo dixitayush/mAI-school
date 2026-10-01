@@ -470,15 +470,7 @@ export default function LoginPage() {
                   transition={{ delay: 0.15 }}
                   className="relative mt-6 rounded-2xl border border-zinc-100 bg-zinc-50/90 p-4"
                 >
-                  <p className="text-center text-[10px] font-bold uppercase tracking-[0.15em] text-zinc-400">
-                    Try demo
-                  </p>
-                  <p className="mt-2 text-center text-sm text-zinc-600">
-                    <span className="font-mono font-semibold text-zinc-900">mai_admin</span>
-                    <span className="mx-1 text-zinc-400">/</span>
-                    <span className="font-mono font-semibold text-zinc-900">mai_admin123</span>
-                  </p>
-                  <p className="mt-2 text-center text-[11px] leading-relaxed text-zinc-500">
+                  <p className="text-center text-[11px] leading-relaxed text-zinc-500">
                     School users: use your institute sign-in link from your admin.
                   </p>
                 </motion.div>

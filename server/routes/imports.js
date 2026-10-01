@@ -32,6 +32,8 @@ router.get('/types', requireAuth, requireRole('admin', 'principal'), requireTena
     export_types: dataTransfer.EXPORT_TYPES,
     required_columns: dataTransfer.REQUIRED_COLUMNS,
     template_columns: dataTransfer.TEMPLATE_COLUMNS,
+    // Which filter dropdowns the export screen should show per type.
+    export_filters: dataTransfer.EXPORT_FILTERS,
   });
 });
 
@@ -59,8 +61,27 @@ router.post(
     }
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
+    // Defaults picked from the import screen's dropdowns. They fill in for rows
+    // that leave the column blank, so a single-class roster CSV needs no
+    // class_name column at all.
+    const options = {};
+    if (req.body.default_class_id) options.default_class_id = req.body.default_class_id;
+    if (req.body.default_section) options.default_section = req.body.default_section;
+    if (req.body.session_id) options.session_id = req.body.session_id;
+
     try {
-      const { headers, rows, missing } = dataTransfer.validateCsv(type, req.file.buffer.toString('utf-8'));
+      if (options.default_class_id) {
+        const c = await pool.query(`SELECT id FROM classes WHERE id = $1 AND institution_id = $2`,
+          [options.default_class_id, req.auth.institution_id]);
+        if (c.rows.length === 0) return res.status(400).json({ error: 'default_class_id is not a class in this institution' });
+      }
+      if (options.session_id) {
+        const a = await pool.query(`SELECT id FROM academic_sessions WHERE id = $1 AND institution_id = $2`,
+          [options.session_id, req.auth.institution_id]);
+        if (a.rows.length === 0) return res.status(400).json({ error: 'session_id is not a session in this institution' });
+      }
+
+      const { headers, rows, missing } = dataTransfer.validateCsv(type, req.file.buffer.toString('utf-8'), options);
       if (rows.length === 0) {
         return res.status(400).json({ error: 'The file has a header row but no data rows' });
       }
@@ -77,9 +98,9 @@ router.post(
       const saved = await saveFile(req.auth.institution_id, req.auth.user_id, req.file, 'import');
 
       const { rows: importRows } = await pool.query(
-        `INSERT INTO data_imports (institution_id, type, file_id, status, total_rows, uploaded_by)
-         VALUES ($1, $2, $3, 'preview', $4, $5) RETURNING *`,
-        [req.auth.institution_id, type, saved.id, rows.length, req.auth.user_id]
+        `INSERT INTO data_imports (institution_id, type, file_id, status, total_rows, uploaded_by, options)
+         VALUES ($1, $2, $3, 'preview', $4, $5, $6) RETURNING *`,
+        [req.auth.institution_id, type, saved.id, rows.length, req.auth.user_id, JSON.stringify(options)]
       );
 
       await logAudit(pool, req.auth, {
@@ -96,6 +117,7 @@ router.post(
         headers,
         preview: rows.slice(0, 10),
         total_rows: rows.length,
+        options,
       });
     } catch (err) {
       console.error('[imports] upload failed:', err);

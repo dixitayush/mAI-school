@@ -167,11 +167,17 @@ async function resolveStudentByRoll(client, institutionId, roll) {
 }
 
 const ROW_IMPORTERS = {
-  async students(client, institutionId, row, index) {
+  async students(client, institutionId, row, index, options = {}) {
     if (!row.full_name) throw new Error('full_name is required');
-    if (!row.class_name) throw new Error('class_name is required');
-    const classId = await resolveClassId(client, institutionId, row.class_name);
-    if (!classId) throw new Error(`Unknown class "${row.class_name}"`);
+    let classId = null;
+    if (row.class_name) {
+      classId = await resolveClassId(client, institutionId, row.class_name);
+      if (!classId) throw new Error(`Unknown class "${row.class_name}"`);
+    } else if (options.default_class_id) {
+      classId = options.default_class_id;
+    } else {
+      throw new Error('class_name is required (or pick a default class when uploading)');
+    }
     const username = row.username || slugUsername(row.full_name, Date.now().toString(36) + index);
     const password = row.password || 'changeme123';
 
@@ -190,13 +196,29 @@ const ROW_IMPORTERS = {
       ]
     );
     const student = rows[0];
-    if (row.roll_number || row.section) {
+    const section = row.section || options.default_section || null;
+    if (row.roll_number || section) {
       await client.query(
         `UPDATE students SET roll_number = COALESCE($1, roll_number), section = COALESCE($2, section)
           WHERE id = $3`,
-        [row.roll_number || null, row.section || null, student.id]
+        [row.roll_number || null, section, student.id]
       );
     }
+
+    // Record the placement for the chosen session (default: the current one) so
+    // the student appears on that session's roster and gains class history.
+    await client.query(
+      `INSERT INTO student_enrollments (student_id, session_id, class_id, section, roll_number, status)
+       SELECT $1, COALESCE($2::uuid, (SELECT id FROM academic_sessions
+                                      WHERE institution_id = $3 AND is_current LIMIT 1)),
+              $4, $5, $6, 'active'
+        WHERE COALESCE($2::uuid, (SELECT id FROM academic_sessions
+                                   WHERE institution_id = $3 AND is_current LIMIT 1)) IS NOT NULL
+       ON CONFLICT (student_id, session_id)
+         DO UPDATE SET class_id = EXCLUDED.class_id, section = EXCLUDED.section,
+                       roll_number = EXCLUDED.roll_number`,
+      [student.id, options.session_id || null, institutionId, classId, section, row.roll_number || null]
+    );
     return student.id;
   },
 
@@ -343,9 +365,11 @@ const ROW_IMPORTERS = {
  * Validate an uploaded CSV without writing anything — powers the preview step.
  * @returns {{headers: string[], rows: object[], missing: string[]}}
  */
-function validateCsv(type, text) {
+function validateCsv(type, text, options = {}) {
   const { headers, rows } = parseCsvToObjects(text);
-  const required = REQUIRED_COLUMNS[type] || [];
+  let required = REQUIRED_COLUMNS[type] || [];
+  // A default chosen in the UI stands in for the column, so don't demand it.
+  if (options.default_class_id) required = required.filter((c) => c !== 'class_name');
   const missing = required.filter((c) => !headers.includes(c));
   return { headers, rows, missing };
 }
@@ -371,6 +395,8 @@ async function processImport({ import_id, institution_id }) {
   if (!imp.file_data) throw new Error('Uploaded file is no longer available');
 
   const { rows } = parseCsvToObjects(imp.file_data.toString('utf-8'));
+  // Defaults chosen on the import screen (target class, section, session).
+  const options = imp.options && typeof imp.options === 'object' ? imp.options : {};
   const errors = [];
   let imported = 0;
 
@@ -378,7 +404,7 @@ async function processImport({ import_id, institution_id }) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      await importer(client, institution_id, rows[i], i);
+      await importer(client, institution_id, rows[i], i, options);
       await client.query('COMMIT');
       imported++;
     } catch (err) {
@@ -412,85 +438,247 @@ async function processImport({ import_id, institution_id }) {
 // Export
 // ---------------------------------------------------------------------------
 
+/**
+ * A WHERE-clause builder that keeps parameter numbering straight as optional
+ * filters are added.
+ */
+function clauseBuilder(initialParams) {
+  const params = initialParams.slice();
+  const parts = [];
+  return {
+    add(sqlFragment, value) {
+      if (value === undefined || value === null || value === '') return;
+      params.push(value);
+      parts.push(sqlFragment.replace('?', `$${params.length}`));
+    },
+    raw(sqlFragment) { parts.push(sqlFragment); },
+    push(value) { params.push(value); return `$${params.length}`; },
+    where() { return parts.length ? ` AND ${parts.join(' AND ')}` : ''; },
+    params,
+  };
+}
+
+/**
+ * How a student's class/section is resolved for a given session. With a session
+ * the placement comes from student_enrollments, so exporting last year's roster
+ * reports last year's classes.
+ */
+function studentPlacement(b, sessionId) {
+  if (sessionId) {
+    const ph = b.push(sessionId);
+    return {
+      join: `JOIN student_enrollments e ON e.student_id = s.id AND e.session_id = ${ph}`,
+      classCol: 'e.class_id',
+      sectionCol: 'e.section',
+      rollCol: 'COALESCE(e.roll_number, s.roll_number)',
+    };
+  }
+  return { join: '', classCol: 's.class_id', sectionCol: 's.section', rollCol: 's.roll_number' };
+}
+
+/**
+ * Each exporter declares the filters it accepts — the export screen reads this
+ * to decide which dropdowns to show — and builds its own parameterised SQL.
+ */
 const EXPORTERS = {
   students: {
-    columns: ['full_name', 'username', 'email', 'class_name', 'section', 'roll_number', 'lifecycle_status'],
-    query: `SELECT u.full_name, u.username, p.email, c.name AS class_name, s.section,
-                   s.roll_number, s.lifecycle_status
-              FROM students s
-              JOIN users u ON u.id = s.user_id
-              LEFT JOIN profiles p ON p.user_id = u.id
-              LEFT JOIN classes c ON c.id = s.class_id
-             WHERE u.institution_id = $1
-             ORDER BY c.name NULLS LAST, s.roll_number NULLS LAST`,
+    filters: ['session_id', 'class_id', 'section', 'grade_level', 'lifecycle_status', 'search'],
+    columns: ['student_uuid', 'admission_number', 'full_name', 'username', 'email', 'class_name', 'section', 'roll_number', 'lifecycle_status'],
+    build(institutionId, f) {
+      const b = clauseBuilder([institutionId]);
+      const pl = studentPlacement(b, f.session_id);
+      b.add(`${pl.classCol} = ?`, f.class_id);
+      b.add(`${pl.sectionCol} = ?`, f.section);
+      b.add('c.grade_level = ?', f.grade_level ? Number(f.grade_level) : undefined);
+      b.add('s.lifecycle_status = ?', f.lifecycle_status);
+      if (f.search) {
+        const ph = b.push(`%${f.search}%`);
+        b.raw(`(u.full_name ILIKE ${ph} OR u.username ILIKE ${ph} OR s.admission_number ILIKE ${ph})`);
+      }
+      return {
+        sql: `SELECT s.id AS student_uuid, s.admission_number, u.full_name, u.username, p.email,
+                     c.name AS class_name, ${pl.sectionCol} AS section, ${pl.rollCol} AS roll_number,
+                     s.lifecycle_status
+                FROM students s
+                JOIN users u ON u.id = s.user_id
+                LEFT JOIN profiles p ON p.user_id = u.id
+                ${pl.join}
+                LEFT JOIN classes c ON c.id = ${pl.classCol}
+               WHERE u.institution_id = $1${b.where()}
+               ORDER BY c.grade_level NULLS LAST, c.name NULLS LAST, ${pl.sectionCol} NULLS LAST,
+                        ${pl.rollCol} NULLS LAST, u.full_name`,
+        params: b.params,
+      };
+    },
   },
   teachers: {
+    filters: ['search'],
     columns: ['full_name', 'username', 'email', 'subject_specialization', 'qualification'],
-    query: `SELECT u.full_name, u.username, p.email, t.subject_specialization, t.qualification
-              FROM teachers t
-              JOIN users u ON u.id = t.user_id
-              LEFT JOIN profiles p ON p.user_id = u.id
-             WHERE u.institution_id = $1
-             ORDER BY u.full_name`,
+    build(institutionId, f) {
+      const b = clauseBuilder([institutionId]);
+      if (f.search) {
+        const ph = b.push(`%${f.search}%`);
+        b.raw(`(u.full_name ILIKE ${ph} OR u.username ILIKE ${ph} OR t.subject_specialization ILIKE ${ph})`);
+      }
+      return {
+        sql: `SELECT u.full_name, u.username, p.email, t.subject_specialization, t.qualification
+                FROM teachers t
+                JOIN users u ON u.id = t.user_id
+                LEFT JOIN profiles p ON p.user_id = u.id
+               WHERE u.institution_id = $1${b.where()}
+               ORDER BY u.full_name`,
+        params: b.params,
+      };
+    },
   },
   classes: {
+    filters: ['grade_level'],
     columns: ['name', 'grade_level', 'teacher_name', 'student_count'],
-    query: `SELECT c.name, c.grade_level, u.full_name AS teacher_name,
-                   (SELECT count(*) FROM students s WHERE s.class_id = c.id)::int AS student_count
-              FROM classes c
-              LEFT JOIN users u ON u.id = c.teacher_id
-             WHERE c.institution_id = $1
-             ORDER BY c.grade_level, c.name`,
+    build(institutionId, f) {
+      const b = clauseBuilder([institutionId]);
+      b.add('c.grade_level = ?', f.grade_level ? Number(f.grade_level) : undefined);
+      return {
+        sql: `SELECT c.name, c.grade_level, u.full_name AS teacher_name,
+                     (SELECT count(*) FROM students s WHERE s.class_id = c.id)::int AS student_count
+                FROM classes c
+                LEFT JOIN users u ON u.id = c.teacher_id
+               WHERE c.institution_id = $1${b.where()}
+               ORDER BY c.grade_level, c.name`,
+        params: b.params,
+      };
+    },
   },
   fees: {
-    columns: ['student_name', 'roll_number', 'invoice_number', 'amount', 'paid_amount', 'status', 'due_date', 'description'],
-    query: `SELECT u.full_name AS student_name, s.roll_number, f.invoice_number, f.amount,
-                   f.paid_amount, f.status, f.due_date, f.description
-              FROM fees f
-              JOIN students s ON s.id = f.student_id
-              JOIN users u ON u.id = s.user_id
-             WHERE f.institution_id = $1
-             ORDER BY f.due_date DESC`,
+    filters: ['session_id', 'class_id', 'section', 'status', 'date_from', 'date_to'],
+    columns: ['student_uuid', 'student_name', 'roll_number', 'class_name', 'invoice_number', 'amount', 'paid_amount', 'status', 'due_date', 'description'],
+    build(institutionId, f) {
+      const b = clauseBuilder([institutionId]);
+      const pl = studentPlacement(b, f.session_id);
+      b.add(`${pl.classCol} = ?`, f.class_id);
+      b.add(`${pl.sectionCol} = ?`, f.section);
+      b.add('f.status = ?', f.status);
+      b.add('f.due_date >= ?', f.date_from);
+      b.add('f.due_date <= ?', f.date_to);
+      return {
+        sql: `SELECT s.id AS student_uuid, u.full_name AS student_name, ${pl.rollCol} AS roll_number,
+                     c.name AS class_name, f.invoice_number, f.amount, f.paid_amount, f.status,
+                     f.due_date, f.description
+                FROM fees f
+                JOIN students s ON s.id = f.student_id
+                JOIN users u ON u.id = s.user_id
+                ${pl.join}
+                LEFT JOIN classes c ON c.id = ${pl.classCol}
+               WHERE f.institution_id = $1${b.where()}
+               ORDER BY f.due_date DESC`,
+        params: b.params,
+      };
+    },
   },
   attendance: {
-    columns: ['student_name', 'roll_number', 'date', 'status', 'remarks'],
-    query: `SELECT u.full_name AS student_name, s.roll_number, a.date, a.status, a.remarks
-              FROM attendance a
-              JOIN students s ON s.id = a.student_id
-              JOIN users u ON u.id = s.user_id
-             WHERE u.institution_id = $1
-             ORDER BY a.date DESC, u.full_name`,
+    filters: ['session_id', 'class_id', 'section', 'status', 'date_from', 'date_to'],
+    columns: ['student_uuid', 'student_name', 'roll_number', 'class_name', 'section', 'date', 'status', 'remarks'],
+    build(institutionId, f) {
+      const b = clauseBuilder([institutionId]);
+      const pl = studentPlacement(b, f.session_id);
+      b.add(`${pl.classCol} = ?`, f.class_id);
+      b.add(`${pl.sectionCol} = ?`, f.section);
+      b.add('a.status = ?', f.status);
+      b.add('a.date >= ?', f.date_from);
+      b.add('a.date <= ?', f.date_to);
+      return {
+        sql: `SELECT s.id AS student_uuid, u.full_name AS student_name, ${pl.rollCol} AS roll_number,
+                     c.name AS class_name, ${pl.sectionCol} AS section, a.date, a.status, a.remarks
+                FROM attendance a
+                JOIN students s ON s.id = a.student_id
+                JOIN users u ON u.id = s.user_id
+                ${pl.join}
+                LEFT JOIN classes c ON c.id = ${pl.classCol}
+               WHERE u.institution_id = $1${b.where()}
+               ORDER BY a.date DESC, u.full_name`,
+        params: b.params,
+      };
+    },
   },
   marks: {
-    columns: ['student_name', 'roll_number', 'exam_title', 'subject', 'marks_obtained', 'total_marks', 'grade'],
-    query: `SELECT u.full_name AS student_name, s.roll_number, e.title AS exam_title, e.subject,
-                   r.marks_obtained, e.total_marks, r.grade
-              FROM results r
-              JOIN exams e ON e.id = r.exam_id
-              JOIN students s ON s.id = r.student_id
-              JOIN users u ON u.id = s.user_id
-             WHERE u.institution_id = $1
-             ORDER BY e.exam_date DESC, u.full_name`,
+    filters: ['session_id', 'exam_id', 'class_id', 'section'],
+    columns: ['student_uuid', 'student_name', 'roll_number', 'class_name', 'exam_title', 'subject', 'marks_obtained', 'total_marks', 'grade'],
+    build(institutionId, f) {
+      const b = clauseBuilder([institutionId]);
+      const pl = studentPlacement(b, f.session_id);
+      b.add('r.exam_id = ?', f.exam_id);
+      b.add(`${pl.classCol} = ?`, f.class_id);
+      b.add(`${pl.sectionCol} = ?`, f.section);
+      return {
+        sql: `SELECT s.id AS student_uuid, u.full_name AS student_name, ${pl.rollCol} AS roll_number,
+                     c.name AS class_name, e.title AS exam_title, e.subject,
+                     r.marks_obtained, e.total_marks, r.grade
+                FROM results r
+                JOIN exams e ON e.id = r.exam_id
+                JOIN students s ON s.id = r.student_id
+                JOIN users u ON u.id = s.user_id
+                ${pl.join}
+                LEFT JOIN classes c ON c.id = ${pl.classCol}
+               WHERE u.institution_id = $1${b.where()}
+               ORDER BY e.exam_date DESC, u.full_name`,
+        params: b.params,
+      };
+    },
   },
   library: {
+    filters: ['category', 'search'],
     columns: ['title', 'author', 'isbn', 'category', 'total_copies', 'available_copies', 'location'],
-    query: `SELECT title, author, isbn, category, total_copies, available_copies, location
-              FROM library_books WHERE institution_id = $1 ORDER BY title`,
+    build(institutionId, f) {
+      const b = clauseBuilder([institutionId]);
+      b.add('category = ?', f.category);
+      if (f.search) {
+        const ph = b.push(`%${f.search}%`);
+        b.raw(`(title ILIKE ${ph} OR author ILIKE ${ph} OR isbn ILIKE ${ph})`);
+      }
+      return {
+        sql: `SELECT title, author, isbn, category, total_copies, available_copies, location
+                FROM library_books WHERE institution_id = $1${b.where()} ORDER BY title`,
+        params: b.params,
+      };
+    },
   },
   inventory: {
+    filters: ['category', 'status'],
     columns: ['asset_code', 'name', 'category', 'status', 'location', 'purchase_date', 'purchase_cost'],
-    query: `SELECT asset_code, name, category, status, location, purchase_date, purchase_cost
-              FROM assets WHERE institution_id = $1 ORDER BY name`,
+    build(institutionId, f) {
+      const b = clauseBuilder([institutionId]);
+      b.add('category = ?', f.category);
+      b.add('status = ?', f.status);
+      return {
+        sql: `SELECT asset_code, name, category, status, location, purchase_date, purchase_cost
+                FROM assets WHERE institution_id = $1${b.where()} ORDER BY name`,
+        params: b.params,
+      };
+    },
   },
   audit: {
+    filters: ['severity', 'date_from', 'date_to'],
     columns: ['created_at', 'action', 'actor_name', 'entity_type', 'severity'],
-    query: `SELECT al.created_at, al.action, u.full_name AS actor_name, al.entity_type, al.severity
-              FROM audit_log al
-              LEFT JOIN users u ON u.id = al.actor_user_id
-             WHERE al.institution_id = $1
-             ORDER BY al.created_at DESC LIMIT 5000`,
+    build(institutionId, f) {
+      const b = clauseBuilder([institutionId]);
+      b.add('al.severity = ?', f.severity);
+      b.add('al.created_at >= ?', f.date_from);
+      b.add('al.created_at < (?::date + 1)', f.date_to);
+      return {
+        sql: `SELECT al.created_at, al.action, u.full_name AS actor_name, al.entity_type, al.severity
+                FROM audit_log al
+                LEFT JOIN users u ON u.id = al.actor_user_id
+               WHERE al.institution_id = $1${b.where()}
+               ORDER BY al.created_at DESC LIMIT 5000`,
+        params: b.params,
+      };
+    },
   },
 };
+
+/** Which filters each export type accepts, for the export screen's dropdowns. */
+const EXPORT_FILTERS = Object.fromEntries(
+  Object.entries(EXPORTERS).map(([type, spec]) => [type, spec.filters || []])
+);
 
 const EXPORT_TYPES = Object.keys(EXPORTERS);
 
@@ -518,7 +706,9 @@ async function processExport({ export_id, institution_id }) {
   await pool.query(`UPDATE data_exports SET status = 'processing' WHERE id = $1`, [export_id]);
 
   try {
-    const { rows } = await pool.query(spec.query, [institution_id]);
+    const filters = exp.filters && typeof exp.filters === 'object' ? exp.filters : {};
+    const { sql, params } = spec.build(institution_id, filters);
+    const { rows } = await pool.query(sql, params);
     const csv = toCsv(spec.columns, rows);
     const buffer = Buffer.from(csv, 'utf-8');
     const filename = `${exp.type}-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -549,6 +739,7 @@ async function processExport({ export_id, institution_id }) {
 module.exports = {
   IMPORT_TYPES,
   EXPORT_TYPES,
+  EXPORT_FILTERS,
   REQUIRED_COLUMNS,
   TEMPLATE_COLUMNS,
   parseCsv,

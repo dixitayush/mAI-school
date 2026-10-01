@@ -23,7 +23,15 @@ const GET_CLASSES_AND_STUDENTS = gql`
         name
       }
     }
-    allStudents(orderBy: ROLL_NUMBER_ASC) {
+  }
+`;
+
+// Students are fetched per class rather than school-wide: loading a
+// 500–1000 student roster to mark one class's attendance is both slow and
+// liable to be silently truncated by the API's row cap.
+const GET_CLASS_STUDENTS = gql`
+  query ClassStudentsForAttendance($classId: UUID!) {
+    allStudents(condition: { classId: $classId }, orderBy: ROLL_NUMBER_ASC) {
       nodes {
         id
         classId
@@ -59,11 +67,17 @@ function AttendanceContent() {
     const [refreshKey, setRefreshKey] = useState(0);
 
     const classes = data?.allClasses?.nodes || [];
-    const students = data?.allStudents?.nodes || [];
 
-    const classStudents = selectedClass
-        ? students.filter(s => s.classId === selectedClass)
-        : [];
+    const { data: studentData, loading: loadingStudents } = useQuery(GET_CLASS_STUDENTS, {
+        variables: { classId: selectedClass },
+        skip: !selectedClass,
+        fetchPolicy: 'cache-and-network',
+    });
+    const classStudents = selectedClass ? (studentData?.allStudents?.nodes || []) : [];
+    const students = classStudents;
+    // The roster now arrives asynchronously, so effects that act on it key off
+    // this rather than selectedClass alone.
+    const rosterKey = classStudents.map(s => s.id).join(',');
 
     const sections = Array.from(
         new Set(classStudents.map(s => s.section).filter(Boolean))
@@ -120,7 +134,8 @@ function AttendanceContent() {
                     .catch(err => console.error('Failed to fetch stats', err));
             });
         }
-    }, [selectedClass, activeTab]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rosterKey, selectedSection, activeTab]);
 
     // Fetch History when tab is history and date/class changes
     useEffect(() => {
@@ -488,7 +503,11 @@ function AttendanceContent() {
                         </div>
                     ) : activeTab === 'mark' ? (
                         <>
-                            {displayedStudents.length === 0 ? (
+                            {loadingStudents && displayedStudents.length === 0 ? (
+                                <div className="flex items-center justify-center gap-2 py-12 text-zinc-500">
+                                    <Loader2 className="w-5 h-5 animate-spin" /> Loading class roster…
+                                </div>
+                            ) : displayedStudents.length === 0 ? (
                                 <div className="text-center py-12">
                                     <AlertCircle className="w-12 h-12 text-zinc-400 mx-auto mb-3" />
                                     <p className="text-zinc-500">
@@ -618,7 +637,7 @@ function AttendanceContent() {
                                                         {record.status.toUpperCase()}
                                                     </span>
                                                     {record.remarks && (
-                                                        <span className="text-sm text-zinc-500 italic">"{record.remarks}"</span>
+                                                        <span className="text-sm text-zinc-500 italic">&ldquo;{record.remarks}&rdquo;</span>
                                                     )}
                                                 </div>
                                             </div>

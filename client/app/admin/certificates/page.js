@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
 import { FileText, Loader2, Plus, CheckCircle, XCircle, Ban, Copy } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import StudentPicker from "@/components/StudentPicker";
 
 const TYPES = [
   { value: "bonafide", label: "Bonafide Certificate" },
@@ -26,7 +27,6 @@ const EMPTY_FORM = { student_id: "", type: "bonafide", template_id: "", purpose:
 
 export default function CertificatesPage() {
   const [certificates, setCertificates] = useState([]);
-  const [students, setStudents] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showGenerate, setShowGenerate] = useState(false);
@@ -38,13 +38,11 @@ export default function CertificatesPage() {
 
   const load = useCallback(async () => {
     try {
-      const [certData, studentData, tplData] = await Promise.all([
+      const [certData, tplData] = await Promise.all([
         apiFetch("/api/documents/certificates"),
-        apiFetch("/api/students?limit=1000"),
         apiFetch("/api/documents/certificates/templates"),
       ]);
       setCertificates(certData.certificates || []);
-      setStudents(studentData.students || []);
       setTemplates(tplData.templates || []);
     } catch (err) {
       toast.error(err.message);
@@ -146,22 +144,12 @@ export default function CertificatesPage() {
           className="mb-6 grid grid-cols-1 gap-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm sm:grid-cols-2"
         >
           <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">Student</label>
-            <select
+            <StudentPicker
+              label="Student"
               required
               value={form.student_id}
-              onChange={(e) => setForm((f) => ({ ...f, student_id: e.target.value }))}
-              className={inputCls}
-            >
-              <option value="">Select student…</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.full_name}
-                  {s.class_name ? ` — ${s.class_name}` : ""}
-                  {s.roll_number ? ` #${s.roll_number}` : ""}
-                </option>
-              ))}
-            </select>
+              onChange={(id) => setForm((f) => ({ ...f, student_id: id }))}
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">Type</label>

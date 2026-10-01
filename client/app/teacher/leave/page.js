@@ -24,21 +24,22 @@ export default function TeacherLeavePage() {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ leave_type_id: "", start_date: "", end_date: "", reason: "" });
 
+  // Settled rather than all: one failing call used to abort the whole load, so
+  // a hiccup fetching requests or balance left the leave-type dropdown empty
+  // and the form unusable.
   const load = async () => {
-    try {
-      const [req, bal, tp] = await Promise.all([
-        apiFetch("/api/leave/requests"),
-        apiFetch("/api/leave/balance"),
-        apiFetch("/api/leave/types"),
-      ]);
-      setRequests(req.requests || []);
-      setBalance(bal.balance || []);
-      setTypes(tp.leave_types || tp.types || []);
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
+    const [req, bal, tp] = await Promise.allSettled([
+      apiFetch("/api/leave/requests"),
+      apiFetch("/api/leave/balance"),
+      apiFetch("/api/leave/types"),
+    ]);
+    if (req.status === "fulfilled") setRequests(req.value.requests || []);
+    if (bal.status === "fulfilled") setBalance(bal.value.balance || []);
+    if (tp.status === "fulfilled") setTypes(tp.value.leave_types || tp.value.types || []);
+
+    const failed = [req, bal, tp].find((r) => r.status === "rejected");
+    if (failed) toast.error(failed.reason?.message || "Some leave data could not be loaded");
+    setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
@@ -114,12 +115,19 @@ export default function TeacherLeavePage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-zinc-700">Leave type</label>
-              <select value={form.leave_type_id} onChange={(e) => setForm((f) => ({ ...f, leave_type_id: e.target.value }))} required className={inputCls}>
-                <option value="">Select type</option>
+              <select value={form.leave_type_id} onChange={(e) => setForm((f) => ({ ...f, leave_type_id: e.target.value }))} required className={inputCls} disabled={types.length === 0}>
+                <option value="">{types.length === 0 ? "No leave types configured" : "Select type"}</option>
                 {types.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+                  <option key={t.id} value={t.id}>
+                    {t.name}{t.days_per_year ? ` (${t.days_per_year}/yr)` : ""}
+                  </option>
                 ))}
               </select>
+              {types.length === 0 && (
+                <p className="mt-1 text-xs text-amber-700">
+                  Ask your administrator to add leave types before applying.
+                </p>
+              )}
             </div>
             <div />
             <div>

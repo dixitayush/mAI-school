@@ -1,5 +1,6 @@
 const express = require('express');
 const { sendWelcomeAdminEmail } = require('../lib/welcomeAdminEmail');
+const { seedInstitutionDefaults } = require('../lib/tenantDefaults');
 const { isValidEmail, isValidLoginUrl } = require('../lib/validateContact');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { validatePassword } = require('../lib/passwordPolicy');
@@ -130,6 +131,9 @@ function platformRouter(pool) {
           newUser.id,
         ]);
       }
+      // Leave types, consent types and the current academic session. Without
+      // them the new school's leave and consent screens have empty dropdowns.
+      await seedInstitutionDefaults(client, institutionId);
       await client.query('COMMIT');
 
       let welcomeEmailSent = false;

@@ -33,17 +33,6 @@ const GET_FEES = gql`
         }
       }
     }
-    allStudents {
-      nodes {
-        id
-        userByUserId {
-          fullName
-        }
-        classByClassId {
-          name
-        }
-      }
-    }
   }
 `;
 
@@ -129,7 +118,6 @@ function FeesContent() {
   const [selectedFee, setSelectedFee] = useState(null);
 
   const fees = useMemo(() => data?.allFees?.nodes || [], [data]);
-  const students = data?.allStudents?.nodes || [];
 
   const totals = useMemo(() => {
     const sum = (rows) => rows.reduce((acc, f) => acc + parseFloat(f.amount || 0), 0);
@@ -314,7 +302,6 @@ function FeesContent() {
           setSelectedFee(null);
         }}
         onSubmit={handleModalSubmit}
-        students={students}
         fee={selectedFee}
       />
     </div>

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { toast } from "react-hot-toast";
 import { FolderOpen, Upload, Trash2, Loader2, Search, FileText, Download, BadgeCheck } from "lucide-react";
 import { apiFetch, uploadFile, fetchFileObjectUrl } from "@/lib/api";
+import StudentPicker from "@/components/StudentPicker";
 
 /** Mirrors the documents table CHECK constraints (migration 028). */
 const CATEGORIES = [
@@ -29,7 +30,6 @@ const label = (s) => String(s || "").replace(/_/g, " ");
 
 export default function DocumentsPage() {
   const [docs, setDocs] = useState([]);
-  const [students, setStudents] = useState([]);
   const [institutionId, setInstitutionId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -45,9 +45,6 @@ export default function DocumentsPage() {
     } catch {
       /* ignore unreadable storage */
     }
-    apiFetch("/api/students?limit=1000")
-      .then((d) => setStudents(d.students || []))
-      .catch(() => {});
   }, []);
 
   const fetchDocs = useCallback(async () => {
@@ -166,20 +163,12 @@ export default function DocumentsPage() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600">Belongs to</label>
-            <select
+            <StudentPicker
+              label="Belongs to"
               value={target.student_id}
-              onChange={(e) => setTarget((t) => ({ ...t, student_id: e.target.value }))}
-              className={selectCls}
-            >
-              <option value="">The school</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.full_name}
-                  {s.class_name ? ` — ${s.class_name}` : ""}
-                </option>
-              ))}
-            </select>
+              onChange={(id) => setTarget((t) => ({ ...t, student_id: id }))}
+              placeholder="The school — or search for a student…"
+            />
           </div>
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700">
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
