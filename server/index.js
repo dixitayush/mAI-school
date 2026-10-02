@@ -672,7 +672,8 @@ initDb()
     const emailService = require('./services/emailService');
     jobQueue.registerHandler('email.send', async (payload) => {
       const result = await emailService.send(payload);
-      if (!result.ok) throw new Error(result.error || 'email send failed'); // retried by the queue
+      // Transient failures are retried by the queue; permanent ones (bad address, quota) are not.
+      if (!result.ok && !result.permanent) throw new Error(result.error || 'email send failed');
       return result;
     });
     jobQueue.registerHandler('email.batch', (payload, job) => emailService.handleBatchJob(payload, { tenantId: job.tenant_id }));

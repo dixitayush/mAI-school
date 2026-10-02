@@ -59,21 +59,36 @@ async function throttle() {
   if (wait) await new Promise((r) => setTimeout(r, wait));
 }
 
-/** Call Resend with throttling; retries rate-limit errors up to 3 times. */
+/** Daily/monthly plan quota used up — retrying minutes later won't help. */
+function isQuotaError(error) {
+  return /quota/i.test(`${error?.name || ''} ${error?.message || ''}`);
+}
+
+/** Call Resend with throttling; retries per-second rate limits up to 3 times. */
 async function callResend(fn) {
   for (let attempt = 0; ; attempt++) {
     await throttle();
     const res = await fn(getClient());
-    const rateLimited = res?.error && (res.error.statusCode === 429 || res.error.name === 'rate_limit_exceeded');
+    const rateLimited = res?.error && !isQuotaError(res.error) &&
+      (res.error.statusCode === 429 || res.error.name === 'rate_limit_exceeded');
     if (!rateLimited || attempt >= 3) return res;
     await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
   }
 }
 
+// Reserved / test domains (RFC 2606/6761). Resend rejects them, and in a
+// batch one such address used to sink the whole call — so never send to them.
+const UNDELIVERABLE_DOMAIN = /(^|\.)(example\.(com|org|net)|test|example|invalid|localhost|local)$/;
+
+function isDeliverable(email) {
+  const domain = email.split('@')[1] || '';
+  return !UNDELIVERABLE_DOMAIN.test(domain);
+}
+
 function normalizeRecipients(to) {
   const list = (Array.isArray(to) ? to : [to])
     .map((e) => String(e || '').trim().toLowerCase())
-    .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && isDeliverable(e));
   return [...new Set(list)];
 }
 
@@ -129,19 +144,23 @@ async function logFailed(pool, id, error) {
  */
 async function send({ to, subject, html, text, from, replyTo, tenantId, recipientId, template }) {
   const message = toResendMessage({ to, subject, html, text, from, replyTo });
-  if (message.to.length === 0) return { ok: false, error: 'No valid recipient email' };
+  if (message.to.length === 0) return { ok: false, permanent: true, error: 'No valid recipient email' };
 
   const pool = getAppPool();
   const emailId = await logQueued(pool, { to, subject: message.subject, tenantId, recipientId, template });
   try {
     const { data, error } = await callResend((c) => c.emails.send(message));
-    if (error) throw new Error(error.message || 'Resend send failed');
+    if (error) {
+      // Bad address / validation / quota: retrying won't help.
+      const permanent = isQuotaError(error) || [400, 403, 422].includes(error.statusCode);
+      throw Object.assign(new Error(error.message || 'Resend send failed'), { permanent });
+    }
     await logSent(pool, emailId, data?.id);
     return { ok: true, emailId, messageId: data?.id };
   } catch (err) {
     console.error('[email] send failed:', err.message);
     await logFailed(pool, emailId, err.message);
-    return { ok: false, emailId, error: err.message };
+    return { ok: false, emailId, error: err.message, permanent: Boolean(err.permanent) };
   }
 }
 
@@ -158,7 +177,8 @@ async function sendBatch(items) {
 
   const pool = getAppPool();
   let sent = 0;
-  const failedItems = [];
+  let failed = 0;
+  const failedItems = []; // transient failures only — safe to retry
   for (let i = 0; i < prepared.length; i += BATCH_LIMIT) {
     const chunk = prepared.slice(i, i + BATCH_LIMIT);
     const ids = [];
@@ -166,18 +186,34 @@ async function sendBatch(items) {
       ids.push(await logQueued(pool, { ...item, subject: message.subject }));
     }
     try {
-      const { data, error } = await callResend((c) => c.batch.send(chunk.map(({ message }) => message)));
-      if (error) throw new Error(error.message || 'Resend batch failed');
-      const results = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
-      await Promise.all(ids.map((id, k) => logSent(pool, id, results[k]?.id)));
-      sent += chunk.length;
+      // Permissive: an invalid address fails only its own email, not the batch.
+      const { data, error } = await callResend((c) =>
+        c.batch.send(chunk.map(({ message }) => message), { batchValidation: 'permissive' })
+      );
+      if (error) throw Object.assign(new Error(error.message || 'Resend batch failed'), { quota: isQuotaError(error) });
+      const rejected = new Map((data?.errors || []).map((e) => [e.index, e.message]));
+      const accepted = Array.isArray(data?.data) ? data.data : [];
+      let next = 0; // accepted ids come back in order, skipping rejected indexes
+      await Promise.all(
+        ids.map((id, k) => {
+          if (rejected.has(k)) {
+            console.error('[email] rejected by Resend:', chunk[k].message.to.join(', '), '-', rejected.get(k));
+            return logFailed(pool, id, rejected.get(k)); // permanent — not retried
+          }
+          return logSent(pool, id, accepted[next++]?.id);
+        })
+      );
+      sent += chunk.length - rejected.size;
+      failed += rejected.size;
     } catch (err) {
       console.error('[email] batch failed:', err.message);
       await Promise.all(ids.map((id) => logFailed(pool, id, err.message)));
-      failedItems.push(...chunk.map(({ item }) => item));
+      failed += chunk.length;
+      if (err.quota) console.error('[email] Resend plan quota reached — emails not sent:', chunk.length);
+      else failedItems.push(...chunk.map(({ item }) => item)); // transient: retried by handleBatchJob
     }
   }
-  return { ok: failedItems.length === 0, sent, failed: failedItems.length, failedItems };
+  return { ok: failed === 0, sent, failed, failedItems };
 }
 
 /** Queue one email for the background worker (retries with backoff). */
