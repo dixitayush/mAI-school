@@ -127,7 +127,7 @@ router.get('/assignments', requireAuth, requireRole('admin', 'opsadmin', 'princi
   try {
     const { rows } = await pool.query(
       `SELECT st.id, st.student_id, st.route_id, st.stop_id, st.transport_fee, st.is_active,
-              u.full_name AS student_name, s.roll_number, c.name AS class_name,
+              u.full_name AS student_name, s.registration_id, s.roll_number, c.name AS class_name,
               r.name AS route_name, ts.name AS stop_name, ts.pickup_time, ts.drop_time,
               v.vehicle_number
          FROM student_transport st

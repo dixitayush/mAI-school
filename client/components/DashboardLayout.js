@@ -12,6 +12,7 @@ import ChatWidget from "@/components/ChatWidget";
 import { useTenantPaths } from "@/lib/useTenantPaths";
 import { useSession } from "@/lib/useSession";
 import { apiFetch } from "@/lib/api";
+import { flattenSearchResults } from "@/lib/search";
 
 const ROLE_META = {
   mai_admin: {
@@ -62,7 +63,7 @@ const DISPLAY_FALLBACK = {
 };
 
 const RESULT_LINKS = {
-  students: (r, to) => to(`/admin/users/students`),
+  students: (r, to) => to(`/admin/users/students${r.registration_id ? `?search=${encodeURIComponent(r.registration_id)}` : ""}`),
   teachers: (r, to) => to(`/admin/users/teachers`),
   classes: (r, to) => to(`/admin/classes`),
   announcements: (r, to) => to(`/admin/announcements`),
@@ -82,10 +83,7 @@ function GlobalSearch({ placeholder, to }) {
     setSearching(true);
     try {
       const data = await apiFetch(`/api/search?q=${encodeURIComponent(q)}`);
-      const flat = [];
-      Object.entries(data.results || {}).forEach(([type, items]) => {
-        items.forEach((item) => flat.push({ ...item, _type: type }));
-      });
+      const flat = flattenSearchResults(data);
       setResults(flat.slice(0, 8));
       setOpen(flat.length > 0);
     } catch {
@@ -138,7 +136,7 @@ function GlobalSearch({ placeholder, to }) {
                   {r._type}
                 </span>
                 <span className="truncate font-medium text-zinc-800">{r.name || r.title || r.full_name || "—"}</span>
-                {r.email && <span className="ml-auto truncate text-xs text-zinc-400">{r.email}</span>}
+                {r.subtitle && <span className="ml-auto truncate font-mono text-xs text-zinc-400">{r.subtitle}</span>}
               </a>
             );
           })}

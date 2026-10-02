@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Loader2, X, Command } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { flattenSearchResults } from "@/lib/search";
 import { useTenantPaths } from "@/lib/useTenantPaths";
 
 const ACTIONS = [
@@ -64,10 +65,7 @@ export default function CommandPalette() {
     setSearching(true);
     try {
       const data = await apiFetch(`/api/search?q=${encodeURIComponent(q)}`);
-      const flat = [];
-      Object.entries(data.results || {}).forEach(([type, items]) => {
-        items.forEach((item) => flat.push({ ...item, _type: type }));
-      });
+      const flat = flattenSearchResults(data);
       setSearchResults(flat.slice(0, 5));
     } catch { setSearchResults([]); }
     finally { setSearching(false); }
@@ -83,7 +81,16 @@ export default function CommandPalette() {
     else setSearchResults([]);
   }, [query, doSearch]);
 
-  const allItems = [...results, ...searchResults.map((r) => ({ id: `sr-${r.id}`, label: r.name || r.title || r.full_name || "—", section: r._type, searchResult: r }))];
+  const allItems = [...results, ...searchResults.map((r) => ({
+    id: `sr-${r.id}`,
+    label: r.name || r.title || r.full_name || "—",
+    hint: r.subtitle,
+    section: r._type,
+    searchResult: r,
+    href: r._type === "students" && r.registration_id
+      ? `/admin/users/students?search=${encodeURIComponent(r.registration_id)}`
+      : undefined,
+  }))];
 
   const select = (item) => {
     setOpen(false);
@@ -119,6 +126,7 @@ export default function CommandPalette() {
                 className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition ${i === selectedIndex ? "bg-primary-50 text-primary-800" : "text-zinc-700 hover:bg-zinc-50"}`}>
                 <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-zinc-500">{item.section}</span>
                 <span className="truncate font-medium">{item.label}</span>
+                {item.hint && <span className="ml-auto truncate font-mono text-xs text-zinc-400">{item.hint}</span>}
               </button>
             ))
           )}

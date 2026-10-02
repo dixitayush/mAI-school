@@ -35,6 +35,7 @@ export function generateReportCard(studentData) {
 
   const studentInfo = [
     ["Student Name", studentData.name || "N/A"],
+    ["Registration ID", studentData.registrationId || "N/A"],
     ["Class", studentData.class || "N/A"],
     ["Roll Number", studentData.rollNumber || "N/A"],
     ["Academic Year", yearLabel],

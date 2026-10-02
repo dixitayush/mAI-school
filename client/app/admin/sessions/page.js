@@ -7,6 +7,7 @@ import { CalendarRange, Plus, Loader2, CheckCircle2, ArrowRight, Users } from "l
 import { apiFetch } from "@/lib/api";
 import { useFilterOptions, invalidateFilterOptions, toQuery } from "@/lib/useFilterOptions";
 import Uuid from "@/components/Uuid";
+import StudentId from "@/components/StudentId";
 
 const inputCls =
   "w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20";
@@ -304,7 +305,7 @@ export default function SessionsPage() {
                     {c.roll_number ? ` · Roll ${c.roll_number}` : ""}
                   </span>
                 </span>
-                <Uuid value={c.id} label="Student ID" />
+                <StudentId value={c.registration_id} />
               </label>
             ))}
           </div>

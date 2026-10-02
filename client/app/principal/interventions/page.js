@@ -94,7 +94,7 @@ export default function PrincipalInterventionsPage() {
           {unacknowledged.map((s) => (
             <div key={s.id} className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3">
               <div>
-                <p className="text-sm font-semibold text-amber-900">{s.student_name || "Student"} — {s.signal_type || s.type}</p>
+                <p className="text-sm font-semibold text-amber-900">{s.student_name || "Student"}{s.registration_id ? ` (${s.registration_id})` : ""} — {s.signal_type || s.type}</p>
                 <p className="text-xs text-amber-700">{s.message || s.description || "Requires attention"}</p>
               </div>
               <button
@@ -153,7 +153,10 @@ export default function PrincipalInterventionsPage() {
               <tbody className="divide-y divide-zinc-100">
                 {filtered.map((intv) => (
                   <tr key={intv.id} className="hover:bg-zinc-50 transition-colors">
-                    <td className="px-5 py-3 font-medium text-zinc-800">{intv.student_name || intv.student_id?.slice(0, 8) || "—"}</td>
+                    <td className="px-5 py-3 font-medium text-zinc-800">
+                      {intv.student_name || "—"}
+                      <span className="ml-1.5 font-mono text-xs font-semibold text-indigo-600">{intv.registration_id}</span>
+                    </td>
                     <td className="px-5 py-3 text-zinc-600 capitalize">{intv.concern_type}</td>
                     <td className="px-5 py-3 text-zinc-600">{intv.owner_name || intv.created_by_name || "—"}</td>
                     <td className="px-5 py-3">

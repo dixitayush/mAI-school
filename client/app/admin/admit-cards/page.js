@@ -13,6 +13,7 @@ import {
   Search,
 } from "lucide-react";
 import { fetchFileDataUrl } from "@/lib/api";
+import StudentId from "@/components/StudentId";
 import { generateAdmitCard, generateAdmitCardsBulk } from "@/lib/generateAdmitCard";
 
 const GET_EXAMS = gql`
@@ -36,6 +37,7 @@ const GET_ELIGIBILITY = gql`
     admitEligibilityForExam(pExamId: $examId) {
       nodes {
         studentId
+        registrationId
         fullName
         rollNumber
         photoFileId
@@ -73,7 +75,8 @@ export default function AdmitCardsPage() {
     return allRows.filter((r) => {
       const name = (r.fullName || "").toLowerCase();
       const roll = (r.rollNumber || "").toLowerCase();
-      return name.includes(q) || roll.includes(q);
+      const regId = (r.registrationId || "").toLowerCase();
+      return name.includes(q) || roll.includes(q) || regId.includes(q);
     });
   })();
 
@@ -92,6 +95,7 @@ export default function AdmitCardsPage() {
     subject: selectedExam?.subject,
     examDate: selectedExam?.examDate,
     studentName: r.fullName,
+    registrationId: r.registrationId,
     rollNumber: r.rollNumber,
     className: selectedExam?.classByClassId?.name,
     section: r.section,
@@ -158,7 +162,7 @@ export default function AdmitCardsPage() {
               <Search className="h-4 w-4 shrink-0 text-zinc-400" />
               <input
                 type="text"
-                placeholder="Search by name or roll…"
+                placeholder="Search by name, registration ID or roll…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full bg-transparent text-sm text-zinc-700 outline-none"
@@ -202,7 +206,10 @@ export default function AdmitCardsPage() {
                 <tr key={r.studentId} className={`border-t border-zinc-100 ${r.eligible ? "" : "bg-red-50/40"}`}>
                   <td className="p-3">
                     <p className="font-medium text-zinc-800">{r.fullName}</p>
-                    {r.rollNumber && <p className="text-xs text-zinc-400">Roll {r.rollNumber}</p>}
+                    <p className="text-xs text-zinc-400">
+                      <StudentId value={r.registrationId} plain className="font-semibold text-indigo-600" />
+                      {r.rollNumber && ` · Roll ${r.rollNumber}`}
+                    </p>
                   </td>
                   <td className="p-3">
                     <span className={r.attendanceOk ? "text-green-700" : "text-red-700"}>

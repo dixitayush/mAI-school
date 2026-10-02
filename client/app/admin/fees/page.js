@@ -24,6 +24,7 @@ const GET_FEES = gql`
         invoiceNumber
         studentByStudentId {
           id
+          registrationId
           userByUserId {
             fullName
           }
@@ -137,7 +138,12 @@ function FeesContent() {
     {
       header: 'Student',
       accessor: 'student',
-      render: (row) => row.studentByStudentId?.userByUserId?.fullName || 'Unknown',
+      render: (row) => (
+        <>
+          {row.studentByStudentId?.userByUserId?.fullName || 'Unknown'}
+          <span className="ml-1.5 font-mono text-xs font-semibold text-indigo-600">{row.studentByStudentId?.registrationId}</span>
+        </>
+      ),
     },
     {
       header: 'Class',

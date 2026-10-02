@@ -21,6 +21,7 @@ import {
  * @param {string} data.subject
  * @param {string} data.examDate
  * @param {string} data.studentName
+ * @param {string} [data.registrationId]
  * @param {string} [data.rollNumber]
  * @param {string} [data.className]
  * @param {string} [data.section]
@@ -66,6 +67,7 @@ export function generateAdmitCard(data, docRef = null, save = true) {
 
   const info = [
     ["Student Name", data.studentName || "N/A"],
+    ["Registration ID", data.registrationId || "N/A"],
     ["Roll Number", data.rollNumber || "N/A"],
     ["Class / Section", [data.className, data.section].filter(Boolean).join(" — ") || "N/A"],
     ["Examination", data.examTitle || "N/A"],

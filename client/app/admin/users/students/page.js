@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useMutation, gql } from '@apollo/client';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
 import DataTable from '@/components/DataTable';
 import StudentModal from '@/components/StudentModal';
 import StudentFilterBar from '@/components/StudentFilterBar';
 import Pagination from '@/components/Pagination';
-import Uuid from '@/components/Uuid';
+import StudentId from '@/components/StudentId';
 import { Mail, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { apiBase, authHeaders, apiFetch } from '@/lib/api';
@@ -38,6 +39,7 @@ const CREATE_STUDENT = gql`
     }) {
       student {
         id
+        registrationId
         enrollmentDate
         userByUserId {
           id
@@ -86,6 +88,8 @@ const DELETE_STUDENT = gql`
 const PAGE_SIZE = 50;
 
 function StudentsContent() {
+  // Global search links here with ?search=<registration id>.
+  const searchParam = useSearchParams().get('search') || '';
   const [createStudent] = useMutation(CREATE_STUDENT);
   const [updateStudent] = useMutation(UPDATE_STUDENT);
   const [deleteStudent] = useMutation(DELETE_STUDENT);
@@ -97,8 +101,12 @@ function StudentsContent() {
   // The roster is fetched a page at a time with the filters applied server
   // side: a 500–1000 student school cannot be loaded into the browser at once.
   const [filters, setFilters] = useState({
-    session_id: '', class_id: '', section: '', grade_level: '', lifecycle_status: '', search: '', page: 1,
+    session_id: '', class_id: '', section: '', grade_level: '', lifecycle_status: '', search: searchParam, page: 1,
   });
+
+  useEffect(() => {
+    if (searchParam) setFilters((f) => ({ ...f, search: searchParam, page: 1 }));
+  }, [searchParam]);
   const [result, setResult] = useState({ students: [], total: 0, total_pages: 1, page: 1 });
   const [loading, setLoading] = useState(true);
   const { options } = useFilterOptions();
@@ -132,9 +140,9 @@ function StudentsContent() {
 
   const columns = [
     {
-      header: 'Student ID',
-      accessor: 'id',
-      render: (row) => <Uuid value={row.id} label="Student ID" />,
+      header: 'Reg. ID',
+      accessor: 'registration_id',
+      render: (row) => <StudentId value={row.registration_id} />,
     },
     { header: 'Name', accessor: 'full_name', render: (row) => row.full_name },
     { header: 'Username', accessor: 'username', render: (row) => row.username },
@@ -222,7 +230,7 @@ function StudentsContent() {
         setModalOpen(false);
         refetch();
       } else {
-        await createStudent({
+        const { data } = await createStudent({
           variables: {
             fullName: formData.fullName,
             username: formData.username,
@@ -235,7 +243,8 @@ function StudentsContent() {
             parentAddress: formData.parentAddress || null
           }
         });
-        toast.success('Student created successfully!');
+        const regId = data?.registerStudent?.student?.registrationId;
+        toast.success(regId ? `Student created — Registration ID ${regId}` : 'Student created successfully!');
         setModalOpen(false);
         refetch();
       }
@@ -324,7 +333,9 @@ function StudentsContent() {
 export default function StudentsPage() {
   return (
     <ApolloWrapper>
-      <StudentsContent />
+      <Suspense fallback={null}>
+        <StudentsContent />
+      </Suspense>
     </ApolloWrapper>
   );
 }

@@ -13,14 +13,15 @@ const ctl =
  *
  * Replaces a `<select>` holding the whole roster: at 500–1000 students a plain
  * dropdown is unusable, so this queries the server as the user types and lets
- * them narrow by class and section first. Accepts a pasted student uuid.
+ * them narrow by class and section first. A typed registration id (e.g.
+ * DEMO260001) matches exactly; a pasted student uuid still works.
  */
 export default function StudentPicker({
   value,
   onChange,
   label = "Student",
   required = false,
-  placeholder = "Search by name, roll no, admission no or student ID…",
+  placeholder = "Search by name, registration ID, roll no or admission no…",
 }) {
   const { options } = useFilterOptions();
   const [query, setQuery] = useState("");
@@ -91,9 +92,11 @@ export default function StudentPicker({
               {selected.section ? `/${selected.section}` : ""}
               {selected.roll_number ? ` · Roll ${selected.roll_number}` : ""}
             </span>
-            <span className="ml-1 font-mono text-[11px] text-zinc-400">
-              {String(selected.id).split("-")[0]}…
-            </span>
+            {selected.registration_id && (
+              <span className="ml-1.5 font-mono text-xs font-semibold text-indigo-600">
+                {selected.registration_id}
+              </span>
+            )}
           </span>
           <button
             type="button"
@@ -154,7 +157,9 @@ export default function StudentPicker({
                       {s.class_name || "Unassigned"}
                       {s.section ? ` · ${s.section}` : ""}
                       {s.roll_number ? ` · Roll ${s.roll_number}` : ""}
-                      <span className="ml-1 font-mono text-zinc-400">{String(s.id).split("-")[0]}…</span>
+                      {s.registration_id && (
+                        <span className="ml-1.5 font-mono font-semibold text-indigo-600">{s.registration_id}</span>
+                      )}
                     </span>
                   </span>
                   {value === s.id && <Check className="h-4 w-4 shrink-0 text-primary-600" />}

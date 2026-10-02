@@ -28,12 +28,17 @@ router.get('/', requireAuth, requireTenant, async (req, res) => {
       if (['admin', 'principal', 'teacher', 'mai_admin'].includes(role)) {
         searches.push(
           pool.query(
-            `SELECT s.id, u.full_name AS name, 'student' AS type, s.roll_number AS subtitle
+            `SELECT s.id, u.full_name AS name, 'student' AS type, s.registration_id,
+                    concat_ws(' · ', s.registration_id, c.name, 'Sec ' || s.section,
+                              'Roll ' || s.roll_number) AS subtitle
              FROM students s JOIN users u ON u.id = s.user_id
+             LEFT JOIN classes c ON c.id = s.class_id
              WHERE u.institution_id = $1
-               AND (LOWER(u.full_name) LIKE $2 OR LOWER(s.roll_number) LIKE $2 OR LOWER(u.username) LIKE $2)
+               AND (LOWER(u.full_name) LIKE $2 OR LOWER(s.registration_id) LIKE $2
+                    OR LOWER(s.roll_number) LIKE $2 OR LOWER(u.username) LIKE $2)
+             ORDER BY (LOWER(s.registration_id) = $4) DESC, u.full_name
              LIMIT $3`,
-            [institution_id, query, limit]
+            [institution_id, query, limit, q.trim().toLowerCase()]
           ).then(r => results.push(...r.rows))
         );
       }

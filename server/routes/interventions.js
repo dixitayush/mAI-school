@@ -30,7 +30,7 @@ router.post('/', requireAuth, requireRole('teacher', 'admin', 'principal'), requ
 router.get('/', requireAuth, requireRole('teacher', 'admin', 'principal'), requireTenant, async (req, res) => {
   const { status, student_id, owner_id } = req.query;
   try {
-    let query = `SELECT i.*, u.full_name AS student_name, o.full_name AS owner_name, c.full_name AS created_by_name
+    let query = `SELECT i.*, u.full_name AS student_name, s.registration_id, o.full_name AS owner_name, c.full_name AS created_by_name
                    FROM interventions i
                    JOIN students s ON s.id = i.student_id
                    JOIN users u ON u.id = s.user_id
@@ -52,7 +52,7 @@ router.get('/', requireAuth, requireRole('teacher', 'admin', 'principal'), requi
 router.get('/signals', requireAuth, requireRole('teacher', 'admin', 'principal'), requireTenant, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT ss.*, u.full_name AS student_name
+      `SELECT ss.*, u.full_name AS student_name, s.registration_id
          FROM support_signals ss
          JOIN students s ON s.id = ss.student_id
          JOIN users u ON u.id = s.user_id
@@ -79,7 +79,7 @@ router.patch('/signals/:id/acknowledge', requireAuth, requireRole('teacher', 'ad
 router.get('/:id', requireAuth, requireRole('teacher', 'admin', 'principal'), requireTenant, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT i.*, u.full_name AS student_name FROM interventions i
+      `SELECT i.*, u.full_name AS student_name, s.registration_id FROM interventions i
          JOIN students s ON s.id = i.student_id JOIN users u ON u.id = s.user_id
         WHERE i.id = $1 AND i.institution_id = $2`,
       [req.params.id, req.auth.institution_id]

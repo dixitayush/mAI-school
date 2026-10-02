@@ -26,7 +26,7 @@ async function buildContext(auth) {
 
   if (role === 'student') {
     const s = await pool.query(
-      `SELECT s.id, s.roll_number, s.section, c.id AS class_id, c.name AS class_name
+      `SELECT s.id, s.registration_id, s.roll_number, s.section, c.id AS class_id, c.name AS class_name
          FROM students s
          JOIN users u ON u.id = s.user_id
          LEFT JOIN classes c ON c.id = s.class_id
@@ -35,7 +35,7 @@ async function buildContext(auth) {
     );
     const stu = s.rows[0];
     if (!stu) return ctx;
-    ctx.student = { roll_number: stu.roll_number, section: stu.section, class: stu.class_name };
+    ctx.student = { registration_id: stu.registration_id, roll_number: stu.roll_number, section: stu.section, class: stu.class_name };
 
     const att = await pool.query(
       `SELECT count(*) FILTER (WHERE status='present') present,

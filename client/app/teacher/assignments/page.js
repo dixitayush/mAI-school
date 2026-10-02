@@ -51,6 +51,7 @@ const GET_TEACHER_ASSIGNMENTS = gql`
             submittedAt
             fileId
             studentByStudentId {
+              registrationId
               rollNumber
               userByUserId {
                 fullName
@@ -379,6 +380,11 @@ function SubmissionRow({ sub, onGrade }) {
         <div className="min-w-0">
           <p className="truncate font-medium text-zinc-800">
             {sub.studentByStudentId?.userByUserId?.fullName}
+            {sub.studentByStudentId?.registrationId && (
+              <span className="ml-1.5 font-mono text-xs font-semibold text-indigo-600">
+                {sub.studentByStudentId.registrationId}
+              </span>
+            )}
             {sub.studentByStudentId?.rollNumber ? ` · Roll ${sub.studentByStudentId.rollNumber}` : ""}
           </p>
           <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">

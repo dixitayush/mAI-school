@@ -106,7 +106,7 @@ export default function TeacherInterventionsPage() {
               <div className="flex items-center gap-3">
                 <Bell className="h-5 w-5 text-amber-600" />
                 <div>
-                  <p className="text-sm font-semibold text-amber-900">{s.student_name || "Student"} — {s.signal_type || s.type}</p>
+                  <p className="text-sm font-semibold text-amber-900">{s.student_name || "Student"}{s.registration_id ? ` (${s.registration_id})` : ""} — {s.signal_type || s.type}</p>
                   <p className="text-xs text-amber-700">{s.message || s.description || "Requires attention"}</p>
                 </div>
               </div>
@@ -185,7 +185,10 @@ export default function TeacherInterventionsPage() {
               <tbody className="divide-y divide-zinc-100">
                 {interventions.map((intv) => (
                   <tr key={intv.id} className="hover:bg-zinc-50 transition-colors">
-                    <td className="px-5 py-3 font-medium text-zinc-800">{intv.student_name || intv.student_id?.slice(0, 8) || "—"}</td>
+                    <td className="px-5 py-3 font-medium text-zinc-800">
+                      {intv.student_name || "—"}
+                      <span className="ml-1.5 font-mono text-xs font-semibold text-indigo-600">{intv.registration_id}</span>
+                    </td>
                     <td className="px-5 py-3 text-zinc-600 capitalize">{intv.concern_type}</td>
                     <td className="px-5 py-3">
                       <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_COLORS[intv.status] || "bg-zinc-100 text-zinc-700"}`}>

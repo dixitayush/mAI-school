@@ -83,7 +83,7 @@ export default function InterventionsPage() {
           {signals.filter(s => !s.acknowledged).map(sig => (
             <div key={sig.id} className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 p-4">
               <div>
-                <p className="text-sm font-medium text-amber-900">{sig.signal_type}: {sig.student_name || sig.student_id?.slice(0, 8)}</p>
+                <p className="text-sm font-medium text-amber-900">{sig.signal_type}: {sig.student_name || "Student"}{sig.registration_id ? ` (${sig.registration_id})` : ""}</p>
                 <p className="text-xs text-amber-700">{sig.description || sig.reason}</p>
               </div>
               <button onClick={() => acknowledge(sig.id)} className="inline-flex items-center gap-1 rounded-lg bg-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-300">
@@ -121,8 +121,8 @@ export default function InterventionsPage() {
             <div key={int.id} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-semibold text-zinc-900">{int.title || int.student_name || `Student ${int.student_id?.slice(0, 8)}`}</p>
-                  <p className="mt-0.5 text-xs text-zinc-500">{int.student_name} · {int.description?.slice(0, 80)}</p>
+                  <p className="font-semibold text-zinc-900">{int.title || int.student_name || `Student ${int.registration_id || ""}`}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">{int.student_name}{int.registration_id ? ` (${int.registration_id})` : ""} · {int.description?.slice(0, 80)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${TYPE_COLORS[int.concern_type] || TYPE_COLORS.academic}`}>{int.concern_type}</span>

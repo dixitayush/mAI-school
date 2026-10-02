@@ -26,6 +26,7 @@ const GET_INVOICES = gql`
         status
         studentByStudentId {
           id
+          registrationId
           rollNumber
           userByUserId { fullName }
           classByClassId { name }
@@ -172,6 +173,7 @@ function CollectModal({ isOpen, onClose, invoice, onCollect }) {
             {invoice.studentByStudentId?.userByUserId?.fullName}
           </span>
           <span className="text-zinc-500">
+            {' '}· {invoice.studentByStudentId?.registrationId || '-'}
             {' '}· {invoice.studentByStudentId?.classByClassId?.name || '-'} · {invoice.invoiceNumber}
           </span>
         </div>
@@ -281,7 +283,8 @@ function InvoicesContent() {
       if (statusFilter !== 'all' && inv.status !== statusFilter) return false;
       if (!q) return true;
       const name = inv.studentByStudentId?.userByUserId?.fullName?.toLowerCase() || '';
-      return name.includes(q) || (inv.invoiceNumber || '').toLowerCase().includes(q);
+      const regId = inv.studentByStudentId?.registrationId?.toLowerCase() || '';
+      return name.includes(q) || regId.includes(q) || (inv.invoiceNumber || '').toLowerCase().includes(q);
     });
   }, [invoices, search, statusFilter]);
 
@@ -292,6 +295,7 @@ function InvoicesContent() {
         invoiceNumber: inv.invoiceNumber,
         studentName: inv.studentByStudentId?.userByUserId?.fullName,
         className: inv.studentByStudentId?.classByClassId?.name,
+        registrationId: inv.studentByStudentId?.registrationId,
         rollNumber: inv.studentByStudentId?.rollNumber,
         periodLabel: inv.periodLabel,
         issueDate: inv.issueDate,
@@ -321,6 +325,7 @@ function InvoicesContent() {
         receiptNumber,
         invoiceNumber: inv.invoiceNumber,
         studentName: inv.studentByStudentId?.userByUserId?.fullName,
+        registrationId: inv.studentByStudentId?.registrationId,
         className: inv.studentByStudentId?.classByClassId?.name,
         paidOn: payments[0].paidOn,
         balanceAfter: parseFloat(inv.total) - parseFloat(inv.paidTotal),
@@ -386,7 +391,7 @@ function InvoicesContent() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search student or invoice no."
+              placeholder="Search student, registration ID or invoice no."
               className="w-full rounded-lg border border-zinc-300 py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
@@ -435,6 +440,9 @@ function InvoicesContent() {
                       <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-zinc-900">{inv.invoiceNumber}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-700">
                         {inv.studentByStudentId?.userByUserId?.fullName}
+                        <span className="block font-mono text-xs font-semibold text-indigo-600">
+                          {inv.studentByStudentId?.registrationId}
+                        </span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
                         {inv.studentByStudentId?.classByClassId?.name || '-'}

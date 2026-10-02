@@ -82,6 +82,11 @@ export default function ParentDashboard() {
         <div className="mb-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-zinc-900">{activeChild.full_name}</h2>
           <p className="text-sm text-zinc-500">
+            {activeChild.registration_id && (
+              <span className="mr-2 rounded bg-indigo-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-indigo-700">
+                {activeChild.registration_id}
+              </span>
+            )}
             Class {activeChild.class_name || "—"} {activeChild.section ? `· Section ${activeChild.section}` : ""} · Roll #{activeChild.roll_number || "—"}
           </p>
         </div>

@@ -127,7 +127,7 @@ router.post(
 router.get('/children', requireAuth, requireRole('parent'), requireTenant, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT s.id, u.full_name, s.roll_number, s.section,
+      `SELECT s.id, s.registration_id, u.full_name, s.roll_number, s.section,
               c.id AS class_id, c.name AS class_name, c.grade_level,
               sg.is_primary
          FROM guardians g
@@ -174,7 +174,7 @@ router.get(
       const [student, attendance, recentResults, pendingFees, assignments, announcements] =
         await Promise.all([
           pool.query(
-            `SELECT s.id, u.full_name, s.roll_number, s.section,
+            `SELECT s.id, s.registration_id, u.full_name, s.roll_number, s.section,
                     c.name AS class_name, c.grade_level
                FROM students s
                JOIN users u ON u.id = s.user_id
@@ -262,7 +262,7 @@ router.get(
       const { rows } = await pool.query(
         `SELECT g.id, u.id AS user_id, u.full_name, u.username AS email,
                 g.relationship, g.weekly_digest_enabled,
-                array_agg(json_build_object('id', s.id, 'name', su.full_name)) AS children
+                array_agg(json_build_object('id', s.id, 'name', su.full_name, 'registration_id', s.registration_id)) AS children
            FROM guardians g
            JOIN users u ON u.id = g.user_id
            LEFT JOIN student_guardian sg ON sg.guardian_id = g.id

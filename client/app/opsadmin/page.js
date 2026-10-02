@@ -69,6 +69,7 @@ const GET_OVERVIEW = gql`
         mode
         receiptNumber
         studentByStudentId {
+          registrationId
           userByUserId {
             fullName
           }
@@ -289,6 +290,7 @@ function OpsAdminContent() {
                   <td className="px-6 py-3 font-mono text-xs text-zinc-500">{p.receiptNumber}</td>
                   <td className="px-6 py-3 font-medium text-zinc-800">
                     {p.studentByStudentId?.userByUserId?.fullName || '—'}
+                    <span className="ml-1.5 font-mono text-xs font-semibold text-indigo-600">{p.studentByStudentId?.registrationId}</span>
                   </td>
                   <td className="px-6 py-3 text-zinc-600">{p.paidOn}</td>
                   <td className="px-6 py-3 uppercase text-zinc-500">{p.mode}</td>

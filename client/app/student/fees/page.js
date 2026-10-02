@@ -24,6 +24,7 @@ const GET_MY_FEES = gql`
         paidTotal
         status
         studentByStudentId {
+          registrationId
           rollNumber
           userByUserId { fullName }
           classByClassId { name }
@@ -110,6 +111,7 @@ function MyFeesContent() {
         invoiceNumber: inv.invoiceNumber,
         studentName: inv.studentByStudentId?.userByUserId?.fullName,
         className: inv.studentByStudentId?.classByClassId?.name,
+        registrationId: inv.studentByStudentId?.registrationId,
         rollNumber: inv.studentByStudentId?.rollNumber,
         periodLabel: inv.periodLabel,
         issueDate: inv.issueDate,

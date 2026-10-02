@@ -563,7 +563,10 @@ export default function TransportPage() {
                   <tbody className="divide-y divide-zinc-100">
                     {assignments.map((a) => (
                       <tr key={a.id} className="hover:bg-zinc-50">
-                        <td className="px-4 py-3 font-medium text-zinc-800">{a.student_name}</td>
+                        <td className="px-4 py-3 font-medium text-zinc-800">
+                          {a.student_name}
+                          <span className="ml-1.5 font-mono text-xs font-semibold text-indigo-600">{a.registration_id}</span>
+                        </td>
                         <td className="px-4 py-3 text-zinc-500">{a.class_name || "—"}</td>
                         <td className="px-4 py-3 text-zinc-600">{a.route_name}</td>
                         <td className="px-4 py-3 text-zinc-500">{a.stop_name || "—"}</td>

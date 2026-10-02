@@ -11,6 +11,7 @@ const GET_MARKS = gql`
     allStudents(condition: { classId: $classId }, orderBy: ROLL_NUMBER_ASC) {
       nodes {
         id
+        registrationId
         rollNumber
         section
         userByUserId {
@@ -91,7 +92,8 @@ export default function MarksEntryModal({ open, exam, onClose, onSaved }) {
       if (!q) return true;
       const name = (s.userByUserId?.fullName || "").toLowerCase();
       const roll = (s.rollNumber || "").toLowerCase();
-      return name.includes(q) || roll.includes(q);
+      const regId = (s.registrationId || "").toLowerCase();
+      return name.includes(q) || roll.includes(q) || regId.includes(q);
     });
   }, [students, section, search]);
 
@@ -203,7 +205,7 @@ export default function MarksEntryModal({ open, exam, onClose, onSaved }) {
                   <Search className="h-4 w-4 shrink-0 text-zinc-400" />
                   <input
                     type="text"
-                    placeholder="Search by name or roll…"
+                    placeholder="Search by name, registration ID or roll…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="w-full bg-transparent text-sm text-zinc-700 outline-none"
@@ -236,9 +238,10 @@ export default function MarksEntryModal({ open, exam, onClose, onSaved }) {
                       <p className="truncate font-medium text-zinc-800">
                         {s.userByUserId?.fullName}
                       </p>
-                      {s.rollNumber && (
-                        <p className="text-xs text-zinc-400">Roll {s.rollNumber}</p>
-                      )}
+                      <p className="text-xs text-zinc-400">
+                        <span className="font-mono font-semibold text-indigo-600">{s.registrationId}</span>
+                        {s.rollNumber && ` · Roll ${s.rollNumber}`}
+                      </p>
                     </div>
                     <input
                       type="number"

@@ -189,7 +189,7 @@ router.get('/certificates', requireAuth, requireRole('admin', 'principal'), requ
   const { type, student_id } = req.query;
   try {
     let query = `SELECT c.id, c.type, c.verification_code, c.generated_at, c.revoked_at, c.data,
-                        c.student_id, u.full_name AS student_name, s.roll_number,
+                        c.student_id, u.full_name AS student_name, s.registration_id, s.roll_number,
                         cl.name AS class_name, g.full_name AS generated_by_name,
                         t.name AS template_name
                    FROM certificates c

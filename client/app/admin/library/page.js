@@ -272,6 +272,7 @@ export default function LibraryPage() {
                   {borrowers.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.full_name} — {b.role}
+                      {b.registration_id ? ` · ${b.registration_id}` : ""}
                       {b.class_name ? ` (${b.class_name}${b.roll_number ? ` #${b.roll_number}` : ""})` : ""}
                     </option>
                   ))}

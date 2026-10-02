@@ -24,6 +24,7 @@ const GET_STUDENT_DASHBOARD = gql`
     allStudents(condition: { userId: $userId }) {
       nodes {
         id
+        registrationId
         userByUserId {
           fullName
           username
@@ -115,8 +116,8 @@ export default function StudentDashboard() {
                     ? `${studentData.classByClassId.name}${studentData.section ? ` · ${studentData.section}` : ''}`
                     : 'N/A',
                 // The real roll number, not the login username.
-                rollNumber: studentData.rollNumber || studentData.userByUserId?.username || 'N/A',
-                studentId: studentData.id,
+                rollNumber: studentData.rollNumber || 'N/A',
+                registrationId: studentData.registrationId,
                 results: results.map(r => ({
                     subject: r.examByExamId?.subject || 'N/A',
                     marksObtained: r.marksObtained || 0,
@@ -281,11 +282,13 @@ export default function StudentDashboard() {
                         {studentData?.rollNumber ? ` · Roll ${studentData.rollNumber}` : ''}
                         {' · '}{upcomingExams.length} upcoming exam{upcomingExams.length !== 1 ? 's' : ''}
                     </p>
-                    {studentData?.id && (
+                    {studentData?.registrationId && (
                         <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-primary-100">
                             <span>
-                                Student ID:{' '}
-                                <span className="select-all font-mono text-white">{studentData.id}</span>
+                                Registration ID:{' '}
+                                <span className="select-all rounded bg-white/15 px-1.5 py-0.5 font-mono text-sm font-semibold tracking-wide text-white">
+                                    {studentData.registrationId}
+                                </span>
                             </span>
                             {studentData.admissionNumber && (
                                 <span>

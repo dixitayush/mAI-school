@@ -18,22 +18,32 @@ const IMPORT_TYPES = ['students', 'teachers', 'parents', 'classes', 'fees', 'mar
 const REQUIRED_COLUMNS = {
   students: ['full_name', 'class_name'],
   teachers: ['full_name'],
-  parents: ['full_name', 'student_roll_number'],
+  parents: ['full_name', 'student_registration_id'],
   classes: ['name', 'grade_level'],
-  fees: ['roll_number', 'amount', 'due_date'],
-  marks: ['roll_number', 'exam_title', 'marks_obtained'],
-  attendance: ['roll_number', 'date', 'status'],
+  fees: ['registration_id', 'amount', 'due_date'],
+  marks: ['registration_id', 'exam_title', 'marks_obtained'],
+  attendance: ['registration_id', 'date', 'status'],
+};
+
+/**
+ * Older files identify the student by roll number. Roll numbers only repeat
+ * across classes, so they are accepted as a fallback for the registration id
+ * rather than rejected outright.
+ */
+const STUDENT_KEY_FALLBACKS = {
+  registration_id: 'roll_number',
+  student_registration_id: 'student_roll_number',
 };
 
 /** Header rows offered as downloadable templates. */
 const TEMPLATE_COLUMNS = {
   students: ['full_name', 'username', 'email', 'class_name', 'section', 'roll_number', 'parent_name', 'parent_email', 'parent_phone', 'parent_address'],
   teachers: ['full_name', 'username', 'email', 'subject_specialization', 'qualification'],
-  parents: ['full_name', 'username', 'email', 'phone', 'relationship', 'student_roll_number'],
+  parents: ['full_name', 'username', 'email', 'phone', 'relationship', 'student_registration_id'],
   classes: ['name', 'grade_level'],
-  fees: ['roll_number', 'amount', 'description', 'due_date', 'status', 'invoice_number'],
-  marks: ['roll_number', 'exam_title', 'subject', 'marks_obtained', 'grade', 'feedback'],
-  attendance: ['roll_number', 'date', 'status', 'remarks'],
+  fees: ['registration_id', 'amount', 'description', 'due_date', 'status', 'invoice_number'],
+  marks: ['registration_id', 'exam_title', 'subject', 'marks_obtained', 'grade', 'feedback'],
+  attendance: ['registration_id', 'date', 'status', 'remarks'],
 };
 
 // ---------------------------------------------------------------------------
@@ -154,16 +164,33 @@ async function resolveClassId(client, institutionId, name) {
   return rows[0]?.id || null;
 }
 
-async function resolveStudentByRoll(client, institutionId, roll) {
-  if (!roll) return null;
+/**
+ * The student a row refers to: by registration id when the file has one
+ * (unique), else by roll number — which is only unique within a class, so an
+ * ambiguous roll is an error rather than a guess.
+ */
+async function resolveStudent(client, institutionId, registrationId, roll) {
+  if (registrationId) {
+    const { rows } = await client.query(
+      `SELECT s.id, s.user_id FROM students s
+         JOIN users u ON u.id = s.user_id
+        WHERE u.institution_id = $1 AND s.registration_id = UPPER(TRIM($2))`,
+      [institutionId, registrationId]
+    );
+    if (!rows[0]) throw new Error(`Unknown student registration id "${registrationId}"`);
+    return rows[0];
+  }
+  if (!roll) throw new Error('registration_id is required');
   const { rows } = await client.query(
     `SELECT s.id, s.user_id FROM students s
        JOIN users u ON u.id = s.user_id
       WHERE u.institution_id = $1 AND s.roll_number = $2
-      LIMIT 1`,
+      LIMIT 2`,
     [institutionId, roll]
   );
-  return rows[0] || null;
+  if (rows.length === 0) throw new Error(`Unknown student roll number "${roll}"`);
+  if (rows.length > 1) throw new Error(`Roll number "${roll}" matches several students — use registration_id`);
+  return rows[0];
 }
 
 const ROW_IMPORTERS = {
@@ -242,8 +269,7 @@ const ROW_IMPORTERS = {
 
   async parents(client, institutionId, row, index) {
     if (!row.full_name) throw new Error('full_name is required');
-    const student = await resolveStudentByRoll(client, institutionId, row.student_roll_number);
-    if (!student) throw new Error(`Unknown student roll number "${row.student_roll_number || ''}"`);
+    const student = await resolveStudent(client, institutionId, row.student_registration_id, row.student_roll_number);
 
     const username = row.username || slugUsername(row.full_name, `p${Date.now().toString(36)}${index}`);
     const user = await client.query(
@@ -296,8 +322,7 @@ const ROW_IMPORTERS = {
   },
 
   async fees(client, institutionId, row) {
-    const student = await resolveStudentByRoll(client, institutionId, row.roll_number);
-    if (!student) throw new Error(`Unknown student roll number "${row.roll_number || ''}"`);
+    const student = await resolveStudent(client, institutionId, row.registration_id, row.roll_number);
     const amount = Number(row.amount);
     if (!Number.isFinite(amount)) throw new Error('amount must be a number');
     const dueDate = requireDate(row.due_date, 'due_date');
@@ -318,8 +343,7 @@ const ROW_IMPORTERS = {
   },
 
   async marks(client, institutionId, row) {
-    const student = await resolveStudentByRoll(client, institutionId, row.roll_number);
-    if (!student) throw new Error(`Unknown student roll number "${row.roll_number || ''}"`);
+    const student = await resolveStudent(client, institutionId, row.registration_id, row.roll_number);
     const exam = await client.query(
       `SELECT e.id FROM exams e
          JOIN classes c ON c.id = e.class_id
@@ -342,8 +366,7 @@ const ROW_IMPORTERS = {
   },
 
   async attendance(client, institutionId, row) {
-    const student = await resolveStudentByRoll(client, institutionId, row.roll_number);
-    if (!student) throw new Error(`Unknown student roll number "${row.roll_number || ''}"`);
+    const student = await resolveStudent(client, institutionId, row.registration_id, row.roll_number);
     // Mirrors the attendance_status_check constraint.
     const date = requireDate(row.date, 'date');
     const status = String(row.status || '').toLowerCase();
@@ -370,7 +393,9 @@ function validateCsv(type, text, options = {}) {
   let required = REQUIRED_COLUMNS[type] || [];
   // A default chosen in the UI stands in for the column, so don't demand it.
   if (options.default_class_id) required = required.filter((c) => c !== 'class_name');
-  const missing = required.filter((c) => !headers.includes(c));
+  const missing = required.filter(
+    (c) => !headers.includes(c) && !(STUDENT_KEY_FALLBACKS[c] && headers.includes(STUDENT_KEY_FALLBACKS[c]))
+  );
   return { headers, rows, missing };
 }
 
@@ -483,7 +508,7 @@ function studentPlacement(b, sessionId) {
 const EXPORTERS = {
   students: {
     filters: ['session_id', 'class_id', 'section', 'grade_level', 'lifecycle_status', 'search'],
-    columns: ['student_uuid', 'admission_number', 'full_name', 'username', 'email', 'class_name', 'section', 'roll_number', 'lifecycle_status'],
+    columns: ['registration_id', 'admission_number', 'full_name', 'username', 'email', 'class_name', 'section', 'roll_number', 'lifecycle_status', 'student_uuid'],
     build(institutionId, f) {
       const b = clauseBuilder([institutionId]);
       const pl = studentPlacement(b, f.session_id);
@@ -493,10 +518,11 @@ const EXPORTERS = {
       b.add('s.lifecycle_status = ?', f.lifecycle_status);
       if (f.search) {
         const ph = b.push(`%${f.search}%`);
-        b.raw(`(u.full_name ILIKE ${ph} OR u.username ILIKE ${ph} OR s.admission_number ILIKE ${ph})`);
+        b.raw(`(u.full_name ILIKE ${ph} OR u.username ILIKE ${ph} OR s.admission_number ILIKE ${ph}
+                OR s.registration_id ILIKE ${ph})`);
       }
       return {
-        sql: `SELECT s.id AS student_uuid, s.admission_number, u.full_name, u.username, p.email,
+        sql: `SELECT s.registration_id, s.id AS student_uuid, s.admission_number, u.full_name, u.username, p.email,
                      c.name AS class_name, ${pl.sectionCol} AS section, ${pl.rollCol} AS roll_number,
                      s.lifecycle_status
                 FROM students s
@@ -550,7 +576,7 @@ const EXPORTERS = {
   },
   fees: {
     filters: ['session_id', 'class_id', 'section', 'status', 'date_from', 'date_to'],
-    columns: ['student_uuid', 'student_name', 'roll_number', 'class_name', 'invoice_number', 'amount', 'paid_amount', 'status', 'due_date', 'description'],
+    columns: ['registration_id', 'student_name', 'roll_number', 'class_name', 'invoice_number', 'amount', 'paid_amount', 'status', 'due_date', 'description', 'student_uuid'],
     build(institutionId, f) {
       const b = clauseBuilder([institutionId]);
       const pl = studentPlacement(b, f.session_id);
@@ -560,7 +586,7 @@ const EXPORTERS = {
       b.add('f.due_date >= ?', f.date_from);
       b.add('f.due_date <= ?', f.date_to);
       return {
-        sql: `SELECT s.id AS student_uuid, u.full_name AS student_name, ${pl.rollCol} AS roll_number,
+        sql: `SELECT s.registration_id, s.id AS student_uuid, u.full_name AS student_name, ${pl.rollCol} AS roll_number,
                      c.name AS class_name, f.invoice_number, f.amount, f.paid_amount, f.status,
                      f.due_date, f.description
                 FROM fees f
@@ -576,7 +602,7 @@ const EXPORTERS = {
   },
   attendance: {
     filters: ['session_id', 'class_id', 'section', 'status', 'date_from', 'date_to'],
-    columns: ['student_uuid', 'student_name', 'roll_number', 'class_name', 'section', 'date', 'status', 'remarks'],
+    columns: ['registration_id', 'student_name', 'roll_number', 'class_name', 'section', 'date', 'status', 'remarks', 'student_uuid'],
     build(institutionId, f) {
       const b = clauseBuilder([institutionId]);
       const pl = studentPlacement(b, f.session_id);
@@ -586,7 +612,7 @@ const EXPORTERS = {
       b.add('a.date >= ?', f.date_from);
       b.add('a.date <= ?', f.date_to);
       return {
-        sql: `SELECT s.id AS student_uuid, u.full_name AS student_name, ${pl.rollCol} AS roll_number,
+        sql: `SELECT s.registration_id, s.id AS student_uuid, u.full_name AS student_name, ${pl.rollCol} AS roll_number,
                      c.name AS class_name, ${pl.sectionCol} AS section, a.date, a.status, a.remarks
                 FROM attendance a
                 JOIN students s ON s.id = a.student_id
@@ -601,7 +627,7 @@ const EXPORTERS = {
   },
   marks: {
     filters: ['session_id', 'exam_id', 'class_id', 'section'],
-    columns: ['student_uuid', 'student_name', 'roll_number', 'class_name', 'exam_title', 'subject', 'marks_obtained', 'total_marks', 'grade'],
+    columns: ['registration_id', 'student_name', 'roll_number', 'class_name', 'exam_title', 'subject', 'marks_obtained', 'total_marks', 'grade', 'student_uuid'],
     build(institutionId, f) {
       const b = clauseBuilder([institutionId]);
       const pl = studentPlacement(b, f.session_id);
@@ -609,7 +635,7 @@ const EXPORTERS = {
       b.add(`${pl.classCol} = ?`, f.class_id);
       b.add(`${pl.sectionCol} = ?`, f.section);
       return {
-        sql: `SELECT s.id AS student_uuid, u.full_name AS student_name, ${pl.rollCol} AS roll_number,
+        sql: `SELECT s.registration_id, s.id AS student_uuid, u.full_name AS student_name, ${pl.rollCol} AS roll_number,
                      c.name AS class_name, e.title AS exam_title, e.subject,
                      r.marks_obtained, e.total_marks, r.grade
                 FROM results r

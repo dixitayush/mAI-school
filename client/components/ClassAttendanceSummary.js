@@ -18,6 +18,7 @@ const CLASS_SUMMARY = gql`
     classAttendanceSummary(pClassId: $cid) {
       nodes {
         studentId
+        registrationId
         fullName
         rollNumber
         present
@@ -123,6 +124,7 @@ export default function ClassAttendanceSummary({ classId }) {
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 text-left text-xs font-semibold text-zinc-500">
             <tr>
+              <th className="p-3">Reg. ID</th>
               <th className="p-3">Student</th>
               <th className="p-3">Roll</th>
               <th className="p-3">Present</th>
@@ -138,6 +140,7 @@ export default function ClassAttendanceSummary({ classId }) {
               const low = pct < threshold;
               return (
                 <tr key={r.studentId} className={`border-t border-zinc-100 ${low ? "bg-red-50/40" : ""}`}>
+                  <td className="p-3 font-mono text-xs font-semibold text-indigo-600">{r.registrationId || "—"}</td>
                   <td className="p-3 font-medium text-zinc-800">{r.fullName}</td>
                   <td className="p-3 text-zinc-500">{r.rollNumber || "—"}</td>
                   <td className="p-3 text-green-700">{r.present}</td>
@@ -155,7 +158,7 @@ export default function ClassAttendanceSummary({ classId }) {
             })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-zinc-400">
+                <td colSpan={8} className="p-6 text-center text-zinc-400">
                   No attendance data for this class yet.
                 </td>
               </tr>

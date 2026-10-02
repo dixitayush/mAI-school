@@ -46,6 +46,7 @@ function signatory(doc, y) {
  * @param {string} data.schoolName
  * @param {string} data.invoiceNumber
  * @param {string} data.studentName
+ * @param {string} [data.registrationId]
  * @param {string} [data.className]
  * @param {string} [data.rollNumber]
  * @param {string} [data.periodLabel]
@@ -72,6 +73,7 @@ export function generateFeeInvoice(data) {
     [
       ["Invoice", data.invoiceNumber || "-"],
       ["Student", data.studentName || "-"],
+      ["Reg. ID", data.registrationId || "-"],
       ["Class", data.className || "-"],
       ["Roll No.", data.rollNumber || "-"],
     ],
@@ -172,6 +174,7 @@ export function generateFeeReceipt(data) {
     [
       ["Receipt", data.receiptNumber || "-"],
       ["Student", data.studentName || "-"],
+      ["Reg. ID", data.registrationId || "-"],
       ["Class", data.className || "-"],
     ],
     [

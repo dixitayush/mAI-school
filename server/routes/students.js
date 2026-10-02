@@ -9,6 +9,9 @@ const pool = getAppPool();
 /** A value is only usable as a uuid filter if it parses as one. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Shape of a student registration id: school letters, admission year, serial. */
+const REGISTRATION_ID_RE = /^[A-Z]{2,4}\d{6,}$/i;
+
 /**
  * Roster list — the picker behind transport assignment, document upload,
  * certificate generation and consent screens, which all need id + name pairs,
@@ -17,7 +20,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  *
  * Filters: session_id, class_id, section, grade_level, lifecycle_status,
  * student_id (uuid) and a free-text `search` that matches name, username,
- * roll number, admission number and student uuid.
+ * registration id, roll number, admission number and student uuid.
  *
  * `session_id` reads the roster as it stood in that session: for any session
  * other than the current one the class/section come from student_enrollments
@@ -78,12 +81,15 @@ router.get('/', requireAuth, requireRole('admin', 'principal', 'teacher', 'opsad
     }
     if (search) {
       const term = String(search).trim();
-      // A pasted uuid should find exactly that student; otherwise match the
-      // human identifiers an admin would type.
+      // A pasted uuid or a full registration id finds exactly that student;
+      // otherwise match the human identifiers an admin would type.
       if (UUID_RE.test(term)) {
         where += ` AND s.id = $${idx++}`; params.push(term);
+      } else if (REGISTRATION_ID_RE.test(term)) {
+        where += ` AND s.registration_id = $${idx++}`; params.push(term.toUpperCase());
       } else {
         where += ` AND (u.full_name ILIKE $${idx} OR u.username ILIKE $${idx}
+                        OR s.registration_id ILIKE $${idx}
                         OR ${rollCol} ILIKE $${idx} OR s.admission_number ILIKE $${idx})`;
         params.push(`%${term}%`); idx++;
       }
@@ -101,7 +107,7 @@ router.get('/', requireAuth, requireRole('admin', 'principal', 'teacher', 'opsad
     const listParams = params.slice();
     listParams.push(limit, offset);
     const { rows } = await pool.query(
-      `SELECT s.id, s.user_id, ${rollCol} AS roll_number, ${sectionCol} AS section,
+      `SELECT s.id, s.registration_id, s.user_id, ${rollCol} AS roll_number, ${sectionCol} AS section,
               ${classCol} AS class_id, s.lifecycle_status, s.admission_number,
               s.enrollment_date, s.parent_name, s.parent_email, s.parent_phone, s.parent_address,
               u.full_name, u.username, pr.email, c.name AS class_name, c.grade_level,
@@ -154,16 +160,19 @@ router.get('/:id/enrollments', requireAuth, requireTenant, async (req, res) => {
   }
 });
 
-// Get student profile with extended fields
+// Get student profile with extended fields — by uuid or registration id.
 router.get('/:id', requireAuth, requireTenant, async (req, res) => {
+  const key = String(req.params.id).trim();
+  const byUuid = UUID_RE.test(key);
+  if (!byUuid && !REGISTRATION_ID_RE.test(key)) return res.status(404).json({ error: 'Student not found' });
   try {
     const { rows } = await pool.query(
       `SELECT s.*, u.full_name, u.username, c.name AS class_name, c.grade_level
          FROM students s
          JOIN users u ON u.id = s.user_id
          LEFT JOIN classes c ON c.id = s.class_id
-        WHERE s.id = $1 AND u.institution_id = $2`,
-      [req.params.id, req.auth.institution_id]
+        WHERE ${byUuid ? 's.id' : 's.registration_id'} = $1 AND u.institution_id = $2`,
+      [byUuid ? key : key.toUpperCase(), req.auth.institution_id]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Student not found' });
     res.json({ student: rows[0] });

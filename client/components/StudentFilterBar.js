@@ -18,7 +18,7 @@ export default function StudentFilterBar({
   value,
   onChange,
   show = ["session", "class", "section", "search"],
-  searchPlaceholder = "Search name, roll no, admission no or student ID…",
+  searchPlaceholder = "Search name, registration ID, roll no or admission no…",
   extra = null,
   resultCount = null,
 }) {

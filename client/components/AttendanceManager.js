@@ -12,6 +12,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import AttendanceImportModal from '@/components/AttendanceImportModal';
+import StudentId from '@/components/StudentId';
 import ClassAttendanceSummary from '@/components/ClassAttendanceSummary';
 import { apiBase, authHeaders } from '@/lib/api';
 
@@ -34,6 +35,7 @@ const GET_CLASS_STUDENTS = gql`
     allStudents(condition: { classId: $classId }, orderBy: ROLL_NUMBER_ASC) {
       nodes {
         id
+        registrationId
         classId
         section
         rollNumber
@@ -213,11 +215,13 @@ function AttendanceContent() {
             return;
         }
 
-        const headers = ['Student Name', 'Email', 'Status', 'Remarks', 'Attendance %'];
+        const headers = ['Registration ID', 'Roll No', 'Student Name', 'Email', 'Status', 'Remarks', 'Attendance %'];
         const rows = filteredStudents.map(student => {
             const stats = studentStats[student.id] || { percentage: 0 };
             const attendance = attendanceData[student.id];
             return [
+                student.registrationId || '',
+                student.rollNumber || '',
                 student.userByUserId.fullName,
                 student.userByUserId.profileByUserId?.email || 'N/A',
                 attendance?.status || 'Not Marked',
@@ -247,7 +251,10 @@ function AttendanceContent() {
 
     // Filter students based on search and status filter
     const displayedStudents = filteredStudents.filter(student => {
-        const matchesSearch = student.userByUserId.fullName.toLowerCase().includes(searchQuery.toLowerCase());
+        const q = searchQuery.toLowerCase();
+        const matchesSearch = student.userByUserId.fullName.toLowerCase().includes(q)
+            || (student.registrationId || '').toLowerCase().includes(q)
+            || (student.rollNumber || '').toLowerCase().includes(q);
         const attendance = attendanceData[student.id];
         const matchesFilter = filterStatus === 'all' || attendance?.status === filterStatus;
         return matchesSearch && matchesFilter;
@@ -453,7 +460,7 @@ function AttendanceContent() {
                                     <Search className="w-5 h-5 text-zinc-400 mr-2" />
                                     <input
                                         type="text"
-                                        placeholder="Search students..."
+                                        placeholder="Search name, registration ID or roll..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         className="bg-transparent border-none outline-none text-sm w-full text-zinc-700"
@@ -543,6 +550,9 @@ function AttendanceContent() {
                                                             )}
                                                         </div>
                                                         <div className="flex flex-wrap items-center gap-x-2 text-xs text-zinc-500 mt-1">
+                                                            <StudentId value={student.registrationId} plain className="font-semibold text-indigo-600" />
+                                                            {student.rollNumber && <span>Roll {student.rollNumber}</span>}
+                                                            <span className="text-zinc-300">|</span>
                                                             <span className="truncate">{student.userByUserId.profileByUserId?.email || 'No email'}</span>
                                                             <span className="text-zinc-300">|</span>
                                                             <span className={`font-medium ${isLowAttendance ? 'text-red-500' : 'text-green-600'}`}>
@@ -626,7 +636,11 @@ function AttendanceContent() {
                                                     </div>
                                                     <div>
                                                         <p className="font-medium text-zinc-900">{student?.userByUserId?.fullName || 'Unknown Student'}</p>
-                                                        <p className="text-xs text-zinc-500">Recorded at: {new Date(record.created_at).toLocaleTimeString()}</p>
+                                                        <p className="text-xs text-zinc-500">
+                                                            {student?.registrationId && (
+                                                                <span className="mr-2 font-mono font-semibold text-indigo-600">{student.registrationId}</span>
+                                                            )}
+                                                            Recorded at: {new Date(record.created_at).toLocaleTimeString()}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center space-x-4">

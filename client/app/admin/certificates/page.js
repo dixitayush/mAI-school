@@ -279,7 +279,10 @@ export default function CertificatesPage() {
               <tbody className="divide-y divide-zinc-100">
                 {certificates.map((c) => (
                   <tr key={c.id} className="hover:bg-zinc-50">
-                    <td className="px-4 py-3 font-medium text-zinc-800">{c.student_name || "—"}</td>
+                    <td className="px-4 py-3 font-medium text-zinc-800">
+                      {c.student_name || "—"}
+                      <span className="ml-1.5 font-mono text-xs font-semibold text-indigo-600">{c.registration_id}</span>
+                    </td>
                     <td className="px-4 py-3 text-zinc-500">{c.class_name || "—"}</td>
                     <td className="px-4 py-3">
                       <span

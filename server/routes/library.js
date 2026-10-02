@@ -214,7 +214,8 @@ router.get('/borrowers', requireAuth, requireRole('admin', 'principal', 'teacher
     const { rows } = await pool.query(
       `SELECT u.id, u.full_name, u.role,
               COALESCE(c.name, '') AS class_name,
-              COALESCE(s.roll_number, '') AS roll_number
+              COALESCE(s.roll_number, '') AS roll_number,
+              s.registration_id
          FROM users u
          LEFT JOIN students s ON s.user_id = u.id
          LEFT JOIN classes c ON c.id = s.class_id
