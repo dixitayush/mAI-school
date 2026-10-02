@@ -32,13 +32,17 @@ function abortSignal(timeoutMs) {
   return ctrl.signal;
 }
 
+/** The thrown Error carries `status` and the parsed body as `data` for callers that need more than the message. */
 function errorFromResponse(res, data) {
+  let message;
   if (res.status === 429) {
     const retry = res.headers.get("Retry-After");
     const base = data?.error || "Too many requests. Please slow down.";
-    return new Error(retry ? `${base} Retry after ${retry}s.` : base);
+    message = retry ? `${base} Retry after ${retry}s.` : base;
+  } else {
+    message = data?.error || `Request failed (${res.status})`;
   }
-  return new Error(data?.error || `Request failed (${res.status})`);
+  return Object.assign(new Error(message), { status: res.status, data });
 }
 
 /** JSON fetch with auth + timeout. Throws on non-2xx with the server's error message. */

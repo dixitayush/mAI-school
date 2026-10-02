@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Bot, Loader2, Send, Sparkles, User } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Markdown from "@/components/Markdown";
+import { AiAllowanceBar, useAiAllowance } from "@/components/AiAllowance";
 
 export default function AITutorPage() {
   const [messages, setMessages] = useState([]);
@@ -13,6 +14,7 @@ export default function AITutorPage() {
   const [subject, setSubject] = useState("");
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
+  const allowance = useAiAllowance();
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -20,7 +22,7 @@ export default function AITutorPage() {
 
   const send = async (e) => {
     e.preventDefault();
-    if (!input.trim() || loading) return;
+    if (!input.trim() || loading || allowance.exhausted) return;
 
     const userMsg = { role: "user", content: input.trim() };
     setMessages((m) => [...m, userMsg]);
@@ -35,7 +37,15 @@ export default function AITutorPage() {
       });
       const reply = data.reply || data.response || data.content || JSON.stringify(data);
       setMessages((m) => [...m, { role: "assistant", content: reply }]);
+      allowance.track(data.usage);
     } catch (err) {
+      if (err.status === 429 && err.data?.usage) {
+        // Out of attempts: give the question back so it can be asked after the reset.
+        allowance.trackError(err);
+        setMessages((m) => m.slice(0, -1));
+        setInput(userMsg.content);
+        return;
+      }
       toast.error(err.message);
       setMessages((m) => [...m, { role: "assistant", content: "Sorry, I couldn't process that. Please try again." }]);
     } finally {
@@ -71,6 +81,8 @@ export default function AITutorPage() {
           <option value="Biology">Biology</option>
         </select>
       </div>
+
+      <AiAllowanceBar usage={allowance.usage} onReset={allowance.reload} className="mb-3" />
 
       <div className="flex-1 overflow-y-auto rounded-2xl border border-zinc-200 bg-white shadow-sm">
         <div className="space-y-4 p-4">
@@ -142,13 +154,13 @@ export default function AITutorPage() {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Type your question..."
-          disabled={loading}
+          placeholder={allowance.exhausted ? "Daily AI attempts used up — come back after the reset" : "Type your question..."}
+          disabled={loading || allowance.exhausted}
           className="flex-1 rounded-xl border border-zinc-300 px-4 py-3 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:opacity-60"
         />
         <button
           type="submit"
-          disabled={loading || !input.trim()}
+          disabled={loading || !input.trim() || allowance.exhausted}
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60"
         >
           <Send className="h-5 w-5" />

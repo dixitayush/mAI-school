@@ -7,6 +7,7 @@ const router = require('./router');
 const { buildPrompt, getPrompt } = require('./prompts');
 const safety = require('./safety');
 const { OpenAIProvider } = require('./provider');
+const studentQuota = require('./studentQuota');
 
 module.exports = {
   ...router,
@@ -14,4 +15,5 @@ module.exports = {
   getPrompt,
   safety,
   OpenAIProvider,
+  studentQuota,
 };

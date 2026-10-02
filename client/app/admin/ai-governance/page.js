@@ -12,6 +12,8 @@ import {
   AlertTriangle,
   Timer,
   RefreshCw,
+  GraduationCap,
+  Save,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
@@ -108,6 +110,8 @@ export default function AIGovernancePage() {
           </span>
         </div>
       )}
+
+      <StudentLimitCard />
 
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-16 text-zinc-500">
@@ -262,6 +266,83 @@ function Row({ title, subtitle, right }) {
         <p className="text-xs text-zinc-500">{subtitle}</p>
       </div>
       <p className="text-sm font-semibold text-zinc-900">{right}</p>
+    </div>
+  );
+}
+
+/**
+ * How many AI answers each student gets per day (AI Tutor + Study Planner
+ * combined). Resets at midnight in the school's time zone.
+ */
+function StudentLimitCard() {
+  const [config, setConfig] = useState(null);
+  const [value, setValue] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/api/ai/student-limit")
+      .then((d) => { setConfig(d); setValue(d.limit); })
+      .catch((err) => toast.error(err.message));
+  }, []);
+
+  if (!config) return null;
+  const options = Array.from({ length: config.max - config.min + 1 }, (_, i) => config.min + i);
+  const dirty = value !== config.limit;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const d = await apiFetch("/api/ai/student-limit", { method: "PUT", body: { limit: value } });
+      setConfig(d);
+      setValue(d.limit);
+      toast.success(`Students can now ask AI ${d.limit} times a day`);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mb-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+            <GraduationCap className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-900">Student daily AI limit</h2>
+            <p className="mt-0.5 max-w-md text-xs text-zinc-500">
+              AI answers each student can get per day across AI Tutor and Study Planner. Students see how many
+              are left and a countdown; it resets at midnight ({config.timezone}). Only answers count — failed requests don&apos;t.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-xl border border-zinc-200 bg-zinc-50 p-1" role="radiogroup" aria-label="Attempts per day">
+            {options.map((n) => (
+              <button
+                key={n}
+                role="radio"
+                aria-checked={value === n}
+                onClick={() => setValue(n)}
+                className={`h-9 w-9 rounded-lg text-sm font-semibold transition ${
+                  value === n ? "bg-emerald-600 text-white shadow-sm" : "text-zinc-600 hover:bg-white"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={save}
+            disabled={!dirty || saving}
+            className="flex h-11 items-center gap-1.5 rounded-xl bg-zinc-900 px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-40"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

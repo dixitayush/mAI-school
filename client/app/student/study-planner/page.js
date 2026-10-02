@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { BookOpen, Loader2, Sparkles, Plus, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Markdown from "@/components/Markdown";
+import { AiAllowanceBar, useAiAllowance } from "@/components/AiAllowance";
 
 const inputCls =
   "w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20";
@@ -16,6 +17,7 @@ export default function StudyPlannerPage() {
   const [hoursPerDay, setHoursPerDay] = useState(4);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const allowance = useAiAllowance();
 
   const addSubject = () => setSubjects((s) => [...s, ""]);
   const removeSubject = (i) => setSubjects((s) => s.filter((_, idx) => idx !== i));
@@ -25,8 +27,10 @@ export default function StudyPlannerPage() {
     e.preventDefault();
     const validSubjects = subjects.filter((s) => s.trim());
     if (validSubjects.length === 0) return toast.error("Add at least one subject");
+    if (allowance.exhausted) return;
+    // The previous plan stays put until a new one arrives, so a refused
+    // request (daily limit) does not wipe it.
     setLoading(true);
-    setResult(null);
     try {
       const data = await apiFetch("/api/ai/study-plan", {
         method: "POST",
@@ -34,9 +38,11 @@ export default function StudyPlannerPage() {
         timeoutMs: 60000,
       });
       setResult(data);
+      allowance.track(data.usage);
       toast.success("Study plan generated");
     } catch (err) {
-      toast.error(err.message);
+      allowance.trackError(err);
+      if (!(err.status === 429 && err.data?.usage)) toast.error(err.message);
     } finally {
       setLoading(false);
     }
@@ -55,6 +61,8 @@ export default function StudyPlannerPage() {
           <p className="text-sm text-zinc-500">Get a personalized AI study schedule for your exams.</p>
         </div>
       </div>
+
+      <AiAllowanceBar usage={allowance.usage} onReset={allowance.reload} className="mb-4" />
 
       <motion.form
         initial={{ opacity: 0, y: 8 }}
@@ -99,7 +107,7 @@ export default function StudyPlannerPage() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || allowance.exhausted}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}

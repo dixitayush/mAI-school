@@ -116,13 +116,29 @@ async function checkQuota(tenantId, userId) {
   return { allowed: true };
 }
 
-async function logRequest({ tenantId, userId, feature, tier, model, result, startMs, error }) {
+async function logRequest({ tenantId, userId, feature, tier, model, result, startMs, error, reservationId }) {
   const pool = getAppPool();
   const latencyMs = Date.now() - startMs;
   const inputTokens = result?.inputTokens || 0;
   const outputTokens = result?.outputTokens || 0;
 
   try {
+    // A reserved attempt (student allowance) already has its row: finalise it.
+    if (reservationId) {
+      await pool.query(
+        `UPDATE ai_requests
+            SET model = $2, tier = $3, input_tokens = $4, output_tokens = $5, latency_ms = $6,
+                status = $7, estimated_cost = $8, error_message = $9
+          WHERE id = $1`,
+        [
+          reservationId, model, tier, inputTokens, outputTokens, latencyMs,
+          error ? 'error' : 'success',
+          estimateCost(result?.model || model, inputTokens, outputTokens),
+          error ? String(error).slice(0, 500) : null,
+        ]
+      );
+      return;
+    }
     await pool.query(
       `INSERT INTO ai_requests
          (tenant_id, user_id, feature, model, tier, input_tokens, output_tokens,
@@ -147,22 +163,30 @@ async function logRequest({ tenantId, userId, feature, tier, model, result, star
   }
 }
 
-async function generate({ feature, messages, tenantId, userId, temperature, maxTokens, tierOverride }) {
+/**
+ * `reservationId` — an attempt already reserved against a student's daily
+ * allowance (ai/studentQuota.js); its row is finalised instead of a new one
+ * being logged, and any failure marks it as an error so it is not counted.
+ */
+async function generate({ feature, messages, tenantId, userId, temperature, maxTokens, tierOverride, reservationId }) {
   const tier = tierOverride || getTier(feature);
   const model = getModel(tier);
   const startMs = Date.now();
 
   const quota = await checkQuota(tenantId, userId);
   if (!quota.allowed) {
+    if (reservationId) {
+      await logRequest({ tenantId, userId, feature, tier, model, result: null, startMs, error: quota.reason, reservationId });
+    }
     throw Object.assign(new Error(quota.reason), { code: 'AI_QUOTA_EXCEEDED' });
   }
 
   try {
     const result = await provider.generateText({ model, messages, temperature, maxTokens });
-    await logRequest({ tenantId, userId, feature, tier, model, result, startMs });
+    await logRequest({ tenantId, userId, feature, tier, model, result, startMs, reservationId });
     return { ...result, tier, model };
   } catch (err) {
-    await logRequest({ tenantId, userId, feature, tier, model, result: null, startMs, error: err.message });
+    await logRequest({ tenantId, userId, feature, tier, model, result: null, startMs, error: err.message, reservationId });
     throw err;
   }
 }

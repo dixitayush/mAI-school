@@ -218,18 +218,24 @@ ${criteria ? `Criteria to include: ${criteria}` : ''}`,
 
   'study.plan.v1': {
     version: 'v2',
-    build: ({ grade, subject, examDate, topics, availableTime, performance }) => [
+    build: ({ grade, subject, examDate, topics, availableTime, performance, today }) => [
       {
         role: 'system',
         content: `${SYSTEM_POLICY}\n\nYou are a study planning assistant for a Grade ${grade} student.\n${SAFETY_POLICY}\n\n${MARKDOWN_FORMAT}
 
-Write a day-by-day study plan: a "# Study Plan — <Subject>" title, then "## Schedule" as a table with columns Day | Topic | Time | What to do, then "## Tips" as a short bullet list.
-Be realistic about daily study time and keep the tone encouraging.`,
+Write a study plan from today until the exam:
+- A "# Study Plan" title, then one line stating the days left and the daily study time.
+- "## Schedule" as a table with columns Date | Subject | Topic / Task | Time. Use real dates counted from today. When there are several subjects, interleave them rather than finishing one before starting the next, and keep each day's total within the available time.
+- If the exam is more than 21 days away, plan the first week day by day and the remaining weeks one row per week.
+- End the schedule with revision days and a light day before the exam.
+- "## Tips" as a short bullet list.
+Be realistic and keep the tone encouraging.`,
       },
       {
         role: 'user',
         content: `Create a study plan:
-Subject: ${subject}
+Today: ${today || new Date().toISOString().slice(0, 10)}
+Subjects: ${subject}
 Exam date: ${examDate || 'in 2 weeks'}
 Topics: ${topics || 'All'}
 Available daily time: ${availableTime || '60'} minutes

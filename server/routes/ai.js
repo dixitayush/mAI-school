@@ -473,6 +473,79 @@ router.post(
   }
 );
 
+/**
+ * Runs `fn(reservationId)` against a student's daily AI allowance. Staff are not
+ * limited (reservationId null, usage undefined). A student's attempt is reserved
+ * first; if anything fails before the answer is logged it is released, so only
+ * delivered answers use up the allowance.
+ */
+async function withStudentAllowance(req, feature, fn) {
+  if (req.auth.role !== 'student') return { result: await fn(null) };
+  const { studentQuota } = ai;
+  const reservationId = await studentQuota.reserveStudentAttempt({
+    institutionId: req.auth.institution_id,
+    userId: req.auth.user_id,
+    feature,
+  });
+  try {
+    const result = await fn(reservationId);
+    const usage = await studentQuota.getStudentUsage(req.auth.institution_id, req.auth.user_id);
+    return { result, usage };
+  } catch (err) {
+    await pool.query(
+      `UPDATE ai_requests SET status = 'error' WHERE id = $1 AND status = 'pending'`,
+      [reservationId]
+    ).catch(() => {});
+    throw err;
+  }
+}
+
+/** 429 for a spent allowance, carrying the allowance so the UI can show the reset timer. */
+function sendQuotaError(res, err) {
+  return res.status(429).json({ error: err.message, code: 'AI_QUOTA_EXCEEDED', usage: err.usage });
+}
+
+// ---------------------------------------------------------------
+// GET /api/ai/student-usage  (student) — today's AI allowance
+// ---------------------------------------------------------------
+router.get('/student-usage', requireAuth, requireRole('student'), requireTenant, async (req, res) => {
+  try {
+    res.json({ usage: await ai.studentQuota.getStudentUsage(req.auth.institution_id, req.auth.user_id) });
+  } catch (err) {
+    console.error('[ai] student-usage failed:', err);
+    res.status(500).json({ error: 'Failed to load AI allowance' });
+  }
+});
+
+// ---------------------------------------------------------------
+// GET/PUT /api/ai/student-limit  (admin/principal) — the school's daily cap
+// ---------------------------------------------------------------
+router.get('/student-limit', requireAuth, requireRole('admin', 'principal'), requireTenant, async (req, res) => {
+  try {
+    res.json(await ai.studentQuota.getStudentLimit(req.auth.institution_id));
+  } catch (err) {
+    console.error('[ai] student-limit failed:', err);
+    res.status(500).json({ error: 'Failed to load the student AI limit' });
+  }
+});
+
+router.put('/student-limit', requireAuth, requireRole('admin', 'principal'), requireTenant, async (req, res) => {
+  try {
+    const saved = await ai.studentQuota.setStudentLimit(req.auth.institution_id, req.body?.limit);
+    await logAudit(pool, req.auth, {
+      action: 'ai.student_limit.update',
+      entityType: 'institution',
+      entityId: req.auth.institution_id,
+      metadata: { limit: saved.limit },
+    });
+    res.json(saved);
+  } catch (err) {
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    console.error('[ai] student-limit update failed:', err);
+    res.status(500).json({ error: 'Failed to save the student AI limit' });
+  }
+});
+
 // ---------------------------------------------------------------
 // POST /api/ai/tutor  (student)
 // ---------------------------------------------------------------
@@ -498,16 +571,19 @@ router.post(
         context: null,
         message: clean,
       });
-      const result = await ai.generate({
-        feature: 'tutor.chat',
-        messages,
-        tenantId: req.auth.institution_id,
-        userId: req.auth.user_id,
-      });
-      res.json({ success: true, reply: result.content, model: result.model, tier: result.tier });
+      const { result, usage } = await withStudentAllowance(req, 'tutor.chat', (reservationId) =>
+        ai.generate({
+          feature: 'tutor.chat',
+          messages,
+          tenantId: req.auth.institution_id,
+          userId: req.auth.user_id,
+          reservationId,
+        })
+      );
+      res.json({ success: true, reply: result.content, model: result.model, tier: result.tier, usage });
     } catch (err) {
+      if (err.code === 'AI_QUOTA_EXCEEDED') return sendQuotaError(res, err);
       console.error('[ai] tutor failed:', err);
-      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
       res.status(500).json({ error: 'Tutor response failed' });
     }
   }
@@ -623,19 +699,50 @@ router.post(
   requireAuth,
   requireTenant,
   async (req, res) => {
-    const { grade, subject, examDate, topics, availableTime } = req.body;
-    if (!subject) return res.status(400).json({ error: 'subject is required' });
+    // The Study Planner page sends subjects[] / exam_date / hours_per_day;
+    // API callers may send subject / examDate / availableTime (minutes).
+    const body = req.body || {};
+    const subjects = (Array.isArray(body.subjects) ? body.subjects : [body.subject])
+      .map((x) => String(x || '').trim())
+      .filter(Boolean)
+      .slice(0, 12);
+    if (subjects.length === 0) return res.status(400).json({ error: 'Add at least one subject' });
+    const examDate = body.examDate || body.exam_date;
+    if (examDate && !/^\d{4}-\d{2}-\d{2}$/.test(examDate)) {
+      return res.status(400).json({ error: 'exam_date must be a YYYY-MM-DD date' });
+    }
+    const hours = Number(body.hours_per_day);
+    const availableTime = body.availableTime || (hours > 0 ? Math.round(Math.min(hours, 16) * 60) : undefined);
     if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
     try {
-      const messages = ai.buildPrompt('study.plan.v1', { grade: grade || '?', subject, examDate, topics, availableTime });
-      const result = await ai.generate({
-        feature: 'study.plan', messages,
-        tenantId: req.auth.institution_id, userId: req.auth.user_id,
+      // A student's own class sets the level of the plan.
+      let grade = body.grade;
+      if (!grade && req.auth.role === 'student') {
+        const g = await pool.query(
+          `SELECT c.grade_level, c.name FROM students s LEFT JOIN classes c ON c.id = s.class_id WHERE s.user_id = $1`,
+          [req.auth.user_id]
+        );
+        grade = g.rows[0]?.grade_level || g.rows[0]?.name;
+      }
+      const messages = ai.buildPrompt('study.plan.v1', {
+        grade: grade || '?',
+        subject: subjects.join(', '),
+        examDate,
+        topics: body.topics,
+        availableTime,
+        today: new Date().toISOString().slice(0, 10),
       });
-      res.json({ success: true, content: result.content, model: result.model, tier: result.tier });
+      const { result, usage } = await withStudentAllowance(req, 'study.plan', (reservationId) =>
+        ai.generate({
+          feature: 'study.plan', messages,
+          tenantId: req.auth.institution_id, userId: req.auth.user_id,
+          reservationId,
+        })
+      );
+      res.json({ success: true, content: result.content, model: result.model, tier: result.tier, usage });
     } catch (err) {
+      if (err.code === 'AI_QUOTA_EXCEEDED') return sendQuotaError(res, err);
       console.error('[ai] study-plan failed:', err);
-      if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
       res.status(500).json({ error: 'Study plan generation failed' });
     }
   }
