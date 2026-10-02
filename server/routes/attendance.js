@@ -1,176 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const nodemailer = require('nodemailer');
 const { requireAuth, requireRole, requireTenant } = require('../middleware/auth');
 const { getAppPool } = require('../db/pool');
+const schoolEmails = require('../services/schoolEmails');
 
 const pool = getAppPool();
-
-// Create a test account for Ethereal (or use real config if available)
-// Email Configuration
-let transporter;
-
-const setupEmail = async () => {
-    if (process.env.SMTP_HOST) {
-        // Use Real SMTP - Strict Mode
-        transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: process.env.SMTP_PORT || 587,
-            secure: process.env.SMTP_SECURE === 'true',
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS,
-            },
-        });
-        console.log('Attendance Email Service Configured (Real SMTP)');
-
-        // Verify connection
-        try {
-            await transporter.verify();
-            console.log('SMTP Connection Verified');
-        } catch (error) {
-            console.error('SMTP Connection Failed:', error);
-            // Do NOT fallback to Ethereal if SMTP_HOST is set. User wants real email.
-            transporter = null;
-        }
-    } else {
-        // Fallback to Ethereal only if NO real config is provided
-        try {
-            const account = await nodemailer.createTestAccount();
-            transporter = nodemailer.createTransport({
-                host: account.smtp.host,
-                port: account.smtp.port,
-                secure: account.smtp.secure,
-                auth: {
-                    user: account.user,
-                    pass: account.pass,
-                },
-            });
-            console.log('Attendance Email Service Configured (Ethereal Mock)');
-        } catch (err) {
-            console.error('Failed to create Ethereal account', err);
-        }
-    }
-};
-
-setupEmail();
-
-// Helper to send email
-async function sendAttendanceEmail(studentEmail, studentName, status, date, remarks) {
-    if (!transporter || !studentEmail) return;
-
-    const subject = `Attendance Update: ${status.toUpperCase()} - ${date}`;
-    const color = status === 'present' ? '#4CAF50' : status === 'absent' ? '#F44336' : '#FF9800';
-
-    const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Attendance Update</title>
-    </head>
-    <body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
-            <tr>
-                <td style="padding: 20px 0 30px 0;">
-                    <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="border-collapse: collapse; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
-                        <!-- Header -->
-                        <tr>
-                            <td align="center" style="padding: 40px 0 30px 0; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);">
-                                <h1 style="margin: 0; font-size: 28px; font-weight: bold; color: #ffffff; letter-spacing: 1px;">EduFlow</h1>
-                                <p style="margin: 5px 0 0 0; font-size: 14px; color: #e0e7ff;">School Management System</p>
-                            </td>
-                        </tr>
-                        
-                        <!-- Body -->
-                        <tr>
-                            <td style="padding: 40px 30px;">
-                                <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                                    <tr>
-                                        <td style="color: #1f2937; font-size: 16px; line-height: 24px;">
-                                            <p style="margin: 0;">Dear Parent/Guardian,</p>
-                                            <p style="margin: 20px 0 0 0;">This is an automated notification regarding the attendance status of your ward.</p>
-                                        </td>
-                                    </tr>
-                                    
-                                    <!-- Status Card -->
-                                    <tr>
-                                        <td align="center" style="padding: 30px 0;">
-                                            <div style="display: inline-block; padding: 15px 30px; border-radius: 50px; background-color: ${status === 'present' ? '#dcfce7' : status === 'absent' ? '#fee2e2' : '#fef3c7'};">
-                                                <span style="font-size: 18px; font-weight: bold; color: ${status === 'present' ? '#166534' : status === 'absent' ? '#991b1b' : '#92400e'}; text-transform: uppercase; letter-spacing: 1px;">
-                                                    ${status}
-                                                </span>
-                                            </div>
-                                        </td>
-                                    </tr>
-
-                                    <!-- Details -->
-                                    <tr>
-                                        <td>
-                                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
-                                                <tr>
-                                                    <td width="30%" style="padding: 15px; border-bottom: 1px solid #e5e7eb; font-weight: bold; color: #4b5563;">Student Name</td>
-                                                    <td style="padding: 15px; border-bottom: 1px solid #e5e7eb; color: #1f2937; font-weight: 600;">${studentName}</td>
-                                                </tr>
-                                                <tr>
-                                                    <td style="padding: 15px; border-bottom: 1px solid #e5e7eb; font-weight: bold; color: #4b5563;">Date</td>
-                                                    <td style="padding: 15px; border-bottom: 1px solid #e5e7eb; color: #1f2937;">${new Date(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</td>
-                                                </tr>
-                                                ${remarks ? `
-                                                <tr>
-                                                    <td style="padding: 15px; font-weight: bold; color: #4b5563;">Remarks</td>
-                                                    <td style="padding: 15px; color: #1f2937; font-style: italic;">"${remarks}"</td>
-                                                </tr>
-                                                ` : ''}
-                                            </table>
-                                        </td>
-                                    </tr>
-
-                                    <tr>
-                                        <td style="padding-top: 30px; color: #6b7280; font-size: 14px; line-height: 20px; text-align: center;">
-                                            <p style="margin: 0;">Please contact the school administration if you believe this is an error.</p>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
-                        
-                        <!-- Footer -->
-                        <tr>
-                            <td style="padding: 30px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
-                                <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                                    <tr>
-                                        <td style="color: #9ca3af; font-family: Arial, sans-serif; font-size: 12px; text-align: center;">
-                                            <p style="margin: 0;">&copy; ${new Date().getFullYear()} mAI-school System. All rights reserved.</p>
-                                            <p style="margin: 10px 0 0 0;">This is an automated message, please do not reply directly to this email.</p>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    `;
-
-    try {
-        const info = await transporter.sendMail({
-            from: '"mAI-school Attendance" <attendance@maischool.com>',
-            to: studentEmail,
-            subject: subject,
-            html: html,
-        });
-        console.log('Attendance Email sent: %s', info.messageId);
-        console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
-        return info;
-    } catch (error) {
-        console.error('Error sending email:', error);
-    }
-}
 
 const { sendSMS, sendWhatsApp } = require('../services/smsService');
 
@@ -200,6 +34,12 @@ router.post('/mark', ...canManageAttendance, async (req, res) => {
         if (owned.rows.length === 0) {
             return res.status(404).json({ error: 'Student not found in your institute' });
         }
+
+        // Email only when the day's status is new or has changed.
+        const previous = await pool.query(
+            `SELECT status, remarks FROM attendance WHERE student_id = $1 AND date = $2::date`,
+            [student_id, date || new Date()]
+        );
 
         const upsertQuery = `
             INSERT INTO attendance (student_id, date, status, remarks, recorded_by)
@@ -233,8 +73,13 @@ router.post('/mark', ...canManageAttendance, async (req, res) => {
         if (studentResult.rows.length > 0) {
             const student = studentResult.rows[0];
 
-            if (student.parent_email) {
-                sendAttendanceEmail(student.parent_email, student.student_name, status, attendanceRecord.date, remarks);
+            const prev = previous.rows[0];
+            if (!prev || prev.status !== status || (prev.remarks || '') !== (remarks || '')) {
+                schoolEmails.fire('attendance', () =>
+                    schoolEmails.attendanceMarked(req.auth.institution_id, [
+                        { studentId: student_id, date: attendanceRecord.date, status, remarks },
+                    ])
+                );
             }
 
             if (student.parent_phone) {

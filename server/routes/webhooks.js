@@ -4,67 +4,80 @@
  */
 
 const express = require('express');
-const crypto = require('crypto');
+const { Resend } = require('resend');
 const { getAppPool } = require('../db/pool');
 
 const router = express.Router();
 const pool = getAppPool();
+const isProd = process.env.NODE_ENV === 'production';
 
-const RESEND_WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET;
-
-function verifyResendSignature(req) {
-  if (!RESEND_WEBHOOK_SECRET) return true; // skip in dev
-  const signature = req.headers['svix-signature'];
-  if (!signature) return false;
-  // Resend uses Svix for webhooks — simplified verification
-  const timestamp = req.headers['svix-timestamp'];
-  const msgId = req.headers['svix-id'];
-  if (!timestamp || !msgId) return false;
-  const body = JSON.stringify(req.body);
-  const toSign = `${msgId}.${timestamp}.${body}`;
-  const secret = RESEND_WEBHOOK_SECRET.startsWith('whsec_')
-    ? Buffer.from(RESEND_WEBHOOK_SECRET.slice(6), 'base64')
-    : Buffer.from(RESEND_WEBHOOK_SECRET, 'utf8');
-  const expected = crypto.createHmac('sha256', secret).update(toSign).digest('base64');
-  return signature.split(' ').some((sig) => {
-    const parts = sig.split(',');
-    return parts.some((p) => p === expected);
-  });
+/**
+ * Verify a Resend (Svix / Standard Webhooks) signature over the raw body.
+ * Without RESEND_WEBHOOK_SECRET, events are accepted only outside production.
+ */
+function verifyResendEvent(req) {
+  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  if (!secret) return isProd ? null : req.body;
+  const raw = req.rawBody;
+  if (!raw) return null;
+  try {
+    return new Resend(process.env.RESEND_API_KEY || 're_unused').webhooks.verify({
+      payload: raw,
+      headers: {
+        id: req.headers['svix-id'],
+        timestamp: req.headers['svix-timestamp'],
+        signature: req.headers['svix-signature'],
+      },
+      webhookSecret: secret,
+    });
+  } catch {
+    return null;
+  }
 }
 
-router.post('/resend', express.json(), async (req, res) => {
-  if (!verifyResendSignature(req)) {
+// Event → email_messages status (and timestamp column). Rank stops an
+// out-of-order "sent" from overwriting "delivered", etc.
+const EVENT_STATUS = {
+  'email.sent': { status: 'sent', field: 'sent_at', rank: 1 },
+  'email.delivered': { status: 'delivered', field: 'delivered_at', rank: 2 },
+  'email.opened': { status: 'opened', field: 'opened_at', rank: 3 },
+  'email.clicked': { status: 'opened', field: 'opened_at', rank: 3 },
+  'email.bounced': { status: 'bounced', field: 'bounced_at', rank: 4 },
+  'email.complained': { status: 'complained', field: 'complained_at', rank: 4 },
+  'email.failed': { status: 'failed', field: null, rank: 4 },
+};
+
+router.post('/resend', async (req, res) => {
+  const event = verifyResendEvent(req);
+  if (!event) {
     return res.status(401).json({ error: 'Invalid signature' });
   }
 
-  const { type, data } = req.body;
+  const { type, data } = event;
   if (!type || !data) {
     return res.status(400).json({ error: 'Invalid webhook payload' });
   }
 
+  const mapping = EVENT_STATUS[type];
   const emailId = data.email_id;
-  if (!emailId) {
+  if (!mapping || !emailId) {
+    // e.g. email.delivery_delayed, contact.* — acknowledged, nothing to record.
     return res.status(200).json({ ok: true });
   }
 
   try {
-    const statusMap = {
-      'email.sent': { status: 'sent', field: 'sent_at' },
-      'email.delivered': { status: 'delivered', field: 'delivered_at' },
-      'email.opened': { status: 'opened', field: 'opened_at' },
-      'email.bounced': { status: 'bounced', field: 'bounced_at' },
-      'email.complained': { status: 'complained', field: 'complained_at' },
-    };
-
-    const mapping = statusMap[type];
-    if (mapping) {
-      await pool.query(
-        `UPDATE email_messages SET status = $2, ${mapping.field} = NOW()
-         WHERE provider_message_id = $1`,
-        [emailId, mapping.status]
-      );
-    }
-
+    const detail = type === 'email.bounced' ? data.bounce : type === 'email.failed' ? data.failed : null;
+    await pool.query(
+      `UPDATE email_messages
+          SET status = CASE WHEN (CASE status WHEN 'queued' THEN 0 WHEN 'sent' THEN 1 WHEN 'delivered' THEN 2
+                                              WHEN 'opened' THEN 3 ELSE 4 END) <= $3
+                            THEN $2 ELSE status END
+              ${mapping.field ? `, ${mapping.field} = COALESCE(${mapping.field}, NOW())` : ''}
+              , metadata = CASE WHEN $4::jsonb IS NULL THEN metadata
+                                ELSE COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('event', $4::jsonb) END
+        WHERE provider_message_id = $1`,
+      [emailId, mapping.status, mapping.rank, detail ? JSON.stringify(detail) : null]
+    );
     res.status(200).json({ ok: true });
   } catch (err) {
     console.error('[webhook/resend] Error:', err.message);

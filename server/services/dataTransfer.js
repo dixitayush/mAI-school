@@ -246,17 +246,18 @@ const ROW_IMPORTERS = {
                        roll_number = EXCLUDED.roll_number`,
       [student.id, options.session_id || null, institutionId, classId, section, row.roll_number || null]
     );
-    return student.id;
+    return { id: student.id, email: { kind: 'credentials', userId: student.user_id, password } };
   },
 
   async teachers(client, institutionId, row, index) {
     if (!row.full_name) throw new Error('full_name is required');
     const username = row.username || slugUsername(row.full_name, Date.now().toString(36) + index);
+    const password = row.password || 'changeme123';
     const { rows } = await client.query(
       `SELECT * FROM register_teacher($1, $2, $3, $4, $5, $6, $7)`,
       [
         username,
-        row.password || 'changeme123',
+        password,
         row.full_name,
         institutionId,
         row.email || null,
@@ -264,7 +265,7 @@ const ROW_IMPORTERS = {
         row.qualification || null,
       ]
     );
-    return rows[0].id;
+    return { id: rows[0].id, email: { kind: 'credentials', userId: rows[0].user_id, password } };
   },
 
   async parents(client, institutionId, row, index) {
@@ -276,7 +277,7 @@ const ROW_IMPORTERS = {
       `INSERT INTO users (username, password_hash, role, full_name, institution_id, login_enabled)
        VALUES ($1, crypt($2, gen_salt('bf')), 'parent', $3, $4, true)
        ON CONFLICT (username, institution_id) DO UPDATE SET full_name = EXCLUDED.full_name
-       RETURNING id`,
+       RETURNING id, (xmax = 0) AS inserted`,
       [username, row.password || 'changeme123', row.full_name, institutionId]
     );
     // guardians has no contact columns — email/phone live on the user's profile.
@@ -305,7 +306,13 @@ const ROW_IMPORTERS = {
        VALUES ($1, $2, true) ON CONFLICT (student_id, guardian_id) DO NOTHING`,
       [student.id, guardian.rows[0].id]
     );
-    return guardian.rows[0].id;
+    // Existing parents keep their password, so only new accounts get login details.
+    return {
+      id: guardian.rows[0].id,
+      email: user.rows[0].inserted
+        ? { kind: 'credentials', userId: user.rows[0].id, password: row.password || 'changeme123' }
+        : null,
+    };
   },
 
   async classes(client, institutionId, row) {
@@ -339,7 +346,7 @@ const ROW_IMPORTERS = {
         row.invoice_number || null,
       ]
     );
-    return rows[0].id;
+    return { id: rows[0].id, email: { kind: 'fee', feeId: rows[0].id } };
   },
 
   async marks(client, institutionId, row) {
@@ -362,7 +369,7 @@ const ROW_IMPORTERS = {
        RETURNING id`,
       [exam.rows[0].id, student.id, marks, row.grade || null, row.feedback || null]
     );
-    return rows[0].id;
+    return { id: rows[0].id, email: { kind: 'result', examId: exam.rows[0].id, studentId: student.id } };
   },
 
   async attendance(client, institutionId, row) {
@@ -380,7 +387,7 @@ const ROW_IMPORTERS = {
        RETURNING id`,
       [student.id, date, status, row.remarks || null]
     );
-    return rows[0].id;
+    return { id: rows[0].id, email: { kind: 'attendance', studentId: student.id, date, status, remarks: row.remarks || null } };
   },
 };
 
@@ -424,14 +431,16 @@ async function processImport({ import_id, institution_id }) {
   const options = imp.options && typeof imp.options === 'object' ? imp.options : {};
   const errors = [];
   let imported = 0;
+  const emailEvents = []; // collected per committed row, sent after the loop
 
   for (let i = 0; i < rows.length; i++) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      await importer(client, institution_id, rows[i], i, options);
+      const out = await importer(client, institution_id, rows[i], i, options);
       await client.query('COMMIT');
       imported++;
+      if (out?.email) emailEvents.push(out.email);
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       // Row numbers are 1-based and count the header, matching the spreadsheet.
@@ -456,7 +465,30 @@ async function processImport({ import_id, institution_id }) {
     ]
   );
 
+  await sendImportEmails(institution_id, emailEvents);
+
   return { imported, failed: errors.length, total: rows.length };
+}
+
+/** Emails for imported rows: login details, invoices, results, attendance. */
+async function sendImportEmails(institutionId, events) {
+  if (!events.length) return;
+  const schoolEmails = require('./schoolEmails');
+  const of = (kind) => events.filter((e) => e.kind === kind);
+  try {
+    // Credentials go out one by one (never queued, as they contain passwords).
+    for (const e of of('credentials')) {
+      await schoolEmails.accountCredentials({ userId: e.userId, password: e.password });
+    }
+    const fees = of('fee').map((e) => e.feeId);
+    if (fees.length) await schoolEmails.feesInvoiced(fees);
+    const results = of('result');
+    if (results.length) await schoolEmails.resultsDeclared(results);
+    const attendance = of('attendance');
+    if (attendance.length) await schoolEmails.attendanceMarked(institutionId, attendance);
+  } catch (err) {
+    console.error('[import] emails failed:', err.message);
+  }
 }
 
 // ---------------------------------------------------------------------------

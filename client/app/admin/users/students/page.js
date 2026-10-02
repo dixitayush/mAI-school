@@ -255,14 +255,18 @@ function StudentsContent() {
   };
 
   const handleSendEmail = async (row) => {
-    setSendingEmail(row.id);
     const email = getEmail(row);
+    if (!email) {
+      toast.error(`${row.full_name} has no email on file`);
+      return;
+    }
+    setSendingEmail(row.id);
     try {
       const res = await fetch(`${apiBase()}/api/email/send`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
-          to: email || 'student@example.com',
+          to: email,
           subject: 'Welcome to mAI-school',
           text: `Hello ${row.full_name}, welcome to mAI-school!`
         })
@@ -273,9 +277,8 @@ function StudentsContent() {
           duration: 5000,
           icon: '📧',
         });
-        console.log('Preview URL:', data.previewUrl);
       } else {
-        toast.error('Failed to send email');
+        toast.error(data.error || 'Failed to send email');
       }
     } catch (err) {
       console.error(err);

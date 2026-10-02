@@ -1,10 +1,6 @@
 const { sendMail } = require('./mailer');
 const { buildWelcomeAdminEmail } = require('./onboardingEmailTemplate');
 
-function defaultFrom() {
-  return process.env.SMTP_FROM || '"mAI-school" <noreply@maischool.com>';
-}
-
 /**
  * @param {{ to: string; fullName: string; instituteName: string; loginUrl: string; username: string; plainPassword: string }} opts
  */
@@ -16,8 +12,8 @@ async function sendWelcomeAdminEmail(opts) {
     username: opts.username,
     plainPassword: opts.plainPassword,
   });
+  // Sender comes from RESEND_FROM (see services/emailService).
   return sendMail({
-    from: defaultFrom(),
     to: opts.to,
     subject,
     text,

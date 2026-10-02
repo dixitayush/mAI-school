@@ -88,7 +88,13 @@ const { requestLogger } = require('./lib/logger');
 
 app.use(helmetMiddleware());
 app.use(cors(corsOptions()));
-app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
+app.use(express.json({
+  limit: process.env.JSON_BODY_LIMIT || '1mb',
+  // Webhook signatures are computed over the exact bytes received.
+  verify: (req, _res, buf) => {
+    if (req.originalUrl && req.originalUrl.startsWith('/api/webhooks/')) req.rawBody = buf.toString('utf8');
+  },
+}));
 app.use(requestLogger());
 
 /** Liveness — no DB. Registered before rate limits for Docker / Traefik probes. */
@@ -229,6 +235,11 @@ function mountPostGraphile() {
     legacyRelations: 'omit',
     pgSettings: pgSettingsFromRequest,
     retryOnInitFail: true,
+    // Email side effects for mutations (assignments, exams, results, fees,
+    // announcements, new accounts). They run after the response, i.e. after
+    // PostGraphile has committed, so they need req/res on the context.
+    appendPlugins: [require('./graphql/emailHooksPlugin')],
+    additionalGraphQLContextFromRequest: async (req, res) => ({ req, res }),
   };
   if (usesSeparateGraphqlRole()) {
     // Direct owner URL for schema watch / owner connection (avoid pooler for DDL watch).
@@ -483,27 +494,33 @@ app.post('/auth/forgot-password', authRateLimiter(), async (req, res) => {
 
   try {
     const slug = institution_slug || resolveInstitutionSlug(req);
-    let userQuery;
-    if (slug) {
-      userQuery = await pool.query(
-        `SELECT u.id, u.full_name, u.username FROM users u
-         JOIN institutions i ON i.id = u.institution_id
-         WHERE u.username = $1 AND i.slug = $2`,
-        [email, slug]
-      );
-    } else {
-      userQuery = await pool.query(
-        `SELECT id, full_name, username FROM users WHERE username = $1 AND role = 'mai_admin'`,
-        [email]
-      );
-    }
+    const identifier = String(email).trim();
+    // Accept the username or the registered email; the reset link always goes
+    // to the email on the account's profile.
+    const userQuery = slug
+      ? await pool.query(
+          `SELECT u.id, u.full_name, u.username, u.institution_id, p.email
+             FROM users u
+             JOIN institutions i ON i.id = u.institution_id
+             LEFT JOIN profiles p ON p.user_id = u.id
+            WHERE i.slug = $2 AND (u.username = $1 OR LOWER(p.email) = LOWER($1))
+            LIMIT 1`,
+          [identifier, slug]
+        )
+      : await pool.query(
+          `SELECT u.id, u.full_name, u.username, u.institution_id, p.email
+             FROM users u LEFT JOIN profiles p ON p.user_id = u.id
+            WHERE u.role = 'mai_admin' AND (u.username = $1 OR LOWER(p.email) = LOWER($1))
+            LIMIT 1`,
+          [identifier]
+        );
 
-    // Always return success to prevent email enumeration
-    if (userQuery.rows.length === 0) {
+    // Always return success to prevent account enumeration
+    const user = userQuery.rows[0];
+    if (!user || !user.email) {
       return res.json({ success: true, message: 'If an account exists, a reset email will be sent.' });
     }
 
-    const user = userQuery.rows[0];
     const crypto = require('crypto');
     const token = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -514,19 +531,25 @@ app.post('/auth/forgot-password', authRateLimiter(), async (req, res) => {
       [user.id, tokenHash, expiresAt]
     );
 
-    const resetUrl = `${process.env.PUBLIC_API_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
     const emailService = require('./services/emailService');
+    const { siteUrl } = require('./services/schoolEmails');
+    const resetUrl = `${siteUrl()}/login/reset-password?token=${token}`;
+    const { html, text } = emailService.renderEmail({
+      heading: 'Reset your password',
+      greeting: `Hi ${user.full_name || user.username},`,
+      paragraphs: ['We received a request to reset your password. Use the button below to choose a new one. This link expires in 1 hour.'],
+      details: [['Username', user.username]],
+      cta: { label: 'Reset password', url: resetUrl },
+      note: "If you didn't request this, you can safely ignore this email — your password won't change.",
+    });
     await emailService.sendAsync({
-      to: email,
+      to: user.email,
       subject: 'Reset your password',
-      html: emailService.renderTemplate('password-reset', {
-        name: user.full_name,
-        body: `<h2 style="margin:0 0 20px;color:#111827;font-size:18px">Password Reset</h2>
-          <p style="color:#374151;line-height:1.6">Hi ${user.full_name || 'there'},</p>
-          <p style="color:#374151;line-height:1.6">Click the link below to reset your password. This link expires in 1 hour.</p>
-          <p style="margin:24px 0"><a href="${resetUrl}" style="background:#6FA371;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Reset Password</a></p>
-          <p style="color:#9ca3af;font-size:13px">If you didn't request this, you can safely ignore this email.</p>`,
-      }),
+      html,
+      text,
+      tenantId: user.institution_id,
+      recipientId: user.id,
+      template: 'account.forgot_password',
     });
 
     res.json({ success: true, message: 'If an account exists, a reset email will be sent.' });
@@ -648,8 +671,11 @@ initDb()
     // Register job handlers
     const emailService = require('./services/emailService');
     jobQueue.registerHandler('email.send', async (payload) => {
-      return emailService.send(payload);
+      const result = await emailService.send(payload);
+      if (!result.ok) throw new Error(result.error || 'email send failed'); // retried by the queue
+      return result;
     });
+    jobQueue.registerHandler('email.batch', (payload, job) => emailService.handleBatchJob(payload, { tenantId: job.tenant_id }));
 
     // Import/Export Center (PRD §42). Without these the queued jobs are dead
     // letters and every import stays stuck in "importing".

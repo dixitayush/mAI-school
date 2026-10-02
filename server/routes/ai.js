@@ -1,4 +1,5 @@
 const express = require('express');
+const schoolEmails = require('../services/schoolEmails');
 const multer = require('multer');
 const { requireAuth, requireRole, requireTenant } = require('../middleware/auth');
 const { saveFile } = require('./files');
@@ -263,9 +264,11 @@ router.post(
       const validIds = new Set(valid.rows.map((r) => r.id));
 
       let committed = 0;
+      const marked = [];
       for (const r of rows) {
         if (!r.student_id || !validIds.has(r.student_id)) continue;
         const status = ['present', 'absent', 'late'].includes(r.status) ? r.status : 'present';
+        marked.push({ studentId: r.student_id, date: attDate, status });
         await client.query(
           `INSERT INTO attendance (student_id, date, status, recorded_by)
            VALUES ($1, $2, $3, $4)
@@ -286,6 +289,10 @@ router.post(
       }
 
       await client.query('COMMIT');
+
+      schoolEmails.fire('attendance (AI register)', () =>
+        schoolEmails.attendanceMarked(institution_id, marked)
+      );
 
       await logAudit(pool, req.auth, {
         action: 'attendance.import.commit',

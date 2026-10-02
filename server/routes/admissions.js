@@ -2,6 +2,7 @@ const express = require('express');
 const { requireAuth, requireRole, requireTenant } = require('../middleware/auth');
 const { logAudit } = require('../lib/audit');
 const { getAppPool } = require('../db/pool');
+const schoolEmails = require('../services/schoolEmails');
 
 const router = express.Router();
 const pool = getAppPool();
@@ -44,6 +45,10 @@ router.post('/', requireAuth, requireTenant, async (req, res) => {
       entityType: 'admission',
       entityId: rows[0].id,
     });
+
+    schoolEmails.fire('admission received', () =>
+      schoolEmails.admissionStatusChanged(rows[0].id, { isNew: true })
+    );
 
     res.json({ success: true, admission: rows[0] });
   } catch (err) {
@@ -175,6 +180,10 @@ router.patch(
         entityId: req.params.id,
         metadata: { from: fromStatus, to: status },
       });
+
+      schoolEmails.fire('admission status', () =>
+        schoolEmails.admissionStatusChanged(req.params.id, { previousStatus: fromStatus })
+      );
 
       res.json({ success: true });
     } catch (err) {

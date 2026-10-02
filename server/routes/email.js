@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { sendMail } = require('../lib/mailer');
+const emailService = require('../services/emailService');
+const { getAppPool } = require('../db/pool');
 const { requireAuth, requireRole, requireTenant } = require('../middleware/auth');
 
+// Ad-hoc email from staff (e.g. the "Send welcome email" action), sent via Resend.
 router.post(
   '/send',
   requireAuth,
@@ -14,64 +16,38 @@ router.post(
     if (!to || !subject) {
       return res.status(400).json({ error: 'to and subject required' });
     }
+    if (emailService.normalizeRecipients(String(to).slice(0, 320)).length === 0) {
+      return res.status(400).json({ error: 'A valid recipient email is required' });
+    }
 
     const safeSubject = String(subject).slice(0, 200);
     const safeText = text != null ? String(text).slice(0, 10000) : '';
-    const safeTo = String(to).slice(0, 320);
 
-    const result = await sendMail({
-      from: process.env.SMTP_FROM || '"mAI-school" <noreply@maischool.com>',
-      to: safeTo,
+    const { rows } = await getAppPool().query(
+      `SELECT name, logo_url, email_logo_url, primary_color FROM institutions WHERE id = $1`,
+      [req.auth.institution_id]
+    );
+    const inst = rows[0];
+    const { html, text: plain } = emailService.renderEmail({
+      school: inst && { name: inst.name, logoUrl: inst.email_logo_url || inst.logo_url, color: inst.primary_color },
+      heading: safeSubject,
+      paragraphs: [safeText],
+    });
+
+    const result = await emailService.send({
+      to: String(to).slice(0, 320),
       subject: safeSubject,
-      text: safeText,
-      html: `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>${safeSubject.replace(/</g, '')}</title>
-            </head>
-            <body style="margin: 0; padding: 0; background-color: #f4f6f5; font-family: Inter, Segoe UI, sans-serif;">
-                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
-                    <tr>
-                        <td style="padding: 20px 0 30px 0;">
-                            <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="border-collapse: collapse; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-                                <tr>
-                                    <td align="center" style="padding: 36px 0 28px; background: linear-gradient(135deg, #6FA371 0%, #4d7c78 100%);">
-                                        <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff;">mAI-school</h1>
-                                        <p style="margin: 8px 0 0; font-size: 13px; color: rgba(255,255,255,0.9);">School management</p>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 40px 30px;">
-                                        <h2 style="margin: 0 0 20px; color: #111827; font-size: 18px;">${safeSubject.replace(/</g, '')}</h2>
-                                        <p style="margin: 0; color: #374151; line-height: 1.6;">${safeText.replace(/</g, '&lt;')}</p>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 24px; background-color: #f9fafb; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #9ca3af;">
-                                        © ${new Date().getFullYear()} mAI-school
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                </table>
-            </body>
-            </html>
-            `,
+      html,
+      text: plain,
+      tenantId: req.auth.institution_id,
+      template: 'manual',
     });
 
     if (!result.ok) {
-      return res.status(500).json({ error: result.error || 'Failed to send email' });
+      return res.status(502).json({ error: result.error || 'Failed to send email' });
     }
 
-    res.json({
-      success: true,
-      messageId: result.messageId,
-      previewUrl: result.previewUrl,
-    });
+    res.json({ success: true, messageId: result.messageId });
   }
 );
 
