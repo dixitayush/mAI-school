@@ -1,13 +1,28 @@
 "use client";
 
-import { Edit, Trash2, Plus, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Edit, Trash2, Plus, Search, X, Download, FileText, FileSpreadsheet, ChevronUp, ChevronDown, ChevronsUpDown, Inbox } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
 import { useEffect, useMemo, useState } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { saveAs } from 'file-saver';
+import { PageButtons } from '@/components/Pagination';
 
 const DEFAULT_PAGE_SIZE = 10;
+
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+/** Compare two cell values: numbers numerically, blanks last, text naturally. */
+function compareValues(a, b) {
+    const emptyA = a === null || a === undefined || a === '';
+    const emptyB = b === null || b === undefined || b === '';
+    if (emptyA || emptyB) return emptyA === emptyB ? 0 : emptyA ? 1 : -1;
+    const na = Number(a);
+    const nb = Number(b);
+    if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+    return collator.compare(String(a), String(b));
+}
 
 export default function DataTable({
     title,
@@ -22,6 +37,8 @@ export default function DataTable({
 }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [page, setPage] = useState(1);
+    // { index, dir: 'asc' | 'desc' } — only columns with an accessor sort.
+    const [sort, setSort] = useState(null);
     const rows = Array.isArray(data) ? data : [];
 
     const filteredData = useMemo(() => {
@@ -35,22 +52,47 @@ export default function DataTable({
         );
     }, [rows, columns, searchable, searchTerm]);
 
-    const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+    const sortedData = useMemo(() => {
+        const col = sort && columns[sort.index];
+        if (!col?.accessor) return filteredData;
+        const dir = sort.dir === 'asc' ? 1 : -1;
+        return [...filteredData].sort((a, b) => dir * compareValues(a[col.accessor], b[col.accessor]));
+    }, [filteredData, columns, sort]);
+
+    const totalPages = Math.max(1, Math.ceil(sortedData.length / pageSize));
     const currentPage = Math.min(page, totalPages);
 
     useEffect(() => {
         setPage(1);
-    }, [searchTerm, pageSize, rows.length]);
+    }, [searchTerm, pageSize, rows.length, sort]);
 
     useEffect(() => {
         if (page > totalPages) setPage(totalPages);
     }, [page, totalPages]);
 
-    const pageStart = filteredData.length === 0 ? 0 : (currentPage - 1) * pageSize;
-    const pageEnd = Math.min(pageStart + pageSize, filteredData.length);
-    const pageRows = filteredData.slice(pageStart, pageEnd);
+    const pageStart = sortedData.length === 0 ? 0 : (currentPage - 1) * pageSize;
+    const pageEnd = Math.min(pageStart + pageSize, sortedData.length);
+    const pageRows = sortedData.slice(pageStart, pageEnd);
     const hasActions = Boolean(onEdit || onDelete);
     const colSpan = columns.length + (hasActions ? 1 : 0);
+
+    // Sort only on accessors that hold real values (not placeholder keys like
+    // 'actions' whose cell is entirely render-driven). `sortable: false` opts out.
+    const sortableCols = useMemo(
+        () => columns.map((col) => Boolean(
+            col.accessor && col.sortable !== false &&
+            rows.some((r) => r[col.accessor] !== undefined && r[col.accessor] !== null && typeof r[col.accessor] !== 'object')
+        )),
+        [columns, rows]
+    );
+
+    const toggleSort = (index) => {
+        setSort((s) => {
+            if (!s || s.index !== index) return { index, dir: 'asc' };
+            if (s.dir === 'asc') return { index, dir: 'desc' };
+            return null;
+        });
+    };
 
     const exportToPDF = () => {
         const doc = new jsPDF();
@@ -59,7 +101,7 @@ export default function DataTable({
         const tableColumn = columns.map(col => col.header);
         const tableRows = [];
 
-        filteredData.forEach(row => {
+        sortedData.forEach(row => {
             const rowData = columns.map(col => {
                 const val = col.render ? col.render(row) : row[col.accessor];
                 if (typeof val === 'object' && val !== null) {
@@ -81,7 +123,7 @@ export default function DataTable({
 
     const exportToCSV = () => {
         const headers = columns.map(col => col.header).join(',');
-        const csvRows = filteredData.map(row =>
+        const csvRows = sortedData.map(row =>
             columns.map(col => {
                 let val = col.render ? col.render(row) : row[col.accessor];
                 if (typeof val === 'object' && val !== null) {
@@ -96,75 +138,121 @@ export default function DataTable({
         saveAs(blob, `${title.toLowerCase().replace(/\s+/g, '_')}_export.csv`);
     };
 
+    const menuItemClass = 'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-zinc-700 data-[focus]:bg-zinc-100 data-[focus]:text-zinc-900';
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden"
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-soft"
         >
-            <div className="border-b border-zinc-100 bg-white p-4 sm:p-6">
+            <div className="border-b border-zinc-100 p-4 sm:px-6 sm:py-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <h2 className="text-base font-bold tracking-tight text-zinc-900 sm:text-lg">{title}</h2>
+                    <div className="flex min-w-0 items-center gap-2.5">
+                        <h2 className="truncate text-base font-bold tracking-tight text-zinc-900 sm:text-lg">{title}</h2>
+                        {!isLoading && (
+                            <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-zinc-600">
+                                {searchTerm ? `${sortedData.length} / ${rows.length}` : rows.length}
+                            </span>
+                        )}
+                    </div>
 
-                    <div className="flex flex-col items-stretch gap-3 xs:flex-row xs:flex-wrap xs:items-center">
+                    <div className="flex flex-col items-stretch gap-2.5 xs:flex-row xs:flex-wrap xs:items-center">
                         {searchable && (
-                            <div className="relative w-full sm:w-auto group">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400 group-focus-within:text-primary-500 transition-colors" />
+                            <div className="group relative w-full sm:w-auto">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 transition-colors group-focus-within:text-primary-600" />
                                 <input
                                     type="text"
-                                    placeholder="Search..."
+                                    placeholder="Search…"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10 pr-4 py-2 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm w-full sm:w-64 bg-zinc-50 focus:bg-white"
+                                    onKeyDown={(e) => e.key === 'Escape' && setSearchTerm('')}
+                                    className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-9 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 hover:border-zinc-300 focus:border-primary-300 focus:bg-white focus:ring-4 focus:ring-primary-500/15 sm:w-64"
                                 />
+                                {searchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchTerm('')}
+                                        aria-label="Clear search"
+                                        className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700"
+                                    >
+                                        <X className="h-3.5 w-3.5" />
+                                    </button>
+                                )}
                             </div>
                         )}
 
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={exportToPDF}
-                                className="p-2 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 rounded-xl transition-colors border border-zinc-200"
-                                title="Export PDF"
+                        <Menu as="div" className="relative">
+                            <MenuButton className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 hover:text-zinc-900 data-[open]:bg-zinc-50 xs:w-auto">
+                                <Download className="h-4 w-4" />
+                                Export
+                                <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
+                            </MenuButton>
+                            <MenuItems
+                                transition
+                                anchor="bottom end"
+                                className="z-50 w-48 origin-top-right rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl shadow-zinc-900/10 outline-none transition duration-150 ease-out [--anchor-gap:6px] data-[closed]:scale-95 data-[closed]:opacity-0"
                             >
-                                <span className="text-xs font-bold px-1">PDF</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={exportToCSV}
-                                className="p-2 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 rounded-xl transition-colors border border-zinc-200"
-                                title="Export CSV"
-                            >
-                                <span className="text-xs font-bold px-1">CSV</span>
-                            </button>
-                        </div>
+                                <MenuItem>
+                                    <button type="button" onClick={exportToPDF} className={menuItemClass}>
+                                        <FileText className="h-4 w-4 text-red-500" /> Export as PDF
+                                    </button>
+                                </MenuItem>
+                                <MenuItem>
+                                    <button type="button" onClick={exportToCSV} className={menuItemClass}>
+                                        <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Export as CSV
+                                    </button>
+                                </MenuItem>
+                            </MenuItems>
+                        </Menu>
 
                         {onAdd && (
                             <motion.button
-                                whileHover={{ scale: 1.02 }}
+                                whileHover={{ y: -1 }}
                                 whileTap={{ scale: 0.98 }}
                                 onClick={onAdd}
-                                className="flex items-center space-x-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-lg shadow-primary-500/30 whitespace-nowrap"
+                                className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary-600 px-4 text-sm font-semibold text-white shadow-md shadow-primary-600/25 transition-colors hover:bg-primary-700"
                             >
-                                <Plus className="w-4 h-4" />
-                                <span className="font-semibold text-sm">Add New</span>
+                                <Plus className="h-4 w-4" />
+                                Add New
                             </motion.button>
                         )}
                     </div>
                 </div>
             </div>
 
-            <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1 sm:mx-0 sm:px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="scroll-thin max-h-[70vh] overflow-auto overscroll-x-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
                 <table className="w-full min-w-[640px] text-left sm:min-w-0">
-                    <thead className="bg-zinc-50/50">
-                        <tr>
-                            {columns.map((col, idx) => (
-                                <th key={idx} className="whitespace-nowrap px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-500 sm:px-6 sm:py-4 sm:text-xs">
-                                    {col.header}
-                                </th>
-                            ))}
+                    <thead className="sticky top-0 z-10 bg-zinc-50/95 backdrop-blur">
+                        <tr className="border-b border-zinc-200/70">
+                            {columns.map((col, idx) => {
+                                const sortable = sortableCols[idx];
+                                const active = sort?.index === idx;
+                                const SortIcon = active ? (sort.dir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
+                                return (
+                                    <th
+                                        key={idx}
+                                        aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
+                                        className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500 sm:px-6"
+                                    >
+                                        {sortable ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleSort(idx)}
+                                                className={`group -mx-1 inline-flex items-center gap-1 rounded px-1 uppercase tracking-wider transition hover:text-zinc-900 ${active ? 'text-zinc-900' : ''}`}
+                                            >
+                                                {col.header}
+                                                <SortIcon className={`h-3.5 w-3.5 transition ${active ? 'text-primary-600' : 'text-zinc-300 group-hover:text-zinc-500'}`} />
+                                            </button>
+                                        ) : (
+                                            col.header
+                                        )}
+                                    </th>
+                                );
+                            })}
                             {hasActions && (
-                                <th className="sticky right-0 whitespace-nowrap bg-zinc-50/95 px-3 py-3 text-right text-[10px] font-semibold uppercase tracking-wider text-zinc-500 backdrop-blur-sm sm:static sm:bg-transparent sm:px-6 sm:py-4 sm:text-xs">
+                                <th className="sticky right-0 whitespace-nowrap bg-zinc-50/95 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500 sm:static sm:bg-transparent sm:px-6">
                                     Actions
                                 </th>
                             )}
@@ -173,30 +261,42 @@ export default function DataTable({
                     <tbody className="divide-y divide-zinc-100">
                         {isLoading ? (
                             Array.from({ length: Math.min(pageSize, 5) }).map((_, idx) => (
-                                <tr key={idx} className="animate-pulse">
+                                <tr key={idx}>
                                     {columns.map((_, colIdx) => (
-                                        <td key={colIdx} className="px-3 py-3 sm:px-6 sm:py-4">
-                                            <div className="h-4 w-3/4 rounded-lg bg-zinc-100"></div>
+                                        <td key={colIdx} className="px-3 py-4 sm:px-6">
+                                            <div className="skeleton h-4" style={{ width: `${55 + ((idx * 7 + colIdx * 13) % 35)}%` }} />
                                         </td>
                                     ))}
                                     {hasActions && (
-                                        <td className="px-3 py-3 sm:px-6 sm:py-4">
-                                            <div className="ml-auto h-4 w-16 rounded-lg bg-zinc-100"></div>
+                                        <td className="px-3 py-4 sm:px-6">
+                                            <div className="skeleton ml-auto h-4 w-16" />
                                         </td>
                                     )}
                                 </tr>
                             ))
-                        ) : filteredData.length === 0 ? (
+                        ) : sortedData.length === 0 ? (
                             <tr>
-                                <td colSpan={colSpan} className="px-6 py-12 text-center">
-                                    <div className="text-zinc-400 flex flex-col items-center">
-                                        <div className="w-12 h-12 bg-zinc-50 rounded-full flex items-center justify-center mb-3">
-                                            <Search className="w-6 h-6 text-zinc-300" />
+                                <td colSpan={colSpan} className="px-6 py-16 text-center">
+                                    <div className="flex flex-col items-center">
+                                        <div className="relative mb-4">
+                                            <div className="absolute inset-0 scale-150 rounded-full bg-primary-100/60 blur-xl" />
+                                            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                                                {searchTerm ? <Search className="h-6 w-6 text-zinc-400" /> : <Inbox className="h-6 w-6 text-zinc-400" />}
+                                            </div>
                                         </div>
-                                        <p className="text-lg font-medium text-zinc-900">No records found</p>
-                                        <p className="text-sm mt-1 text-zinc-500">
+                                        <p className="text-base font-semibold text-zinc-900">No records found</p>
+                                        <p className="mt-1 text-sm text-zinc-500">
                                             {searchTerm ? 'Try adjusting your search terms' : 'Get started by adding a new record'}
                                         </p>
+                                        {searchTerm && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setSearchTerm('')}
+                                                className="mt-4 rounded-lg px-3 py-1.5 text-sm font-medium text-primary-700 hover:bg-primary-50"
+                                            >
+                                                Clear search
+                                            </button>
+                                        )}
                                     </div>
                                 </td>
                             </tr>
@@ -204,32 +304,34 @@ export default function DataTable({
                             pageRows.map((row, rowIdx) => (
                                 <tr
                                     key={row.id || `${pageStart + rowIdx}`}
-                                    className="hover:bg-zinc-50/80 transition-colors group"
+                                    className="group transition-colors hover:bg-zinc-50/80"
                                 >
                                     {columns.map((col, colIdx) => (
-                                        <td key={colIdx} className="max-w-[200px] px-3 py-3 text-sm font-medium text-zinc-700 sm:max-w-none sm:whitespace-nowrap sm:px-6 sm:py-4">
+                                        <td key={colIdx} className="max-w-[200px] px-3 py-3.5 text-sm font-medium text-zinc-700 sm:max-w-none sm:whitespace-nowrap sm:px-6">
                                             {col.render ? col.render(row) : row[col.accessor]}
                                         </td>
                                     ))}
                                     {hasActions && (
-                                        <td className="sticky right-0 bg-white/95 px-3 py-3 text-right backdrop-blur-sm sm:static sm:bg-transparent sm:px-6 sm:py-4">
-                                            <div className="flex items-center justify-end space-x-1 opacity-100 transition-opacity sm:space-x-2 sm:opacity-0 sm:group-hover:opacity-100">
+                                        <td className="sticky right-0 bg-white/95 px-3 py-3 text-right backdrop-blur-sm sm:static sm:bg-transparent sm:px-6">
+                                            <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                                                 {onEdit && (
                                                     <button
                                                         onClick={() => onEdit(row)}
-                                                        className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                                                        className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-primary-50 hover:text-primary-700"
                                                         title="Edit"
+                                                        aria-label="Edit"
                                                     >
-                                                        <Edit className="w-4 h-4" />
+                                                        <Edit className="h-4 w-4" />
                                                     </button>
                                                 )}
                                                 {onDelete && (
                                                     <button
                                                         onClick={() => onDelete(row)}
-                                                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                        className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600"
                                                         title="Delete"
+                                                        aria-label="Delete"
                                                     >
-                                                        <Trash2 className="w-4 h-4" />
+                                                        <Trash2 className="h-4 w-4" />
                                                     </button>
                                                 )}
                                             </div>
@@ -242,40 +344,18 @@ export default function DataTable({
                 </table>
             </div>
 
-            {!isLoading && filteredData.length > 0 && (
-                <div className="px-4 sm:px-6 py-4 bg-zinc-50/30 border-t border-zinc-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {!isLoading && sortedData.length > 0 && (
+                <div className="flex flex-col gap-3 border-t border-zinc-100 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                     <p className="text-xs font-medium text-zinc-500">
                         Showing{' '}
-                        <span className="text-zinc-900">{pageStart + 1}</span>
-                        –
-                        <span className="text-zinc-900">{pageEnd}</span>
+                        <span className="font-semibold text-zinc-900">{pageStart + 1}–{pageEnd}</span>
                         {' '}of{' '}
-                        <span className="text-zinc-900">{filteredData.length}</span>
+                        <span className="font-semibold text-zinc-900">{sortedData.length}</span>
                         {' '}results
                     </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setPage((p) => Math.max(1, p - 1))}
-                            disabled={currentPage <= 1}
-                            className="inline-flex min-h-9 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                            <ChevronLeft className="h-3.5 w-3.5" />
-                            Previous
-                        </button>
-                        <span className="px-2 text-xs font-medium text-zinc-500">
-                            Page {currentPage} of {totalPages}
-                        </span>
-                        <button
-                            type="button"
-                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                            disabled={currentPage >= totalPages}
-                            className="inline-flex min-h-9 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                            Next
-                            <ChevronRight className="h-3.5 w-3.5" />
-                        </button>
-                    </div>
+                    {totalPages > 1 && (
+                        <PageButtons page={currentPage} totalPages={totalPages} onPage={setPage} />
+                    )}
                 </div>
             )}
         </motion.div>

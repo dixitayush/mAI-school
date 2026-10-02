@@ -71,18 +71,18 @@ export default function NotificationBell() {
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={toggle}
-        className="relative flex h-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-zinc-600 transition hover:bg-zinc-100"
+        className="relative flex h-10 w-10 items-center justify-center rounded-xl text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
         aria-label="Notifications">
         <Bell className="h-5 w-5" aria-hidden />
         {unread > 0 && (
-          <span className="absolute right-1 top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
             {unread > 99 ? "99+" : unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-2xl border border-zinc-200 bg-white shadow-xl sm:w-96">
+        <div className="animate-fade-up absolute right-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-5rem))] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl shadow-zinc-900/10 sm:w-96">
           <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
             <h3 className="text-sm font-semibold text-zinc-900">Notifications</h3>
             {unread > 0 && (
@@ -92,7 +92,7 @@ export default function NotificationBell() {
             )}
           </div>
 
-          <div className="max-h-80 overflow-y-auto">
+          <div className="scroll-thin max-h-80 overflow-y-auto">
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-8 text-zinc-400"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>
             ) : notifications.length === 0 ? (

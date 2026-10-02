@@ -35,7 +35,16 @@ import {
   Wallet,
   X,
   Zap,
+  Bot,
+  Bus,
+  BookMarked,
+  Video,
+  Receipt,
+  CalendarClock,
+  IdCard,
+  Megaphone,
 } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -324,18 +333,72 @@ function formatInr(n) {
   }).format(n);
 }
 
+// Real modules in the product, for the scrolling strip under the hero.
+const moduleStrip = [
+  [ClipboardCheck, "Attendance"],
+  [Wallet, "Fees & invoices"],
+  [PenLine, "Exams & results"],
+  [CalendarClock, "Timetables"],
+  [Video, "Online classes"],
+  [Receipt, "Payroll"],
+  [IdCard, "Admit cards"],
+  [BookMarked, "Library"],
+  [Bus, "Transport"],
+  [Megaphone, "Announcements"],
+  [Bot, "AI tutor"],
+  [UserPlus, "Admissions"],
+];
+
+function ModuleMarquee() {
+  const reduceMotion = useReducedMotion();
+  const items = reduceMotion ? moduleStrip : [...moduleStrip, ...moduleStrip];
+  return (
+    <div className="marquee overflow-hidden py-2" aria-label="Modules included">
+      <ul className={`${reduceMotion ? "flex flex-wrap justify-center" : "marquee-track"} gap-3`}>
+        {items.map(([Icon, label], i) => (
+          <li
+            key={`${label}-${i}`}
+            aria-hidden={i >= moduleStrip.length || undefined}
+            className="flex shrink-0 items-center gap-2 rounded-full border border-zinc-200/80 bg-white/80 px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm backdrop-blur"
+          >
+            <Icon className="h-4 w-4 text-primary-600" aria-hidden />
+            {label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Card with a soft highlight that follows the cursor (see .spotlight). */
+function SpotlightCard({ className = "", children, ...props }) {
+  const onMouseMove = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`);
+    e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
+  };
+  return (
+    <motion.article onMouseMove={onMouseMove} className={`spotlight ${className}`} {...props}>
+      {children}
+    </motion.article>
+  );
+}
+
 function SectionHeading({ eyebrow, title, description, light = false }) {
   return (
     <motion.div {...fadeUp} className="mx-auto max-w-2xl text-center">
       <p
-        className={`text-xs font-semibold uppercase tracking-[0.18em] ${
-          light ? "text-primary-300" : "text-primary-700"
+        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
+          light
+            ? "border-white/15 bg-white/5 text-primary-300"
+            : "border-primary-200/70 bg-primary-50/70 text-primary-700"
         }`}
       >
+        <span className="h-1.5 w-1.5 rounded-full bg-primary-500" aria-hidden />
         {eyebrow}
       </p>
       <h2
-        className={`mt-3 font-[family-name:var(--font-landing-display)] text-3xl font-semibold tracking-tight sm:text-4xl lg:text-[2.75rem] lg:leading-[1.15] ${
+        className={`mt-4 font-[family-name:var(--font-landing-display)] text-3xl font-semibold tracking-tight sm:text-4xl lg:text-[2.75rem] lg:leading-[1.15] ${
           light ? "text-white" : "text-zinc-900"
         }`}
       >
@@ -596,7 +659,7 @@ function HowItWorksInteractive() {
                       type="button"
                       onClick={() => go(active + 1)}
                       disabled={active === onboardingSteps.length - 1}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-zinc-800 disabled:pointer-events-none disabled:opacity-40"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-zinc-800 disabled:pointer-events-none disabled:opacity-40 dark:bg-[#f4f4f5] dark:text-[#18181b] dark:hover:bg-[#fff]"
                     >
                       Next step
                       <ChevronRight className="h-4 w-4" aria-hidden />
@@ -798,7 +861,7 @@ function HeroPreview() {
       className="relative mx-auto mt-14 w-full max-w-5xl px-4 sm:mt-16 sm:px-6 lg:mt-20 lg:px-8"
     >
       <div className="pointer-events-none absolute -inset-x-10 -top-8 h-40 bg-gradient-to-b from-primary-200/40 to-transparent blur-2xl" />
-      <div className="relative overflow-hidden rounded-[1.5rem] border border-white/60 bg-white/90 shadow-2xl shadow-primary-900/10 ring-1 ring-zinc-900/5 backdrop-blur sm:rounded-[1.75rem]">
+      <div className="glow-border relative overflow-hidden rounded-[1.5rem] border border-white/60 bg-white/90 shadow-2xl shadow-primary-900/10 ring-1 ring-zinc-900/5 backdrop-blur sm:rounded-[1.75rem] dark:border-transparent dark:shadow-black/40">
         <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50/90 px-5 py-3.5">
           <div className="flex gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-red-400/90" />
@@ -944,7 +1007,7 @@ export default function Home() {
 
   return (
     <div
-      className={`${outfit.variable} ${manrope.variable} min-h-dvh bg-[#f4f7f5] ps-[env(safe-area-inset-left)] pe-[env(safe-area-inset-right)] font-[family-name:var(--font-landing-body)] text-zinc-900 antialiased`}
+      className={`${outfit.variable} ${manrope.variable} min-h-dvh bg-[rgb(var(--landing-bg))] ps-[env(safe-area-inset-left)] pe-[env(safe-area-inset-right)] font-[family-name:var(--font-landing-body)] text-zinc-900 antialiased`}
     >
       <motion.div
         className="fixed left-0 right-0 top-0 z-[60] h-[2px] origin-left bg-gradient-to-r from-primary-500 via-primary-600 to-emerald-600"
@@ -973,10 +1036,10 @@ export default function Home() {
         <div className="mx-auto flex min-h-[3.5rem] max-w-6xl items-center justify-between gap-2 px-3 py-2 sm:min-h-[4.25rem] sm:gap-4 sm:px-6 sm:py-0 lg:px-8">
           <Link
             href="/"
-            className="flex min-w-0 shrink items-center gap-2.5"
+            className="group flex min-w-0 shrink items-center gap-2.5"
             onClick={() => setMobileNavOpen(false)}
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-800 shadow-md shadow-primary-500/25 ring-4 ring-white">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-800 shadow-md shadow-primary-500/25 transition group-hover:rotate-[-6deg]">
               <School className="h-5 w-5 text-white" aria-hidden />
             </span>
             <div className="min-w-0 leading-tight">
@@ -1006,19 +1069,21 @@ export default function Home() {
             >
               Platform sign in
             </Link>
+            <ThemeToggle className="rounded-full" />
             <Link
               href="/onboarding"
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-zinc-900/15 transition hover:bg-zinc-800"
+              className="group inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-zinc-900/15 transition hover:-translate-y-px hover:bg-zinc-800 dark:bg-[#f4f4f5] dark:text-[#18181b] dark:hover:bg-[#fff]"
             >
               Start online
               <ArrowRight className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
             </Link>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 lg:hidden">
+          <div className="flex shrink-0 items-center gap-1.5 lg:hidden">
+            <ThemeToggle className="h-11 w-11" />
             <Link
               href="/onboarding"
-              className="inline-flex min-h-[44px] items-center justify-center gap-1 rounded-full bg-zinc-900 px-3 text-xs font-semibold text-white shadow-md xs:px-4 xs:text-sm"
+              className="inline-flex min-h-[44px] items-center justify-center gap-1 rounded-full bg-zinc-900 px-3 text-xs font-semibold text-white shadow-md xs:px-4 xs:text-sm dark:bg-[#f4f4f5] dark:text-[#18181b]"
             >
               Start
               <ArrowRight className="h-3.5 w-3.5" aria-hidden />
@@ -1083,29 +1148,44 @@ export default function Home() {
 
       {/* Hero — one composition */}
       <section className="relative overflow-hidden border-b border-zinc-200/60">
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,#eef6ef_0%,#f4f7f5_45%,#ffffff_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(var(--hero-top))_0%,rgb(var(--landing-bg))_45%,rgb(var(--surface))_100%)]" />
+        <div className="bg-grid mask-radial absolute inset-0" aria-hidden />
+        <div className="pointer-events-none absolute inset-0 dark:opacity-40" aria-hidden>
+          <motion.div
+            className="absolute left-1/2 top-[-10rem] h-[28rem] w-[56rem] max-w-[200vw] rounded-full bg-gradient-to-r from-primary-300/40 via-emerald-200/40 to-teal-200/30 blur-3xl"
+            style={{ x: "-50%" }}
+            animate={{ opacity: [0.7, 1, 0.7], scale: [1, 1.05, 1] }}
+            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          />
+        </div>
         <div className="relative mx-auto max-w-6xl px-4 pb-4 pt-16 text-center sm:px-6 sm:pt-20 lg:px-8 lg:pt-24">
-          <motion.p
+          <motion.a
+            href="#pricing"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45 }}
-            className="font-[family-name:var(--font-landing-display)] text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl lg:text-6xl"
+            className="group inline-flex items-center gap-2 rounded-full border border-primary-200/80 bg-white/70 py-1 pl-1 pr-3 text-xs font-medium text-zinc-700 shadow-sm backdrop-blur transition hover:border-primary-300 hover:bg-white sm:text-sm"
           >
-            mAI-school
-          </motion.p>
+            <span className="rounded-full bg-primary-600 px-2.5 py-0.5 text-[11px] font-semibold text-white">
+              mAI-school
+            </span>
+            Self-serve from ₹30 per student / month
+            <ChevronRight className="h-3.5 w-3.5 text-zinc-400 transition group-hover:translate-x-0.5" aria-hidden />
+          </motion.a>
           <motion.h1
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.05 }}
-            className="mx-auto mt-5 max-w-3xl font-[family-name:var(--font-landing-display)] text-2xl font-medium leading-snug tracking-tight text-zinc-800 sm:text-3xl lg:text-4xl lg:leading-[1.2]"
+            transition={{ duration: 0.55, delay: 0.05 }}
+            className="mx-auto mt-7 max-w-4xl font-[family-name:var(--font-landing-display)] text-4xl font-semibold leading-[1.08] tracking-tight text-zinc-900 sm:text-5xl lg:text-[4.25rem]"
           >
-            The calm, modern way to run your institute
+            The calm, modern way to{" "}
+            <span className="text-gradient animate-gradient-x">run your institute</span>
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-zinc-600 sm:text-lg"
+            className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-zinc-600 sm:text-lg"
           >
             Attendance, fees, exams, and campus communication—each school on its own subdomain,
             with data that stays yours.
@@ -1118,14 +1198,14 @@ export default function Home() {
           >
             <Link
               href="/onboarding"
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary-600 px-8 text-base font-semibold text-white shadow-lg shadow-primary-600/25 transition hover:bg-primary-700 sm:w-auto"
+              className="group inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary-600 px-8 text-base font-semibold text-white shadow-lg shadow-primary-600/30 ring-1 ring-inset ring-white/20 transition hover:-translate-y-0.5 hover:bg-primary-700 hover:shadow-xl hover:shadow-primary-600/30 sm:w-auto"
             >
               Start online
-              <ArrowRight className="h-5 w-5" aria-hidden />
+              <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" aria-hidden />
             </Link>
             <a
               href="mailto:?subject=mAI-school%20%E2%80%94%20Talk%20to%20sales"
-              className="inline-flex h-12 w-full items-center justify-center rounded-full border border-zinc-300 bg-white/80 px-8 text-base font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-400 hover:bg-white sm:w-auto"
+              className="inline-flex h-12 w-full items-center justify-center rounded-full border border-zinc-300 bg-white/80 px-8 text-base font-semibold text-zinc-800 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:border-zinc-400 hover:bg-white sm:w-auto"
             >
               Talk to sales
             </a>
@@ -1140,6 +1220,12 @@ export default function Home() {
           </motion.p>
         </div>
         <HeroPreview />
+        <div className="relative mx-auto mt-12 max-w-6xl px-4 sm:mt-16 sm:px-6 lg:px-8">
+          <p className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
+            Everything your campus runs on
+          </p>
+          <ModuleMarquee />
+        </div>
         <div className="h-10 sm:h-14" />
       </section>
 
@@ -1169,13 +1255,13 @@ export default function Home() {
                 text: "Drafting and summarizing assists help staff move faster on everyday writing—so energy stays with students, not busywork.",
               },
             ].map((block, i) => (
-              <motion.article
+              <SpotlightCard
                 key={block.title}
                 initial={{ opacity: 0, y: 18 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-40px" }}
                 transition={{ duration: 0.45, delay: i * 0.06 }}
-                className="rounded-3xl border border-zinc-200/90 bg-[#f7faf8] p-7 transition hover:border-primary-200 hover:bg-white hover:shadow-md"
+                className="rounded-3xl border border-zinc-200/90 bg-[rgb(var(--landing-tint))] p-7 transition hover:border-primary-200 hover:shadow-lg hover:shadow-zinc-200/50"
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-primary-700 shadow-sm ring-1 ring-zinc-100">
                   <block.icon className="h-5 w-5" />
@@ -1184,7 +1270,7 @@ export default function Home() {
                   {block.title}
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-zinc-600">{block.text}</p>
-              </motion.article>
+              </SpotlightCard>
             ))}
           </div>
 
@@ -1195,7 +1281,7 @@ export default function Home() {
       {/* How it works */}
       <section
         id="how-it-works"
-        className="scroll-mt-24 border-b border-zinc-200/80 bg-[#f4f7f5] py-20 sm:py-24"
+        className="scroll-mt-24 border-b border-zinc-200/80 bg-[rgb(var(--landing-bg))] py-20 sm:py-24"
       >
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <SectionHeading
@@ -1227,31 +1313,34 @@ export default function Home() {
           />
           <div className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
             {productFeatures.map((f, i) => (
-              <motion.article
+              <SpotlightCard
                 key={f.title}
                 initial={{ opacity: 0, y: 18 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-30px" }}
                 transition={{ duration: 0.45, delay: i * 0.03 }}
                 whileHover={{ y: -4 }}
-                className="group relative overflow-hidden rounded-2xl border border-zinc-200/90 bg-[#f7faf8] p-6 shadow-sm transition hover:border-primary-200/80 hover:bg-white hover:shadow-md"
+                className={`group overflow-hidden rounded-2xl border border-zinc-200/90 bg-[rgb(var(--landing-tint))] p-6 shadow-sm transition hover:border-primary-200/80 hover:shadow-lg hover:shadow-zinc-200/50 ${
+                  // 4-col bento: [0 0 1 2] [3 4 5 5] [6 6 7 7]
+                  [0, 5, 6, 7].includes(i) ? "lg:col-span-2" : ""
+                }`}
               >
-                <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary-100/50 opacity-0 transition group-hover:opacity-100" />
-                <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-primary-600 shadow-sm ring-1 ring-zinc-100">
+                <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary-100/50 opacity-0 blur-xl transition group-hover:opacity-100" />
+                <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 text-white shadow-md shadow-primary-600/25 transition group-hover:scale-105">
                   <f.icon className="h-6 w-6" aria-hidden />
                 </span>
                 <h3 className="relative mt-5 font-[family-name:var(--font-landing-display)] text-base font-semibold text-zinc-900">
                   {f.title}
                 </h3>
                 <p className="relative mt-2 text-sm leading-relaxed text-zinc-600">{f.description}</p>
-              </motion.article>
+              </SpotlightCard>
             ))}
           </div>
         </div>
       </section>
 
       {/* Trust */}
-      <section className="border-b border-zinc-200/80 bg-gradient-to-b from-[#f4f7f5] to-white py-16 sm:py-20">
+      <section className="border-b border-zinc-200/80 bg-gradient-to-b from-[rgb(var(--landing-bg))] to-[rgb(var(--surface))] py-16 sm:py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {trustPoints.map((block, i) => (
@@ -1261,7 +1350,7 @@ export default function Home() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.05 }}
-                className="rounded-2xl border border-zinc-200/80 bg-white/90 p-6 shadow-sm"
+                className="rounded-2xl border border-zinc-200/80 bg-white/90 p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-50 text-primary-700">
                   <block.icon className="h-5 w-5" />
@@ -1293,7 +1382,7 @@ export default function Home() {
                 transition={{ delay: i * 0.06 }}
                 className={`relative flex flex-col rounded-3xl border p-8 ${
                   plan.featured
-                    ? "border-primary-500/40 bg-gradient-to-b from-primary-50/90 to-white shadow-lg shadow-primary-900/5 ring-1 ring-primary-500/20"
+                    ? "glow-border border-primary-500/40 bg-gradient-to-b from-primary-50/90 to-white shadow-xl shadow-primary-900/10 ring-1 ring-primary-500/20"
                     : "border-zinc-200 bg-zinc-50/40"
                 }`}
               >
@@ -1332,7 +1421,7 @@ export default function Home() {
                 ) : (
                   <Link
                     href={plan.cta.href}
-                    className="mt-8 inline-flex h-11 items-center justify-center rounded-full bg-primary-600 px-5 text-sm font-semibold text-white transition hover:bg-primary-700"
+                    className="mt-8 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary-600 px-5 text-sm font-semibold text-white shadow-md shadow-primary-600/25 transition hover:-translate-y-0.5 hover:bg-primary-700"
                   >
                     {plan.cta.label}
                   </Link>
@@ -1351,7 +1440,7 @@ export default function Home() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="scroll-mt-24 border-b border-zinc-200/80 bg-[#f4f7f5] py-20 sm:py-24">
+      <section id="faq" className="scroll-mt-24 border-b border-zinc-200/80 bg-[rgb(var(--landing-bg))] py-20 sm:py-24">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <SectionHeading
             eyebrow="FAQ"
@@ -1366,9 +1455,11 @@ export default function Home() {
       </section>
 
       {/* Final CTA */}
-      <section className="relative overflow-hidden bg-zinc-900 py-20 sm:py-24">
+      <section className="relative bg-[rgb(var(--landing-bg))] px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] bg-[#0f1512] py-16 shadow-2xl shadow-primary-950/20 ring-1 ring-white/10 sm:py-20">
+        <div className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.07)_1px,transparent_1px)] bg-[length:22px_22px]" aria-hidden />
         <div
-          className="pointer-events-none absolute inset-0 opacity-40"
+          className="pointer-events-none absolute inset-0 opacity-60"
           aria-hidden
           style={{
             background:
@@ -1380,29 +1471,30 @@ export default function Home() {
             <h2 className="font-[family-name:var(--font-landing-display)] text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               Bring mAI-school to your institute
             </h2>
-            <p className="mx-auto mt-4 max-w-lg text-zinc-400">
+            <p className="mx-auto mt-4 max-w-lg text-[#a1a1aa]">
               Spin up your tenant online, or start with a conversation—we provision subdomain,
               login, and first admin so your team can focus on students.
             </p>
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
                 href="/onboarding"
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white px-8 text-base font-semibold text-zinc-900 shadow-lg transition hover:bg-zinc-100 sm:w-auto"
+                className="group inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#fff] px-8 text-base font-semibold text-[#18181b] shadow-lg transition hover:-translate-y-0.5 hover:bg-[#f4f4f5] sm:w-auto"
               >
                 Start online
                 <ArrowRight className="h-5 w-5" aria-hidden />
               </Link>
               <a
                 href="mailto:?subject=mAI-school%20%E2%80%94%20Get%20started"
-                className="inline-flex h-12 w-full items-center justify-center rounded-full border border-zinc-600 px-8 text-base font-semibold text-white transition hover:bg-white/10 sm:w-auto"
+                className="inline-flex h-12 w-full items-center justify-center rounded-full border border-[#52525b] px-8 text-base font-semibold text-white transition hover:bg-white/10 sm:w-auto"
               >
                 Contact sales
               </a>
             </div>
-            <p className="mx-auto mt-4 max-w-md text-xs text-zinc-500">
+            <p className="mx-auto mt-4 max-w-md text-xs text-[#71717a]">
               Institute staff and students: use your school’s sign-in link—not platform admin.
             </p>
           </motion.div>
+        </div>
         </div>
       </section>
 

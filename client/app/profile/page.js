@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
 import DashboardLayout from '@/components/DashboardLayout';
-import { User, Mail, Phone, MapPin, Camera, Save, X, Briefcase, Calendar, GraduationCap, BookOpen } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Camera, Save, X, Briefcase, Calendar, GraduationCap, BookOpen, Palette } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import {
@@ -515,6 +516,25 @@ function ProfileContent() {
                                 )}
                             </AnimatePresence>
                         </div>
+                    </motion.div>
+
+                    {/* Appearance */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
+                        className="mt-6 flex flex-col gap-4 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-soft sm:flex-row sm:items-center sm:justify-between sm:p-8"
+                    >
+                        <div className="flex items-start gap-4">
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary-50 text-primary-700">
+                                <Palette className="h-5 w-5" />
+                            </span>
+                            <div>
+                                <h3 className="text-lg font-bold text-zinc-900">Appearance</h3>
+                                <p className="mt-0.5 text-sm text-zinc-500">Choose light or dark, or follow your device setting. Saved on this device.</p>
+                            </div>
+                        </div>
+                        <ThemeToggle variant="segmented" />
                     </motion.div>
                 </div>
             </div>

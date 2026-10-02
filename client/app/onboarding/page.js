@@ -33,6 +33,7 @@ import { toast } from "react-hot-toast";
 import { instituteLoginPageUrl } from "@/lib/tenant";
 import { formatInr } from "@/lib/currency";
 import { apiBase } from "@/lib/api";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -317,13 +318,16 @@ export default function OnboardingPage() {
                 <span className="block text-[11px] font-medium text-primary-700">Onboarding complete</span>
               </div>
             </Link>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200/90 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-              Home
-            </Link>
+            <div className="flex items-center gap-1.5">
+              <ThemeToggle className="rounded-full" />
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200/90 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+                Home
+              </Link>
+            </div>
           </div>
         </header>
 
@@ -479,6 +483,7 @@ export default function OnboardingPage() {
             </div>
           </Link>
           <div className="flex items-center gap-2">
+            <ThemeToggle className="rounded-full" />
             <button
               type="button"
               onClick={() => router.push("/login")}

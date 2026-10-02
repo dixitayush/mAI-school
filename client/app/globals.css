@@ -46,6 +46,188 @@
   --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Dark theme for the hand-written CSS below. Tailwind colour utilities are
+   themed separately in tailwind.config.js. */
+.dark {
+  --accent: #23402a;
+  --accent-light: #1b2b20;
+
+  --bg-primary: #0c0e12;
+  --bg-secondary: #14161b;
+  --bg-tertiary: #1b1e24;
+
+  --text-primary: #e9e9ec;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717a;
+
+  --border-light: #2a2e36;
+  --border-medium: #3a3f49;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 10px -2px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 12px 24px -6px rgb(0 0 0 / 0.55);
+  --shadow-xl: 0 24px 40px -10px rgb(0 0 0 / 0.6);
+}
+
+/* Theme switches animate instead of flashing; opted out while the page loads. */
+html.theme-ready body,
+html.theme-ready .theme-fade {
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+::selection {
+  background: rgb(111 163 113 / 0.28);
+}
+
+/* In the base layer so `outline-none` / focus-visible: utilities can override. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid rgb(111 163 113 / 0.7);
+    outline-offset: 2px;
+  }
+}
+
+@layer base {
+  /* Unstyled fields follow the theme (classes still win: utilities > base). */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea {
+    background-color: rgb(var(--surface));
+    color: inherit;
+  }
+
+  input,
+  select,
+  textarea {
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="range"] {
+    accent-color: #6fa371;
+  }
+
+  html {
+    scrollbar-color: var(--border-medium) transparent;
+    scrollbar-width: thin;
+  }
+
+  .dark input[type="date"]::-webkit-calendar-picker-indicator,
+  .dark input[type="time"]::-webkit-calendar-picker-indicator,
+  .dark input[type="month"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Recharts draws with inline greys — retune them for the dark theme. */
+.dark .recharts-cartesian-grid line {
+  stroke: #262a31;
+}
+
+.dark .recharts-cartesian-axis-tick-value,
+.dark .recharts-legend-item-text {
+  fill: #9ca3af;
+}
+
+.dark .recharts-default-tooltip {
+  background-color: #1b1e24 !important;
+  border-color: #2a2e36 !important;
+  color: #e4e4e7;
+}
+
+.dark .recharts-tooltip-cursor {
+  fill: rgb(255 255 255 / 0.04);
+}
+
+/* Soft glass used by sticky headers. */
+.glass {
+  background-color: rgb(var(--surface) / 0.72);
+  backdrop-filter: saturate(160%) blur(14px);
+  -webkit-backdrop-filter: saturate(160%) blur(14px);
+}
+
+/* Keyboard hint chip (⌘K etc.). */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  border-bottom-width: 2px;
+  background: rgb(var(--surface));
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Brand gradient text for display headings. */
+.text-gradient {
+  background-image: linear-gradient(100deg, #4d7c78 0%, #6fa371 45%, #10b981 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.dark .text-gradient {
+  background-image: linear-gradient(100deg, #9fd3a1 0%, #6ee7b7 50%, #5eead4 100%);
+}
+
+/* Hairline gradient border; put it on a relatively positioned element. */
+.glow-border {
+  position: relative;
+  isolation: isolate;
+}
+
+.glow-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(140deg, rgb(111 163 113 / 0.55), rgb(16 185 129 / 0.15) 40%, transparent 70%, rgb(77 124 120 / 0.4));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Thin scroller for side rails and dropdown lists. */
+.scroll-thin {
+  scrollbar-width: thin;
+}
+
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+/* Subtle dotted backdrop for hero sections. */
+.bg-grid {
+  background-image: radial-gradient(rgb(113 113 122 / 0.18) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.dark .bg-grid {
+  background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
+}
+
 * {
   box-sizing: border-box;
   padding: 0;
@@ -63,7 +245,7 @@ body {
   overflow-x: hidden;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-  background-color: var(--bg-primary);
+  background-color: rgb(var(--page-bg));
   color: var(--text-primary);
   line-height: 1.6;
 }
@@ -97,12 +279,14 @@ html {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-tertiary);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--border-medium);
-  border-radius: 4px;
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -300,7 +484,7 @@ html {
 .input:focus {
   outline: none;
   border-color: var(--primary-500);
-  box-shadow: 0 0 0 3px var(--accent-light);
+  box-shadow: 0 0 0 4px rgb(111 163 113 / 0.18);
 }
 
 .input::placeholder {
@@ -356,6 +540,11 @@ select:disabled {
   color: #1E40AF;
 }
 
+.dark .badge-success { background: rgb(111 163 113 / 0.16); color: #a7d3a9; }
+.dark .badge-warning { background: rgb(245 158 11 / 0.15); color: #fcd34d; }
+.dark .badge-error { background: rgb(239 68 68 / 0.15); color: #fca5a5; }
+.dark .badge-info { background: rgb(59 130 246 / 0.15); color: #93c5fd; }
+
 /* Loading skeleton */
 .skeleton {
   background: linear-gradient(90deg,
@@ -409,8 +598,8 @@ select:disabled {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
+  background: rgb(9 9 11 / 0.45);
+  backdrop-filter: blur(6px);
   z-index: 40;
   animation: fadeIn var(--transition-base);
 }
@@ -426,4 +615,64 @@ select:disabled {
   .show-mobile-only {
     display: none;
   }
+}
+/* ---------- Landing page ---------- */
+:root {
+  --landing-bg: 244 247 245;
+  --landing-tint: 247 250 248;
+  --hero-top: 234 245 236;
+}
+
+.dark {
+  --landing-bg: 12 14 18;
+  --landing-tint: 27 30 36;
+  --hero-top: 15 27 20;
+}
+
+/* Cursor-following highlight; JS sets --mx / --my on mousemove. */
+.spotlight {
+  position: relative;
+  isolation: isolate;
+}
+
+.spotlight::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 0%), rgb(111 163 113 / 0.16), transparent 45%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.spotlight:hover::after {
+  opacity: 1;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.marquee {
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 38s linear infinite;
+}
+
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+/* Fade a dotted grid out towards the edges of the hero. */
+.mask-radial {
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 75%);
 }

@@ -1,6 +1,7 @@
 import "./globals.css";
 import { Inter } from "next/font/google";
 import { Toaster } from "react-hot-toast";
+import { THEME_INIT_SCRIPT } from "@/lib/themeScript";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -16,12 +17,19 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
-  themeColor: "#f4f4f5",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f7fa" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0e12" },
+  ],
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    // The theme class is set by the head script before hydration.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body
         className={`${inter.className} min-h-dvh antialiased`}
       >
@@ -35,6 +43,11 @@ export default function RootLayout({ children }) {
             className: "max-w-[min(100vw-1.5rem,24rem)] text-sm",
             style: {
               marginBottom: "env(safe-area-inset-bottom)",
+              background: "rgb(var(--surface))",
+              color: "var(--text-primary)",
+              border: "1px solid var(--border-light)",
+              boxShadow: "var(--shadow-lg)",
+              borderRadius: "14px",
             },
           }}
         />

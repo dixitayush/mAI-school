@@ -26,6 +26,7 @@ import {
 } from "@/lib/tenant";
 import { notifySessionChanged } from "@/lib/useSession";
 import { apiBase } from "@/lib/api";
+import ThemeToggle from "@/components/ThemeToggle";
 const easeOut = [0.22, 1, 0.36, 1];
 
 const ROLE_HOME = {
@@ -229,13 +230,16 @@ export default function LoginPage() {
               </>
             )}
           </Link>
-          <Link
-            href="/"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-zinc-200/90 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-            Home
-          </Link>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <ThemeToggle className="rounded-full" />
+            <Link
+              href="/"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-zinc-200/90 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+              Home
+            </Link>
+          </div>
         </div>
       </header>
 

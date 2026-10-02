@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import ThemeToggle from "@/components/ThemeToggle";
 import { ArrowLeft, Loader2, Mail, CheckCircle2 } from "lucide-react";
 import { apiBase } from "@/lib/api";
 
@@ -33,7 +34,8 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-zinc-50 px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-zinc-50 dark:bg-transparent px-4">
+      <ThemeToggle className="fixed right-4 top-[max(1rem,env(safe-area-inset-top))] z-10 rounded-full border border-zinc-200 bg-white shadow-sm" />
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}

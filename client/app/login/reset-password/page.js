@@ -4,6 +4,7 @@ import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
+import ThemeToggle from "@/components/ThemeToggle";
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, Loader2, Lock } from "lucide-react";
 import { apiBase } from "@/lib/api";
 
@@ -42,7 +43,8 @@ function ResetForm() {
   };
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-zinc-50 px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-zinc-50 dark:bg-transparent px-4">
+      <ThemeToggle className="fixed right-4 top-[max(1rem,env(safe-area-inset-top))] z-10 rounded-full border border-zinc-200 bg-white shadow-sm" />
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -134,7 +136,7 @@ function ResetForm() {
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-dvh items-center justify-center bg-zinc-50">
+      <div className="flex min-h-dvh items-center justify-center bg-zinc-50 dark:bg-transparent">
         <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
       </div>
     }>
