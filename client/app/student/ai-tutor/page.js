@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
 import { Bot, Loader2, Send, Sparkles, User } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import Markdown from "@/components/Markdown";
 
 export default function AITutorPage() {
   const [messages, setMessages] = useState([]);
@@ -107,7 +108,11 @@ export default function AITutorPage() {
                     <Sparkles className="h-2.5 w-2.5" /> AI Generated
                   </span>
                 )}
-                <div className="whitespace-pre-wrap">{msg.content}</div>
+                {msg.role === "assistant" ? (
+                  <Markdown compact>{msg.content}</Markdown>
+                ) : (
+                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                )}
               </div>
               {msg.role === "user" && (
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100">

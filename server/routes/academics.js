@@ -231,7 +231,15 @@ router.get('/filter-options', requireAuth, requireTenant, async (req, res) => {
         [institutionId]
       ),
       pool.query(
-        `SELECT e.id, e.title, e.subject, e.exam_date, e.class_id, c.name AS class_name
+        // Exams carry no session of their own; they belong to the session
+        // whose dates contain the exam date. Resolved here rather than in the
+        // browser, where serialised dates arrive shifted by the server's zone.
+        `SELECT e.id, e.title, e.subject, e.exam_date::text AS exam_date, e.class_id,
+                c.name AS class_name,
+                (SELECT a.id FROM academic_sessions a
+                  WHERE a.institution_id = c.institution_id
+                    AND e.exam_date BETWEEN a.start_date AND a.end_date
+                  ORDER BY a.start_date DESC LIMIT 1) AS session_id
            FROM exams e JOIN classes c ON c.id = e.class_id
           WHERE c.institution_id = $1
           ORDER BY e.exam_date DESC NULLS LAST, e.title`,

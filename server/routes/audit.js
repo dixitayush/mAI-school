@@ -10,10 +10,19 @@ const { getAppPool } = require('../db/pool');
 const router = express.Router();
 const pool = getAppPool();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const SEVERITIES = ['info', 'warning', 'critical'];
+
 // GET /api/audit — query audit logs
+//
+// Filters: action, actor_id, actor_role, entity_type, entity_id, severity,
+// from/to (calendar days), sort (newest | oldest) and `q`, a free-text search
+// over action, entity type, actor name/username, IP, metadata, a pasted uuid
+// (entity or actor) and a student's registration id.
 router.get('/', requireAuth, requireRole('admin', 'principal', 'mai_admin'), requireTenant, async (req, res) => {
   const { institution_id } = req.auth;
-  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   // The log screen paginates with `page`; `offset` stays supported for API callers.
   const offset =
     req.query.offset !== undefined
@@ -22,51 +31,53 @@ router.get('/', requireAuth, requireRole('admin', 'principal', 'mai_admin'), req
 
   const conditions = ['al.institution_id = $1'];
   const params = [institution_id];
-  let paramIdx = 2;
+  const add = (sql, value) => {
+    params.push(value);
+    conditions.push(sql.replace(/\?/g, `$${params.length}`));
+  };
 
-  if (req.query.action) {
-    conditions.push(`al.action = $${paramIdx}`);
-    params.push(req.query.action);
-    paramIdx++;
+  for (const key of ['actor_id', 'entity_id']) {
+    if (req.query[key] && !UUID_RE.test(req.query[key])) {
+      return res.status(400).json({ error: `${key} must be a uuid` });
+    }
   }
-  if (req.query.actor_id) {
-    conditions.push(`al.actor_user_id = $${paramIdx}`);
-    params.push(req.query.actor_id);
-    paramIdx++;
+  for (const key of ['from', 'to']) {
+    if (req.query[key] && !DATE_RE.test(req.query[key])) {
+      return res.status(400).json({ error: `${key} must be a YYYY-MM-DD date` });
+    }
   }
-  if (req.query.entity_type) {
-    conditions.push(`al.entity_type = $${paramIdx}`);
-    params.push(req.query.entity_type);
-    paramIdx++;
+  if (req.query.severity && !SEVERITIES.includes(req.query.severity)) {
+    return res.status(400).json({ error: `severity must be one of ${SEVERITIES.join(', ')}` });
   }
-  if (req.query.entity_id) {
-    conditions.push(`al.entity_id = $${paramIdx}`);
-    params.push(req.query.entity_id);
-    paramIdx++;
+
+  if (req.query.action) add('al.action = ?', req.query.action);
+  if (req.query.actor_id) add('al.actor_user_id = ?', req.query.actor_id);
+  if (req.query.actor_role) add('u.role::text = ?', req.query.actor_role);
+  if (req.query.entity_type) add('al.entity_type = ?', req.query.entity_type);
+  if (req.query.entity_id) add('al.entity_id = ?', req.query.entity_id);
+  if (req.query.severity) add('al.severity = ?', req.query.severity);
+  if (req.query.from) add('al.created_at >= ?::date', req.query.from);
+  // `to` is a calendar day from a date input — include the whole day.
+  if (req.query.to) add('al.created_at < (?::date + 1)', req.query.to);
+
+  const term = String(req.query.q || '').trim();
+  if (term) {
+    if (UUID_RE.test(term)) {
+      add('(al.entity_id = ? OR al.actor_user_id = ?)', term);
+    } else {
+      add(
+        `(al.action ILIKE ? OR al.entity_type ILIKE ? OR u.full_name ILIKE ? OR u.username ILIKE ?
+          OR al.ip_address ILIKE ? OR al.metadata::text ILIKE ? OR es.registration_id ILIKE ?)`,
+        `%${term}%`
+      );
+    }
   }
-  if (req.query.severity) {
-    conditions.push(`al.severity = $${paramIdx}`);
-    params.push(req.query.severity);
-    paramIdx++;
-  }
-  if (req.query.from) {
-    conditions.push(`al.created_at >= $${paramIdx}`);
-    params.push(req.query.from);
-    paramIdx++;
-  }
-  if (req.query.to) {
-    // `to` is a calendar day from a date input — include the whole day.
-    conditions.push(`al.created_at < ($${paramIdx}::date + 1)`);
-    params.push(req.query.to);
-    paramIdx++;
-  }
-  if (req.query.q) {
-    conditions.push(
-      `(al.action ILIKE $${paramIdx} OR al.entity_type ILIKE $${paramIdx} OR u.full_name ILIKE $${paramIdx})`
-    );
-    params.push(`%${req.query.q}%`);
-    paramIdx++;
-  }
+
+  const order = req.query.sort === 'oldest' ? 'ASC' : 'DESC';
+  // Students are the one entity people know by a readable id.
+  const from = `FROM audit_log al
+                LEFT JOIN users u ON u.id = al.actor_user_id
+                LEFT JOIN students es ON al.entity_type = 'student' AND es.id = al.entity_id`;
 
   try {
     const where = conditions.join(' AND ');
@@ -75,32 +86,60 @@ router.get('/', requireAuth, requireRole('admin', 'principal', 'mai_admin'), req
         `SELECT al.id, al.action, al.entity_type, al.entity_id, al.metadata,
                 al.ip_address, al.user_agent, al.severity, al.created_at,
                 al.actor_user_id AS actor_id,
-                u.full_name AS actor_name, u.role AS actor_role
-         FROM audit_log al
-         LEFT JOIN users u ON u.id = al.actor_user_id
+                u.full_name AS actor_name, u.username AS actor_username, u.role AS actor_role,
+                es.registration_id AS entity_registration_id
+         ${from}
          WHERE ${where}
-         ORDER BY al.created_at DESC
-         LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+         ORDER BY al.created_at ${order}
+         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
         [...params, limit, offset]
       ),
-      pool.query(
-        `SELECT count(*)::int FROM audit_log al
-           LEFT JOIN users u ON u.id = al.actor_user_id
-          WHERE ${where}`,
-        params
-      ),
+      pool.query(`SELECT count(*)::int ${from} WHERE ${where}`, params),
     ]);
 
+    const total = countResult.rows[0].count;
     res.json({
       logs: data.rows,
-      total: countResult.rows[0].count,
+      total,
       limit,
       offset,
       page: Math.floor(offset / limit) + 1,
+      total_pages: Math.max(Math.ceil(total / limit), 1),
     });
   } catch (err) {
     console.error('[audit]', err);
     res.status(500).json({ error: 'Failed to query audit log' });
+  }
+});
+
+// GET /api/audit/filters — values that actually occur, for the filter dropdowns.
+router.get('/filters', requireAuth, requireRole('admin', 'principal', 'mai_admin'), requireTenant, async (req, res) => {
+  const inst = req.auth.institution_id;
+  try {
+    const [actions, entityTypes, actors] = await Promise.all([
+      pool.query(`SELECT DISTINCT action FROM audit_log WHERE institution_id = $1 ORDER BY action`, [inst]),
+      pool.query(
+        `SELECT DISTINCT entity_type FROM audit_log
+          WHERE institution_id = $1 AND entity_type IS NOT NULL ORDER BY entity_type`,
+        [inst]
+      ),
+      pool.query(
+        `SELECT u.id, u.full_name, u.role::text AS role, count(*)::int AS events
+           FROM audit_log al JOIN users u ON u.id = al.actor_user_id
+          WHERE al.institution_id = $1
+          GROUP BY u.id, u.full_name, u.role
+          ORDER BY u.full_name`,
+        [inst]
+      ),
+    ]);
+    res.json({
+      actions: actions.rows.map((r) => r.action),
+      entity_types: entityTypes.rows.map((r) => r.entity_type),
+      actors: actors.rows,
+    });
+  } catch (err) {
+    console.error('[audit] filters failed:', err);
+    res.status(500).json({ error: 'Failed to load filters' });
   }
 });
 

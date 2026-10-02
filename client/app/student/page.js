@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, gql } from '@apollo/client';
 import {
@@ -7,10 +8,9 @@ import {
     GraduationCap, FileText, Clock, CheckCircle2,
     XCircle, Loader2, BarChart3, Target
 } from 'lucide-react';
-import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { generateReportCard } from '@/lib/generateReportCard';
+import ReportCardDownloader from '@/components/ReportCardDownloader';
 import AnnouncementCard from '@/components/AnnouncementCard';
 import RecentAttendanceCard from '@/components/RecentAttendanceCard';
 import AttendanceAnalytics from '@/components/AttendanceAnalytics';
@@ -96,49 +96,7 @@ export default function StudentDashboard() {
         skip: !userId,
     });
 
-    const handleDownloadReportCard = () => {
-        try {
-            if (!studentData) {
-                toast.error('No student data available');
-                return;
-            }
-
-            let schoolName;
-            try {
-                const inst = JSON.parse(localStorage.getItem('institution') || 'null');
-                schoolName = inst?.name;
-            } catch { /* ignore */ }
-
-            const reportData = {
-                schoolName,
-                name: studentData.userByUserId?.fullName || 'Student',
-                class: studentData.classByClassId?.name
-                    ? `${studentData.classByClassId.name}${studentData.section ? ` · ${studentData.section}` : ''}`
-                    : 'N/A',
-                // The real roll number, not the login username.
-                rollNumber: studentData.rollNumber || 'N/A',
-                registrationId: studentData.registrationId,
-                results: results.map(r => ({
-                    subject: r.examByExamId?.subject || 'N/A',
-                    marksObtained: r.marksObtained || 0,
-                    totalMarks: r.examByExamId?.totalMarks || 100,
-                    grade: r.grade
-                })),
-                totalDays: totalAttendanceDays,
-                presentDays: presentDays,
-                absentDays: absentDays,
-                attendancePercentage: attendancePercentage,
-                overallGrade: calculateOverallGrade(),
-                remarks: 'Keep up the good work!'
-            };
-
-            generateReportCard(reportData);
-            toast.success('Report card downloaded successfully!');
-        } catch (error) {
-            console.error('Error generating report card:', error);
-            toast.error('Failed to generate report card');
-        }
-    };
+    const [reportCardsOpen, setReportCardsOpen] = useState(false);
 
     if (!ready || loading) {
         return (
@@ -259,13 +217,19 @@ export default function StudentDashboard() {
                 </div>
                 <button
                     type="button"
-                    onClick={handleDownloadReportCard}
+                    onClick={() => setReportCardsOpen(true)}
                     className="flex min-h-11 shrink-0 items-center space-x-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700"
                 >
                     <Download className="h-4 w-4 shrink-0" />
-                    <span>Download Report Card</span>
+                    <span>Report Cards</span>
                 </button>
             </div>
+
+            <ReportCardDownloader
+                studentId={studentData?.id}
+                isOpen={reportCardsOpen}
+                onClose={() => setReportCardsOpen(false)}
+            />
 
             {/* Welcome Banner */}
             <motion.div

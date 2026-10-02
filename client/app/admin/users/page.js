@@ -1,30 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { useQuery, useMutation, gql } from '@apollo/client';
+import { useCallback, useEffect, useState } from 'react';
+import { useMutation, gql } from '@apollo/client';
 import { ApolloWrapper } from '@/components/ApolloWrapper';
 import Modal from '@/components/Modal';
+import Pagination from '@/components/Pagination';
+import StudentId from '@/components/StudentId';
+import { apiFetch } from '@/lib/api';
+import { toQuery } from '@/lib/useFilterOptions';
 import { toast } from 'react-hot-toast';
-import { KeyRound, Loader2, Plus, ShieldCheck, UserCheck, UserX } from 'lucide-react';
-
-const GET_STAFF = gql`
-  query GetStaff {
-    allUsers(orderBy: FULL_NAME_ASC) {
-      nodes {
-        id
-        username
-        fullName
-        role
-        loginEnabled
-        createdAt
-        profileByUserId {
-          email
-          phone
-        }
-      }
-    }
-  }
-`;
+import { KeyRound, Loader2, Plus, Search, ShieldCheck, UserCheck, UserX, X } from 'lucide-react';
 
 const CREATE_STAFF = gql`
   mutation RegisterStaffUser(
@@ -88,6 +73,7 @@ const ROLE_BADGE = {
   opsadmin: 'bg-cyan-100 text-cyan-700',
   teacher: 'bg-violet-100 text-violet-700',
   student: 'bg-emerald-100 text-emerald-700',
+  parent: 'bg-rose-100 text-rose-700',
   mai_admin: 'bg-zinc-200 text-zinc-700',
 };
 
@@ -97,6 +83,7 @@ const ROLE_LABEL = {
   opsadmin: 'Ops Admin',
   teacher: 'Teacher',
   student: 'Student',
+  parent: 'Parent',
   mai_admin: 'Platform Admin',
 };
 
@@ -200,7 +187,7 @@ function PasswordModal({ user, onClose, onSubmit }) {
   useEffect(() => setPassword(''), [user]);
 
   return (
-    <Modal isOpen={Boolean(user)} onClose={onClose} title={`Reset password — ${user?.fullName || ''}`}>
+    <Modal isOpen={Boolean(user)} onClose={onClose} title={`Reset password — ${user?.full_name || ''}`}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -211,7 +198,7 @@ function PasswordModal({ user, onClose, onSubmit }) {
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">New password *</label>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} className={field} placeholder="At least 8 characters" />
-          <p className="mt-1 text-xs text-zinc-500">Share it with {user?.fullName} over a private channel.</p>
+          <p className="mt-1 text-xs text-zinc-500">Share it with {user?.full_name} over a private channel.</p>
         </div>
         <div className="flex gap-3">
           <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-zinc-300 px-4 py-2 text-zinc-700 hover:bg-zinc-50">
@@ -226,23 +213,58 @@ function PasswordModal({ user, onClose, onSubmit }) {
   );
 }
 
+const DEFAULT_FILTERS = { role: 'staff', status: '', search: '', sort: 'name', page: 1, limit: 25 };
+
+const SORT_OPTIONS = [
+  ['name', 'Name A–Z'],
+  ['name_desc', 'Name Z–A'],
+  ['newest', 'Newest first'],
+  ['oldest', 'Oldest first'],
+  ['role', 'Role'],
+];
+
 function StaffContent() {
-  const { loading, data, refetch } = useQuery(GET_STAFF);
   const [createStaff] = useMutation(CREATE_STAFF);
   const [setPassword] = useMutation(SET_PASSWORD);
   const [setEnabled] = useMutation(SET_ENABLED);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [resetting, setResetting] = useState(null);
-  const [roleFilter, setRoleFilter] = useState('staff');
+  // Paged and filtered server side: with every student and parent account
+  // this list runs into thousands of rows.
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [result, setResult] = useState({ users: [], total: 0, total_pages: 1, page: 1, counts: {} });
+  const [loading, setLoading] = useState(true);
 
-  const users = data?.allUsers?.nodes || [];
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const d = await apiFetch(`/api/users${toQuery(filters)}`);
+      setResult({
+        users: d.users || [],
+        total: d.total || 0,
+        total_pages: d.total_pages || 1,
+        page: d.page || 1,
+        counts: d.counts || {},
+      });
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
 
-  const visible = useMemo(() => {
-    if (roleFilter === 'staff') return users.filter((u) => u.role !== 'student' && u.role !== 'mai_admin');
-    if (roleFilter === 'all') return users;
-    return users.filter((u) => u.role === roleFilter);
-  }, [users, roleFilter]);
+  // Debounced so typing in the search box does not fire a request per keystroke.
+  useEffect(() => {
+    const t = setTimeout(load, filters.search ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [load, filters.search]);
+
+  const refetch = load;
+  const visible = result.users;
+  // Any filter change returns to page 1; only the pager moves pages.
+  const setFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value, page: 1 }));
+  const filtersActive = filters.search || filters.status || filters.sort !== 'name';
 
   const create = async (form) => {
     try {
@@ -276,8 +298,8 @@ function StaffContent() {
   };
 
   const toggle = async (user) => {
-    const next = !user.loginEnabled;
-    if (!next && !confirm(`Disable sign-in for ${user.fullName}?`)) return;
+    const next = !user.login_enabled;
+    if (!next && !confirm(`Disable sign-in for ${user.full_name}?`)) return;
     try {
       await setEnabled({ variables: { id: user.id, enabled: next } });
       toast.success(next ? 'Sign-in enabled' : 'Sign-in disabled');
@@ -287,13 +309,14 @@ function StaffContent() {
     }
   };
 
-  const filters = [
+  const roleChips = [
     ['staff', 'Staff'],
     ['admin', 'Admins'],
     ['principal', 'Principals'],
     ['opsadmin', 'Ops Admins'],
     ['teacher', 'Teachers'],
     ['student', 'Students'],
+    ['parent', 'Parents'],
     ['all', 'Everyone'],
   ];
 
@@ -314,18 +337,64 @@ function StaffContent() {
         </button>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
-        {filters.map(([v, l]) => (
+      <div className="mb-4 flex flex-wrap gap-2">
+        {roleChips.map(([v, l]) => (
           <button
             key={v}
-            onClick={() => setRoleFilter(v)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-              roleFilter === v ? 'bg-primary-600 text-white' : 'bg-white text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-50'
+            onClick={() => setFilter('role', v)}
+            className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition ${
+              filters.role === v ? 'bg-primary-600 text-white' : 'bg-white text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-50'
             }`}
           >
             {l}
+            {result.counts[v] !== undefined && (
+              <span className={`rounded-full px-1.5 text-xs ${filters.role === v ? 'bg-white/20' : 'bg-zinc-100 text-zinc-500'}`}>
+                {result.counts[v]}
+              </span>
+            )}
           </button>
         ))}
+      </div>
+
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <input
+            type="search"
+            value={filters.search}
+            onChange={(e) => setFilter('search', e.target.value)}
+            placeholder="Search name, username, email, phone or registration ID…"
+            className="w-full rounded-xl border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={filters.status}
+            onChange={(e) => setFilter('status', e.target.value)}
+            aria-label="Sign-in status"
+            className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+          >
+            <option value="">Any sign-in status</option>
+            <option value="enabled">Sign-in enabled</option>
+            <option value="disabled">Sign-in disabled</option>
+          </select>
+          <select
+            value={filters.sort}
+            onChange={(e) => setFilter('sort', e.target.value)}
+            aria-label="Sort by"
+            className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+          >
+            {SORT_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          {filtersActive && (
+            <button
+              onClick={() => setFilters((f) => ({ ...DEFAULT_FILTERS, role: f.role, limit: f.limit }))}
+              className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+            >
+              <X className="h-4 w-4" /> Clear
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
@@ -351,21 +420,34 @@ function StaffContent() {
               )}
               {!loading && visible.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-zinc-500">No accounts in this view.</td>
+                  <td colSpan={6} className="px-6 py-12 text-center text-zinc-500">
+                    {filters.search ? `No accounts match “${filters.search}”.` : 'No accounts in this view.'}
+                  </td>
                 </tr>
               )}
-              {visible.map((u) => (
+              {!loading && visible.map((u) => (
                 <tr key={u.id} className="hover:bg-zinc-50/60">
-                  <td className="px-6 py-3 font-medium text-zinc-900">{u.fullName}</td>
+                  <td className="px-6 py-3">
+                    <p className="font-medium text-zinc-900">{u.full_name}</p>
+                    {u.role === 'student' && (
+                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-500">
+                        <StudentId value={u.registration_id} />
+                        {u.class_name && <span>{u.class_name}{u.section ? ` · ${u.section}` : ''}</span>}
+                      </p>
+                    )}
+                  </td>
                   <td className="px-6 py-3 text-zinc-600">{u.username}</td>
                   <td className="px-6 py-3">
                     <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${ROLE_BADGE[u.role] || 'bg-zinc-100 text-zinc-600'}`}>
                       {ROLE_LABEL[u.role] || u.role}
                     </span>
                   </td>
-                  <td className="px-6 py-3 text-zinc-600">{u.profileByUserId?.email || '—'}</td>
+                  <td className="px-6 py-3 text-zinc-600">
+                    {u.email || '—'}
+                    {u.phone && <p className="text-xs text-zinc-400">{u.phone}</p>}
+                  </td>
                   <td className="px-6 py-3">
-                    {u.loginEnabled ? (
+                    {u.login_enabled ? (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600">
                         <ShieldCheck className="h-3.5 w-3.5" /> Enabled
                       </span>
@@ -382,10 +464,10 @@ function StaffContent() {
                       </button>
                       <button
                         onClick={() => toggle(u)}
-                        title={u.loginEnabled ? 'Disable sign-in' : 'Enable sign-in'}
-                        className={`rounded-lg p-2 ${u.loginEnabled ? 'text-zinc-500 hover:bg-red-50 hover:text-red-600' : 'text-green-600 hover:bg-green-50'}`}
+                        title={u.login_enabled ? 'Disable sign-in' : 'Enable sign-in'}
+                        className={`rounded-lg p-2 ${u.login_enabled ? 'text-zinc-500 hover:bg-red-50 hover:text-red-600' : 'text-green-600 hover:bg-green-50'}`}
                       >
-                        {u.loginEnabled ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                        {u.login_enabled ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
                       </button>
                     </div>
                   </td>
@@ -394,6 +476,28 @@ function StaffContent() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Pagination
+          page={result.page}
+          totalPages={result.total_pages}
+          total={result.total}
+          limit={filters.limit}
+          onPage={(p) => setFilters((f) => ({ ...f, page: p }))}
+        />
+        {result.total > 25 && (
+          <label className="mt-4 flex items-center gap-2 text-xs text-zinc-500">
+            Rows per page
+            <select
+              value={filters.limit}
+              onChange={(e) => setFilter('limit', Number(e.target.value))}
+              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs"
+            >
+              {[25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+        )}
       </div>
 
       <StaffModal isOpen={modalOpen} onClose={() => setModalOpen(false)} onSubmit={create} />

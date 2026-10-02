@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
 import { BookOpen, Loader2, Sparkles, Plus, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import Markdown from "@/components/Markdown";
 
 const inputCls =
   "w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20";
@@ -41,7 +42,7 @@ export default function StudyPlannerPage() {
     }
   };
 
-  const planText = result?.study_plan || result?.plan || result?.content || (result ? JSON.stringify(result, null, 2) : null);
+  const planText = result?.content || null;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -126,7 +127,7 @@ export default function StudyPlannerPage() {
                 <Loader2 className="h-5 w-5 animate-spin" /> Creating your plan...
               </div>
             ) : (
-              <div className="prose prose-sm max-w-none whitespace-pre-wrap text-zinc-700">{planText}</div>
+              <Markdown>{planText}</Markdown>
             )}
           </div>
         </motion.div>

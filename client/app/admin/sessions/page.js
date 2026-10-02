@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
-import { CalendarRange, Plus, Loader2, CheckCircle2, ArrowRight, Users } from "lucide-react";
+import { CalendarRange, Plus, Loader2, CheckCircle2, ArrowRight, Users, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useFilterOptions, invalidateFilterOptions, toQuery } from "@/lib/useFilterOptions";
 import Uuid from "@/components/Uuid";
@@ -30,11 +30,13 @@ export default function SessionsPage() {
 
   // Promotion state
   const [promo, setPromo] = useState({
-    from_session_id: "", from_class_id: "", from_section: "",
+    from_session_id: "", from_class_id: "", from_section: "", search: "",
     to_session_id: "", to_class_id: "", to_section: "", outcome: "promoted",
   });
   const [candidates, setCandidates] = useState([]);
   const [picked, setPicked] = useState({});
+  // Narrows the found list on screen; selections outside the filter are kept.
+  const [listFilter, setListFilter] = useState("");
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [promoting, setPromoting] = useState(false);
 
@@ -87,13 +89,17 @@ export default function SessionsPage() {
           session_id: promo.from_session_id,
           class_id: promo.from_class_id,
           section: promo.from_section,
+          search: promo.search.trim(),
           limit: 1000,
         })}`
       );
       setCandidates(d.students || []);
       // Pre-select everyone found: promoting a whole class is the normal case.
-      setPicked(Object.fromEntries((d.students || []).map((s) => [s.id, true])));
-      if ((d.students || []).length === 0) toast("No students match that class and session");
+      // A targeted search is usually for one or two students, so nothing is
+      // pre-selected then.
+      setPicked(promo.search.trim() ? {} : Object.fromEntries((d.students || []).map((s) => [s.id, true])));
+      setListFilter("");
+      if ((d.students || []).length === 0) toast("No students match these filters");
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -130,6 +136,15 @@ export default function SessionsPage() {
   };
 
   const pickedCount = Object.values(picked).filter(Boolean).length;
+
+  const q = listFilter.trim().toLowerCase();
+  // Digits alone mean a roll number or the tail of a registration id — as a
+  // substring they would match every id, which all contain the year.
+  const matchesFilter = (c) =>
+    /^\d+$/.test(q)
+      ? String(c.roll_number || "") === q || (q.length >= 3 && String(c.registration_id || "").endsWith(q))
+      : [c.full_name, c.registration_id, c.roll_number].some((v) => String(v || "").toLowerCase().includes(q));
+  const shownCandidates = q ? candidates.filter(matchesFilter) : candidates;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -243,6 +258,17 @@ export default function SessionsPage() {
                 <option value="">All sections</option>
                 {options.sections.map((sec) => <option key={sec} value={sec}>Section {sec}</option>)}
               </select>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                <input
+                  type="search"
+                  value={promo.search}
+                  onChange={(e) => setPromo((p) => ({ ...p, search: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); findCandidates(); } }}
+                  placeholder="Name, registration ID or roll no (optional)"
+                  className={`${inputCls} pl-9`}
+                />
+              </div>
             </div>
           </div>
 
@@ -286,11 +312,30 @@ export default function SessionsPage() {
             <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50 px-4 py-2 text-xs">
               <span className="font-semibold text-zinc-600">{candidates.length} found · {pickedCount} selected</span>
               <div className="flex gap-2">
-                <button onClick={() => setPicked(Object.fromEntries(candidates.map((c) => [c.id, true])))} className="font-medium text-primary-700 hover:underline">Select all</button>
+                <button onClick={() => setPicked((p) => ({ ...p, ...Object.fromEntries(shownCandidates.map((c) => [c.id, true])) }))} className="font-medium text-primary-700 hover:underline">
+                  Select {q ? "shown" : "all"}
+                </button>
                 <button onClick={() => setPicked({})} className="font-medium text-zinc-500 hover:underline">Clear</button>
               </div>
             </div>
-            {candidates.map((c) => (
+            {candidates.length > 5 && (
+              <div className="sticky top-0 z-10 border-b border-zinc-100 bg-white px-4 py-2">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    type="search"
+                    value={listFilter}
+                    onChange={(e) => setListFilter(e.target.value)}
+                    placeholder="Filter this list by name, registration ID or roll no…"
+                    className="w-full rounded-lg border border-zinc-200 py-1.5 pl-8 pr-3 text-xs focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                  />
+                </div>
+              </div>
+            )}
+            {q && shownCandidates.length === 0 && (
+              <p className="px-4 py-6 text-center text-xs text-zinc-500">No students in this list match “{listFilter}”.</p>
+            )}
+            {shownCandidates.map((c) => (
               <label key={c.id} className="flex cursor-pointer items-center gap-3 border-b border-zinc-50 px-4 py-2 text-sm last:border-0 hover:bg-zinc-50">
                 <input
                   type="checkbox"

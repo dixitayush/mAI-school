@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
 import { Brain, Loader2, Sparkles, CalendarDays, BarChart3 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import Markdown from "@/components/Markdown";
 
 export default function AIInsightsPage() {
   const [briefResult, setBriefResult] = useState(null);
@@ -40,16 +41,16 @@ export default function AIInsightsPage() {
 
   const renderContent = (data) => {
     if (!data) return null;
-    const text = data.brief || data.report || data.content || JSON.stringify(data, null, 2);
+    const text = data.content || "";
     return (
-      <div className="mt-4 rounded-xl bg-zinc-50 p-5">
+      <div className="mt-4 rounded-xl border border-zinc-100 bg-white p-5 sm:p-6">
         <div className="mb-3 flex items-center justify-between">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-700">
             <Sparkles className="h-3 w-3" /> AI Generated
           </span>
           <span className="text-xs text-zinc-400">{new Date().toLocaleString()}</span>
         </div>
-        <div className="prose prose-sm max-w-none whitespace-pre-wrap text-zinc-700">{text}</div>
+        <Markdown>{text}</Markdown>
       </div>
     );
   };

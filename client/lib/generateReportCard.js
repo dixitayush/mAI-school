@@ -2,7 +2,6 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
   PDF_THEME,
-  academicYearLabel,
   drawDocumentFooters,
   drawDocumentHeader,
   drawSectionTitle,
@@ -13,159 +12,228 @@ import {
   tableThemeStyles,
 } from "./pdfUtils";
 
+/** "10-B" with section "B" stays "10-B"; "10" with section "B" becomes "10 · B". */
+export function classLabel(className, section) {
+  if (!className) return "";
+  if (!section || String(className).toUpperCase().endsWith(`-${String(section).toUpperCase()}`)) return className;
+  return `${className} · ${section}`;
+}
+
+const pct = (obtained, total) => (total > 0 ? (obtained / total) * 100 : 0);
+
+export function gradeFor(percentage) {
+  const p = Number(percentage);
+  if (p >= 90) return "A+";
+  if (p >= 80) return "A";
+  if (p >= 70) return "B+";
+  if (p >= 60) return "B";
+  if (p >= 50) return "C";
+  if (p >= 40) return "D";
+  return "F";
+}
+
 /**
- * Generate a comprehensive student report card as PDF
- * @param {Object} studentData - Student data including personal info, marks, and attendance
+ * Totals for a report card, shared by the PDF and the on-screen preview so both
+ * show the same numbers.
  */
-export function generateReportCard(studentData) {
+export function summarizeReportCard(card) {
+  const results = card?.results || [];
+  const obtained = results.reduce((sum, r) => sum + Number(r.marks_obtained || 0), 0);
+  const max = results.reduce((sum, r) => sum + Number(r.total_marks || 0), 0);
+  const percentage = pct(obtained, max);
+  const failed = results.filter((r) => Number(r.marks_obtained) < Number(r.passing_marks));
+  return {
+    obtained,
+    max,
+    percentage,
+    grade: results.length ? gradeFor(percentage) : "—",
+    passed: results.length > 0 && failed.length === 0,
+    failedSubjects: [...new Set(failed.map((r) => r.subject))],
+  };
+}
+
+/**
+ * Report card PDF for one session — either a single exam, or (card.exam null)
+ * the whole session with every exam side by side.
+ *
+ * @param {Object} card the /api/students/:id/report-card response
+ */
+export function generateReportCard(card) {
   const doc = new jsPDF();
-  const brand = resolveSchoolBrand(studentData);
+  const brand = resolveSchoolBrand({ schoolName: card.school?.name, schoolSlug: card.school?.slug });
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
-  const yearLabel = academicYearLabel();
+  const { student, session } = card;
+  const scope = card.exam || "Full Session";
+  const summary = summarizeReportCard(card);
 
   let y = drawDocumentHeader(doc, {
     title: "STUDENT REPORT CARD",
-    subtitle: `Academic Year ${yearLabel}`,
+    subtitle: `Academic Session ${session.name} · ${scope}`,
     schoolName: brand.name,
     schoolSlug: brand.slug,
   });
 
   y = drawSectionTitle(doc, "Student Information", y);
-
-  const studentInfo = [
-    ["Student Name", studentData.name || "N/A"],
-    ["Registration ID", studentData.registrationId || "N/A"],
-    ["Class", studentData.class || "N/A"],
-    ["Roll Number", studentData.rollNumber || "N/A"],
-    ["Academic Year", yearLabel],
-    ["School", brand.name],
+  const info = [
+    ["Student Name", student.full_name, "Registration ID", student.registration_id],
+    ["Class", classLabel(student.class_name, student.section), "Roll Number", student.roll_number],
+    ["Session", session.name, "Examination", scope],
   ];
-
   autoTable(doc, {
     startY: y,
-    body: studentInfo,
+    body: info.map((row) => row.map((v) => (v ? String(v) : "—"))),
     theme: "plain",
-    styles: { fontSize: 10, cellPadding: 3, textColor: PDF_THEME.text },
+    styles: { fontSize: 10, cellPadding: 2.5, textColor: PDF_THEME.text },
     columnStyles: {
-      0: { fontStyle: "bold", cellWidth: 40, textColor: PDF_THEME.muted },
-      1: { cellWidth: "auto" },
+      0: { fontStyle: "bold", cellWidth: 34, textColor: PDF_THEME.muted },
+      1: { cellWidth: 58 },
+      2: { fontStyle: "bold", cellWidth: 34, textColor: PDF_THEME.muted },
+      3: { cellWidth: "auto" },
     },
   });
 
-  y = drawSectionTitle(doc, "Academic Performance", doc.lastAutoTable.finalY + 12);
+  y = drawSectionTitle(doc, "Academic Performance", doc.lastAutoTable.finalY + 10);
 
-  const marksData = (studentData.results || []).map((result) => {
-    const percentage =
-      result.totalMarks > 0
-        ? ((result.marksObtained / result.totalMarks) * 100).toFixed(1)
-        : "0.0";
-    return [
-      result.subject,
-      String(result.marksObtained),
-      String(result.totalMarks),
-      percentage + "%",
-      result.grade || calculateGrade(percentage),
-    ];
-  });
-
-  if (marksData.length > 0) {
-    const totalObtained = studentData.results.reduce((sum, r) => sum + r.marksObtained, 0);
-    const totalMax = studentData.results.reduce((sum, r) => sum + r.totalMarks, 0);
-    const overallPercentage =
-      totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : "0.0";
-
-    marksData.push([
-      "TOTAL",
-      String(totalObtained),
-      String(totalMax),
-      overallPercentage + "%",
-      calculateGrade(overallPercentage),
-    ]);
+  const results = card.results || [];
+  let head;
+  let body;
+  if (card.exam) {
+    head = [["Subject", "Max", "Pass", "Obtained", "%", "Grade", "Result"]];
+    body = results.map((r) => {
+      const p = pct(r.marks_obtained, r.total_marks);
+      return [
+        r.subject,
+        String(r.total_marks),
+        String(r.passing_marks),
+        String(r.marks_obtained),
+        `${p.toFixed(1)}%`,
+        r.grade || gradeFor(p),
+        Number(r.marks_obtained) >= Number(r.passing_marks) ? "Pass" : "Fail",
+      ];
+    });
+    if (results.length) {
+      body.push([
+        "TOTAL", String(summary.max), "", String(summary.obtained),
+        `${summary.percentage.toFixed(1)}%`, summary.grade, summary.passed ? "Pass" : "Fail",
+      ]);
+    }
+  } else {
+    // Subjects down the side, each exam across the top, then the session total.
+    const exams = card.exams || [];
+    const subjects = [...new Set(results.map((r) => r.subject))];
+    const cell = (subject, title) => results.find((r) => r.subject === subject && r.title === title);
+    head = [["Subject", ...exams, "Total", "%", "Grade"]];
+    body = subjects.map((subject) => {
+      const rows = results.filter((r) => r.subject === subject);
+      const got = rows.reduce((s, r) => s + Number(r.marks_obtained), 0);
+      const max = rows.reduce((s, r) => s + Number(r.total_marks), 0);
+      const p = pct(got, max);
+      return [
+        subject,
+        ...exams.map((t) => {
+          const r = cell(subject, t);
+          return r ? `${r.marks_obtained}/${r.total_marks}` : "—";
+        }),
+        `${got}/${max}`,
+        `${p.toFixed(1)}%`,
+        gradeFor(p),
+      ];
+    });
+    if (results.length) {
+      body.push([
+        "TOTAL",
+        ...exams.map((t) => {
+          const rows = results.filter((r) => r.title === t);
+          const got = rows.reduce((s, r) => s + Number(r.marks_obtained), 0);
+          const max = rows.reduce((s, r) => s + Number(r.total_marks), 0);
+          return `${got}/${max}`;
+        }),
+        `${summary.obtained}/${summary.max}`,
+        `${summary.percentage.toFixed(1)}%`,
+        summary.grade,
+      ]);
+    }
   }
 
+  const columnCount = head[0].length;
   autoTable(doc, {
     startY: y,
-    head: [["Subject", "Marks Obtained", "Total Marks", "Percentage", "Grade"]],
-    body: marksData.length > 0 ? marksData : [["No exam results available", "", "", "", ""]],
+    head,
+    body: body.length ? body : [["No exam results recorded", ...Array(columnCount - 1).fill("")]],
     ...tableThemeStyles(),
     styles: {
       ...tableThemeStyles().styles,
-      fontSize: 9,
-      cellPadding: 4,
+      fontSize: columnCount > 7 ? 8 : 9,
+      cellPadding: 3.5,
       halign: "center",
     },
-    columnStyles: {
-      0: { halign: "left", fontStyle: "bold" },
-    },
+    columnStyles: { 0: { halign: "left", fontStyle: "bold" } },
     didParseCell(cellData) {
-      if (cellData.row.index === marksData.length - 1 && marksData.length > 1) {
+      if (cellData.section !== "body") return;
+      if (results.length && cellData.row.index === body.length - 1) {
         cellData.cell.styles.fillColor = PDF_THEME.primarySoft;
         cellData.cell.styles.textColor = PDF_THEME.primaryDeep;
+        cellData.cell.styles.fontStyle = "bold";
+      } else if (cellData.cell.raw === "Fail") {
+        cellData.cell.styles.textColor = [185, 28, 28];
         cellData.cell.styles.fontStyle = "bold";
       }
     },
   });
 
-  y = doc.lastAutoTable.finalY + 14;
-
-  if (y > pageHeight - 90) {
+  y = doc.lastAutoTable.finalY + 12;
+  if (y > pageHeight - 110) {
     doc.addPage();
     y = 20;
   }
 
-  y = drawSectionTitle(doc, "Attendance Summary", y);
-
+  y = drawSectionTitle(doc, "Result & Attendance", y);
+  const att = card.attendance || {};
   autoTable(doc, {
     startY: y,
     body: [
-      ["Total Days", String(studentData.totalDays || 0)],
-      ["Present", String(studentData.presentDays || 0)],
-      ["Absent", String(studentData.absentDays || 0)],
-      ["Attendance Percentage", `${studentData.attendancePercentage || "0"}%`],
+      ["Overall", `${summary.obtained} / ${summary.max}  (${summary.percentage.toFixed(1)}%)`, "Working Days", String(att.working ?? 0)],
+      ["Grade", summary.grade, "Present", String(att.present ?? 0)],
+      [
+        "Result",
+        results.length ? (summary.passed ? "PASS" : `NEEDS IMPROVEMENT (${summary.failedSubjects.join(", ")})`) : "—",
+        "Absent",
+        String(att.absent ?? 0),
+      ],
+      ["Period", `${formatPdfDate(card.period?.from)} – ${formatPdfDate(card.period?.to)}`, "Attendance", `${Number(att.percentage ?? 0).toFixed(1)}%`],
     ],
     theme: "grid",
-    styles: {
-      fontSize: 10,
-      cellPadding: 4,
-      textColor: PDF_THEME.text,
-      lineColor: PDF_THEME.border,
-      lineWidth: 0.2,
-    },
+    styles: { fontSize: 9, cellPadding: 3.5, textColor: PDF_THEME.text, lineColor: PDF_THEME.border, lineWidth: 0.2 },
     columnStyles: {
-      0: { fontStyle: "bold", cellWidth: 60, fillColor: PDF_THEME.primarySoft },
-      1: { cellWidth: "auto", halign: "center" },
+      0: { fontStyle: "bold", cellWidth: 26, fillColor: PDF_THEME.primarySoft },
+      1: { cellWidth: 84 },
+      2: { fontStyle: "bold", cellWidth: 32, fillColor: PDF_THEME.primarySoft },
+      3: { cellWidth: "auto", halign: "center" },
     },
   });
+  y = doc.lastAutoTable.finalY + 10;
 
-  y = doc.lastAutoTable.finalY + 12;
-
-  if (studentData.overallGrade || studentData.remarks) {
-    y = drawSectionTitle(doc, "Overall Performance", y);
-    doc.setFontSize(10);
-    doc.setTextColor(...PDF_THEME.text);
-    if (studentData.overallGrade) {
-      doc.setFont(undefined, "bold");
-      doc.text(`Grade: ${studentData.overallGrade}`, 14, y);
-      y += 7;
-    }
-    if (studentData.remarks) {
-      doc.setFont(undefined, "italic");
-      doc.setTextColor(...PDF_THEME.muted);
-      doc.text(`Remarks: ${studentData.remarks}`, 14, y, { maxWidth: pageWidth - 28 });
-      y += 12;
-    }
-    doc.setFont(undefined, "normal");
-    doc.setTextColor(...PDF_THEME.text);
+  // Teachers' remarks, where any were entered with the marks.
+  const remarks = results.filter((r) => r.feedback).map((r) => [`${r.subject}${card.exam ? "" : ` (${r.title})`}`, r.feedback]);
+  if (remarks.length) {
+    if (y > pageHeight - 80) { doc.addPage(); y = 20; }
+    y = drawSectionTitle(doc, "Teacher's Remarks", y);
+    autoTable(doc, {
+      startY: y,
+      body: remarks,
+      theme: "plain",
+      styles: { fontSize: 9, cellPadding: 2.5, textColor: PDF_THEME.text },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 50, textColor: PDF_THEME.muted } },
+    });
+    y = doc.lastAutoTable.finalY + 10;
   }
 
-  const sigY = Math.min(y + 20, pageHeight - 40);
+  const sigY = Math.min(Math.max(y + 18, pageHeight - 60), pageHeight - 40);
   drawSignaturePair(doc, sigY, "Class Teacher", "Principal");
   doc.setFontSize(8);
   doc.setTextColor(...PDF_THEME.muted);
-  doc.text(`Issue Date: ${formatPdfDate(new Date())}`, pageWidth / 2, sigY + 5, {
-    align: "center",
-  });
+  doc.text(`Issue Date: ${formatPdfDate(new Date())}`, pageWidth / 2, sigY + 5, { align: "center" });
 
   drawDocumentFooters(doc, {
     schoolName: brand.name,
@@ -174,19 +242,6 @@ export function generateReportCard(studentData) {
   });
 
   doc.save(
-    safeFileName(
-      `report-card-${studentData.name || "student"}-${new Date().toISOString().split("T")[0]}`
-    )
+    safeFileName(`report-card-${student.registration_id || student.full_name}-${session.name}-${scope}`)
   );
-}
-
-function calculateGrade(percentage) {
-  const percent = parseFloat(percentage);
-  if (percent >= 90) return "A+";
-  if (percent >= 80) return "A";
-  if (percent >= 70) return "B+";
-  if (percent >= 60) return "B";
-  if (percent >= 50) return "C";
-  if (percent >= 40) return "D";
-  return "F";
 }

@@ -26,6 +26,20 @@ Keep explanations age-appropriate and curriculum-aligned.`,
 Focus on attendance, assignments, results, and actionable next steps.`,
 };
 
+/**
+ * Every human-facing reply is rendered as Markdown (with KaTeX math) in the
+ * app, so the model is asked for clean Markdown and never for JSON.
+ */
+const MARKDOWN_FORMAT = `OUTPUT FORMAT — the reply is rendered as Markdown in the app:
+- Write clean GitHub-flavoured Markdown. Never wrap the whole reply in a code block, and never reply with JSON.
+- Use "##" headings for main sections and "###" for sub-sections; short paragraphs; "-" bullet lists and "1." numbered lists.
+- Use **bold** only for key terms, not whole sentences.
+- Use Markdown tables for anything tabular (schedules, marking schemes, rubrics, comparisons).
+- Write all mathematics in LaTeX: inline as $x^2 + 3x - 4 = 0$, display equations on their own line as $$\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$. Never write maths as plain text like "x^2" or "sqrt(x)".
+- Write currency as ₹ or "Rs.", never with a "$" sign (it is reserved for maths).
+- Use "> " blockquotes for tips, notes or teacher guidance.
+- Do not add a preamble like "Sure, here is…" — start with the content.`;
+
 const SAFETY_POLICY = `SAFETY RULES:
 - If a student expresses distress, self-harm, or danger, respond with empathy and encourage them to talk to a trusted adult immediately.
 - Never diagnose medical or psychological conditions.
@@ -39,28 +53,28 @@ const prompts = {
     build: ({ role, context, message }) => [
       {
         role: 'system',
-        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES[role] || ''}\n\n${role === 'student' ? SAFETY_POLICY : ''}\n\nCONTEXT DATA:\n${JSON.stringify(context).slice(0, 12000)}`,
+        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES[role] || ''}\n\n${role === 'student' ? SAFETY_POLICY : ''}\n\n${MARKDOWN_FORMAT}\nKeep chat replies short: a few sentences or a brief list.\n\nCONTEXT DATA:\n${JSON.stringify(context).slice(0, 12000)}`,
       },
       { role: 'user', content: message },
     ],
   },
 
   'lesson.plan.v1': {
-    version: 'v1',
+    version: 'v2',
     build: ({ grade, subject, topic, duration, objectives }) => [
       {
         role: 'system',
-        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.teacher}\n\nGenerate a structured lesson plan with these sections:
-1. Learning Objectives
-2. Introduction/Hook (5 min)
-3. Main Explanation
-4. Activities
-5. Examples
-6. Formative Assessment
-7. Homework/Practice
-8. Differentiation Ideas
+        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.teacher}\n\n${MARKDOWN_FORMAT}
 
-Format each section clearly with headers.`,
+Write a classroom-ready lesson plan. Start with a "# <Topic> — Lesson Plan" title, then a one-line summary table (Grade | Subject | Duration), then these "##" sections:
+1. Learning Objectives — bullet list starting with action verbs
+2. Materials Needed
+3. Lesson Flow — a table with columns Time | Phase | Teacher Activity | Student Activity, whose times add up to the full duration
+4. Key Concepts & Explanation — with worked examples (maths in LaTeX)
+5. Classroom Activities
+6. Formative Assessment — 3–5 check-for-understanding questions
+7. Homework / Practice
+8. Differentiation — support for struggling learners and extension for advanced learners`,
       },
       {
         role: 'user',
@@ -75,14 +89,19 @@ ${objectives ? `Learning Objectives: ${objectives}` : ''}`,
   },
 
   'worksheet.generate.v1': {
-    version: 'v1',
+    version: 'v2',
     build: ({ grade, subject, topic, questionTypes, count, difficulty }) => [
       {
         role: 'system',
-        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.teacher}\n\nGenerate a worksheet as a JSON array of questions.
-Each question must have: type, question, answer, explanation, difficulty, learningObjective.
-For MCQ: include options array. For fill-blanks: use ___ in the question.
-Respond ONLY with valid JSON.`,
+        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.teacher}\n\n${MARKDOWN_FORMAT}
+
+Write a printable student worksheet. Start with a "# <Topic> — Worksheet" title and a line for "Name: ________  Class: ________  Date: ________".
+Then "## Instructions" (2–3 bullets), then the questions grouped by type under "##" headings (e.g. "## Section A — Multiple Choice").
+- Number questions continuously (1., 2., 3., …).
+- Multiple choice: put options on separate lines as "   - (a) …", "   - (b) …".
+- Fill in the blanks: use "________".
+- Leave the answers out of the question sections.
+Finish with "---" and "## Answer Key" giving each answer with a one-line explanation (worked steps for maths, in LaTeX).`,
       },
       {
         role: 'user',
@@ -98,35 +117,30 @@ Difficulty: ${difficulty || 'medium'}`,
   },
 
   'question.generate.v1': {
-    version: 'v1',
-    build: ({ grade, subject, chapters, difficulty, marks, distribution }) => [
+    version: 'v2',
+    build: ({ grade, subject, chapters, difficulty, marks, distribution, duration }) => [
       {
         role: 'system',
-        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.teacher}\n\nGenerate exam questions as JSON:
-{
-  "questions": [
-    {
-      "type": "mcq|short_answer|long_answer|fill_blank|true_false",
-      "question": "...",
-      "options": ["A","B","C","D"],
-      "answer": "B",
-      "explanation": "...",
-      "difficulty": "easy|medium|hard",
-      "marks": 2,
-      "learningObjective": "..."
-    }
-  ]
-}
-Respond ONLY with valid JSON.`,
+        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.teacher}\n\n${MARKDOWN_FORMAT}
+
+Write a formal exam question paper as a school would print it:
+- "# <Subject> — Question Paper" title, then a table: Class | Subject | Time Allowed | Maximum Marks.
+- "## General Instructions" as a numbered list.
+- Sections "## Section A — …", "## Section B — …" etc., ordered from short to long answers; under each heading state the marks per question, e.g. "*(1 mark each)*".
+- Number questions continuously; end each question with its marks in brackets like **[2]**.
+- Multiple choice options on separate lines as "   - (a) …".
+- The marks of all questions must add up exactly to the maximum marks.
+Finish with "---", "## Answer Key & Marking Scheme" listing, per question, the answer and how marks are awarded (steps in LaTeX for maths).`,
       },
       {
         role: 'user',
         content: `Generate an exam paper:
 Grade: ${grade}
 Subject: ${subject}
-Chapters: ${chapters || 'All'}
+Chapters / topics: ${chapters || 'All'}
 Difficulty: ${difficulty || 'mixed'}
 Total marks: ${marks || 50}
+Time allowed: ${duration || (Number(marks) >= 80 ? '3 hours' : Number(marks) >= 40 ? '2 hours' : '1 hour')}
 ${distribution ? `Question distribution: ${distribution}` : ''}`,
       },
     ],
@@ -148,7 +162,7 @@ ${distribution ? `Question distribution: ${distribution}` : ''}`,
       return [
         {
           role: 'system',
-          content: `${SYSTEM_POLICY}\n\nYou are an AI tutor for a Grade ${grade} ${subject} student.\n${SAFETY_POLICY}\n\nMode: ${mode || 'explain'}\n${modeInstructions[mode || 'explain'] || modeInstructions.explain}\n\n${context ? `Student context: ${JSON.stringify(context).slice(0, 4000)}` : ''}`,
+          content: `${SYSTEM_POLICY}\n\nYou are an AI tutor for a Grade ${grade} ${subject} student.\n${SAFETY_POLICY}\n\n${MARKDOWN_FORMAT}\nShow working step by step, one step per line, with every expression in LaTeX.\n\nMode: ${mode || 'explain'}\n${modeInstructions[mode || 'explain'] || modeInstructions.explain}\n\n${context ? `Student context: ${JSON.stringify(context).slice(0, 4000)}` : ''}`,
         },
         { role: 'user', content: message },
       ];
@@ -160,7 +174,7 @@ ${distribution ? `Question distribution: ${distribution}` : ''}`,
     build: ({ schoolName, context }) => [
       {
         role: 'system',
-        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.principal}\n\nGenerate a concise daily school brief with these sections:
+        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.principal}\n\n${MARKDOWN_FORMAT}\n\nGenerate a concise daily school brief with these sections:
 1. Attendance Summary
 2. Academic Risks (students/classes needing attention)
 3. Operational Alerts
@@ -180,51 +194,37 @@ For each insight, cite the data source. If data is missing, say so rather than i
   },
 
   'rubric.generate.v1': {
-    version: 'v1',
-    build: ({ grade, subject, assignmentType, criteria }) => [
+    version: 'v2',
+    build: ({ grade, subject, assignmentType, criteria, maxScore }) => [
       {
         role: 'system',
-        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.teacher}\n\nGenerate an assessment rubric as JSON:
-{
-  "criteria": [
-    {
-      "name": "...",
-      "description": "...",
-      "levels": [
-        { "level": "Excellent", "score": 4, "description": "..." },
-        { "level": "Good", "score": 3, "description": "..." },
-        { "level": "Satisfactory", "score": 2, "description": "..." },
-        { "level": "Needs Improvement", "score": 1, "description": "..." }
-      ]
-    }
-  ]
-}
-Respond ONLY with valid JSON.`,
+        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.teacher}\n\n${MARKDOWN_FORMAT}
+
+Write an assessment rubric. Start with a "# <Assignment> — Rubric" title and a one-line note of the maximum score.
+Then "## Rubric" as ONE Markdown table: the first column is the criterion (with its weight in marks, e.g. "**Research** (25)"), followed by the columns Excellent | Good | Satisfactory | Needs Improvement, each cell a short observable description with its mark range.
+The criterion weights must add up exactly to the maximum score.
+Finish with "## Scoring Guide" (how to convert the total into a grade) and "## Feedback Tips" (3 bullets).`,
       },
       {
         role: 'user',
         content: `Generate a rubric:
-Grade: ${grade}
-Subject: ${subject}
-Assignment type: ${assignmentType || 'general'}
+${grade ? `Grade: ${grade}\n` : ''}Subject: ${subject}
+Assignment: ${assignmentType || 'general'}
+Maximum score: ${maxScore || 100}
 ${criteria ? `Criteria to include: ${criteria}` : ''}`,
       },
     ],
   },
 
   'study.plan.v1': {
-    version: 'v1',
+    version: 'v2',
     build: ({ grade, subject, examDate, topics, availableTime, performance }) => [
       {
         role: 'system',
-        content: `${SYSTEM_POLICY}\n\nYou are a study planning assistant for a Grade ${grade} student.\n${SAFETY_POLICY}\n\nCreate a day-by-day study plan as JSON:
-{
-  "plan": [
-    { "day": 1, "date": "YYYY-MM-DD", "topic": "...", "duration_minutes": 30, "activities": ["..."], "resources": ["..."] }
-  ],
-  "tips": ["..."]
-}
-Be realistic about daily study time. Respond ONLY with valid JSON.`,
+        content: `${SYSTEM_POLICY}\n\nYou are a study planning assistant for a Grade ${grade} student.\n${SAFETY_POLICY}\n\n${MARKDOWN_FORMAT}
+
+Write a day-by-day study plan: a "# Study Plan — <Subject>" title, then "## Schedule" as a table with columns Day | Topic | Time | What to do, then "## Tips" as a short bullet list.
+Be realistic about daily study time and keep the tone encouraging.`,
       },
       {
         role: 'user',
@@ -263,7 +263,7 @@ Topic: ${topic}`,
     build: ({ studentName, grade, subjects, results, attendance, goals }) => [
       {
         role: 'system',
-        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.student}\n\nCreate a personalized learning plan. Use encouraging language. Never label students permanently. Use phrases like "needs practice in", "recently struggled with", "consider reviewing".
+        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.student}\n\n${MARKDOWN_FORMAT}\n\nCreate a personalized learning plan. Use encouraging language. Never label students permanently. Use phrases like "needs practice in", "recently struggled with", "consider reviewing".
 
 Output sections:
 1. Current Strengths
@@ -291,7 +291,7 @@ ${goals ? `Student goals: ${goals}` : ''}`,
     build: ({ schoolName, context }) => [
       {
         role: 'system',
-        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.principal}\n\nGenerate a weekly school report with these sections:
+        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.principal}\n\n${MARKDOWN_FORMAT}\n\nGenerate a weekly school report with these sections:
 1. Attendance Summary & Trends
 2. Academic Performance
 3. Assessment Activity
@@ -317,7 +317,7 @@ For each insight, cite the data source. If data is missing, say so.`,
     build: ({ childName, context }) => [
       {
         role: 'system',
-        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.parent}\n\nGenerate a concise weekly progress summary for a parent. Include:
+        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.parent}\n\n${MARKDOWN_FORMAT}\n\nGenerate a concise weekly progress summary for a parent. Include:
 1. Attendance this week
 2. Assignments (completed/pending)
 3. Recent assessment performance
@@ -339,7 +339,7 @@ Keep it brief, actionable, and encouraging.`,
     build: ({ studentName, subject, performance, rubric }) => [
       {
         role: 'system',
-        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.teacher}\n\nDraft constructive student feedback that:
+        content: `${SYSTEM_POLICY}\n\n${ROLE_POLICIES.teacher}\n\n${MARKDOWN_FORMAT}\n\nDraft constructive student feedback that:
 1. Identifies strengths
 2. Notes areas for improvement
 3. Suggests specific next steps
@@ -368,4 +368,4 @@ function buildPrompt(name, params) {
   return prompt.build(params);
 }
 
-module.exports = { getPrompt, buildPrompt, prompts, SYSTEM_POLICY, SAFETY_POLICY };
+module.exports = { getPrompt, buildPrompt, prompts, SYSTEM_POLICY, SAFETY_POLICY, MARKDOWN_FORMAT };

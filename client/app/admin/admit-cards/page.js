@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, gql } from "@apollo/client";
 import { toast } from "react-hot-toast";
 import {
@@ -12,25 +12,9 @@ import {
   Layers,
   Search,
 } from "lucide-react";
-import { fetchFileDataUrl } from "@/lib/api";
+import { apiFetch, fetchFileDataUrl } from "@/lib/api";
 import StudentId from "@/components/StudentId";
 import { generateAdmitCard, generateAdmitCardsBulk } from "@/lib/generateAdmitCard";
-
-const GET_EXAMS = gql`
-  query AdmitExams {
-    allExams(orderBy: EXAM_DATE_DESC) {
-      nodes {
-        id
-        title
-        subject
-        examDate
-        classByClassId {
-          name
-        }
-      }
-    }
-  }
-`;
 
 const GET_ELIGIBILITY = gql`
   query AdmitEligibility($examId: UUID!) {
@@ -54,14 +38,68 @@ const GET_ELIGIBILITY = gql`
   }
 `;
 
+const selectCls =
+  "w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none disabled:bg-zinc-50 disabled:text-zinc-400";
+
+const formatDate = (d) =>
+  d ? new Date(`${d}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+
 export default function AdmitCardsPage() {
-  const { data: examData } = useQuery(GET_EXAMS);
+  // Narrowed session → class → exam. Loaded fresh rather than through the
+  // shared filter-options cache, which is not refreshed when an exam is created.
+  const [options, setOptions] = useState({ sessions: [], classes: [], exams: [] });
+  const [sessionId, setSessionId] = useState("");
+  const [classId, setClassId] = useState("");
   const [examId, setExamId] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [search, setSearch] = useState("");
 
-  const exams = examData?.allExams?.nodes || [];
-  const selectedExam = exams.find((e) => e.id === examId);
+  useEffect(() => {
+    apiFetch("/api/academics/filter-options")
+      .then((d) => {
+        setOptions({ sessions: d.sessions || [], classes: d.classes || [], exams: d.exams || [] });
+        setSessionId((cur) => cur || d.current_session_id || "");
+      })
+      .catch((err) => toast.error(err.message));
+  }, []);
+
+  // Exams in the chosen session ("" = every session).
+  const sessionExams = useMemo(
+    () => options.exams.filter((e) => !sessionId || e.session_id === sessionId),
+    [options.exams, sessionId]
+  );
+  // Only classes that actually have an exam in the session are worth offering.
+  const classesWithExams = useMemo(() => {
+    const counts = {};
+    for (const e of sessionExams) counts[e.class_id] = (counts[e.class_id] || 0) + 1;
+    return options.classes
+      .filter((c) => counts[c.id])
+      .map((c) => ({ ...c, examCount: counts[c.id] }));
+  }, [options.classes, sessionExams]);
+  const exams = useMemo(
+    () => sessionExams.filter((e) => !classId || e.class_id === classId),
+    [sessionExams, classId]
+  );
+  const selectedExam = options.exams.find((e) => e.id === examId);
+
+  // Narrowing a level clears the choices below it; a single remaining exam is
+  // picked automatically.
+  const chooseSession = (id) => {
+    setSessionId(id);
+    setClassId("");
+    setExamId("");
+    setSearch("");
+  };
+  const chooseClass = (id) => {
+    setClassId(id);
+    const matching = sessionExams.filter((e) => !id || e.class_id === id);
+    setExamId(id && matching.length === 1 ? matching[0].id : "");
+    setSearch("");
+  };
+  const chooseExam = (id) => {
+    setExamId(id);
+    setSearch("");
+  };
 
   const { data, loading } = useQuery(GET_ELIGIBILITY, {
     variables: { examId },
@@ -93,11 +131,11 @@ export default function AdmitCardsPage() {
     ...schoolBrand,
     examTitle: selectedExam?.title,
     subject: selectedExam?.subject,
-    examDate: selectedExam?.examDate,
+    examDate: selectedExam?.exam_date,
     studentName: r.fullName,
     registrationId: r.registrationId,
     rollNumber: r.rollNumber,
-    className: selectedExam?.classByClassId?.name,
+    className: selectedExam?.class_name,
     section: r.section,
     photoDataUrl: r.photoFileId ? await fetchFileDataUrl(r.photoFileId) : null,
   });
@@ -140,22 +178,39 @@ export default function AdmitCardsPage() {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-end gap-3">
+      <div className="mb-4 grid grid-cols-1 gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:grid-cols-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-500">Exam</label>
-          <select
-            value={examId}
-            onChange={(e) => setExamId(e.target.value)}
-            className="min-w-[260px] rounded-xl border border-zinc-300 px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none"
-          >
-            <option value="">Select exam…</option>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">1. Session</label>
+          <select value={sessionId} onChange={(e) => chooseSession(e.target.value)} className={selectCls}>
+            <option value="">All sessions</option>
+            {options.sessions.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}{s.is_current ? " (current)" : ""}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">2. Class</label>
+          <select value={classId} onChange={(e) => chooseClass(e.target.value)} className={selectCls} disabled={classesWithExams.length === 0}>
+            <option value="">{classesWithExams.length === 0 ? "No exams in this session" : "All classes"}</option>
+            {classesWithExams.map((c) => (
+              <option key={c.id} value={c.id}>{c.name} · {c.examCount} exam{c.examCount === 1 ? "" : "s"}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">3. Exam</label>
+          <select value={examId} onChange={(e) => chooseExam(e.target.value)} className={selectCls} disabled={exams.length === 0}>
+            <option value="">{exams.length === 0 ? "No exams" : `Select exam (${exams.length})…`}</option>
             {exams.map((e) => (
               <option key={e.id} value={e.id}>
-                {e.title} · {e.subject} · {e.classByClassId?.name}
+                {e.title} · {e.subject}{classId ? "" : ` · ${e.class_name}`} · {formatDate(e.exam_date)}
               </option>
             ))}
           </select>
         </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-end gap-3">
         {examId && (
           <>
             <div className="flex flex-1 items-center gap-2 rounded-xl border border-zinc-300 bg-white px-3 py-2.5 min-w-[220px]">
@@ -183,7 +238,9 @@ export default function AdmitCardsPage() {
 
       {!examId ? (
         <div className="rounded-xl border border-zinc-100 bg-white py-16 text-center text-zinc-500">
-          Select an exam to view eligibility.
+          {exams.length === 0
+            ? "No exams scheduled for this session and class. Pick another session or class."
+            : "Choose a session, class and exam to view eligibility."}
         </div>
       ) : loading ? (
         <div className="flex h-40 items-center justify-center">

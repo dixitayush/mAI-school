@@ -343,7 +343,9 @@ router.post(
   requireRole('teacher', 'admin', 'principal'),
   requireTenant,
   async (req, res) => {
-    const { grade, subject, topic, duration, objectives } = req.body;
+    // The AI Studio form sends duration_minutes; API callers may send duration.
+    const { grade, subject, topic, objectives } = req.body;
+    const duration = req.body.duration || req.body.duration_minutes;
     if (!grade || !subject || !topic) {
       return res.status(400).json({ error: 'grade, subject, and topic are required' });
     }
@@ -375,7 +377,8 @@ router.post(
   requireRole('teacher', 'admin', 'principal'),
   requireTenant,
   async (req, res) => {
-    const { grade, subject, topic, questionTypes, count, difficulty } = req.body;
+    const { grade, subject, topic, questionTypes, difficulty } = req.body;
+    const count = req.body.count || req.body.num_questions;
     if (!grade || !subject || !topic) {
       return res.status(400).json({ error: 'grade, subject, and topic are required' });
     }
@@ -391,21 +394,8 @@ router.post(
         tenantId: req.auth.institution_id,
         userId: req.auth.user_id,
       });
-
-      let questions;
-      try {
-        questions = parseJsonLoose(result.content);
-      } catch {
-        questions = null;
-      }
-
-      res.json({
-        success: true,
-        content: result.content,
-        questions,
-        model: result.model,
-        tier: result.tier,
-      });
+      // Markdown, rendered as-is by the client.
+      res.json({ success: true, content: result.content, model: result.model, tier: result.tier });
     } catch (err) {
       console.error('[ai] worksheet failed:', err);
       if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
@@ -423,7 +413,10 @@ router.post(
   requireRole('teacher', 'admin', 'principal'),
   requireTenant,
   async (req, res) => {
-    const { grade, subject, chapters, difficulty, marks, distribution } = req.body;
+    // The AI Studio form sends topic/total_marks; API callers may send chapters/marks.
+    const { grade, subject, difficulty, distribution, duration } = req.body;
+    const chapters = req.body.chapters || req.body.topic;
+    const marks = req.body.marks || req.body.total_marks;
     if (!grade || !subject) {
       return res.status(400).json({ error: 'grade and subject are required' });
     }
@@ -431,7 +424,7 @@ router.post(
 
     try {
       const messages = ai.buildPrompt('question.generate.v1', {
-        grade, subject, chapters, difficulty, marks, distribution,
+        grade, subject, chapters, difficulty, marks, distribution, duration,
       });
       const result = await ai.generate({
         feature: 'question.generate',
@@ -439,21 +432,7 @@ router.post(
         tenantId: req.auth.institution_id,
         userId: req.auth.user_id,
       });
-
-      let questions;
-      try {
-        questions = parseJsonLoose(result.content);
-      } catch {
-        questions = null;
-      }
-
-      res.json({
-        success: true,
-        content: result.content,
-        questions,
-        model: result.model,
-        tier: result.tier,
-      });
+      res.json({ success: true, content: result.content, model: result.model, tier: result.tier });
     } catch (err) {
       console.error('[ai] question-paper failed:', err);
       if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
@@ -615,18 +594,19 @@ router.post(
   requireRole('teacher', 'admin', 'principal'),
   requireTenant,
   async (req, res) => {
-    const { grade, subject, assignmentType, criteria } = req.body;
-    if (!grade || !subject) return res.status(400).json({ error: 'grade and subject are required' });
+    // Grade is optional here: the AI Studio rubric form does not ask for it.
+    const { grade, subject, criteria } = req.body;
+    const assignmentType = req.body.assignmentType || req.body.assignment_title;
+    const maxScore = req.body.maxScore || req.body.max_score;
+    if (!subject) return res.status(400).json({ error: 'subject is required' });
     if (!ai.isConfigured()) return res.status(503).json({ error: 'AI is not configured.' });
     try {
-      const messages = ai.buildPrompt('rubric.generate.v1', { grade, subject, assignmentType, criteria });
+      const messages = ai.buildPrompt('rubric.generate.v1', { grade, subject, assignmentType, criteria, maxScore });
       const result = await ai.generate({
         feature: 'rubric.generate', messages,
         tenantId: req.auth.institution_id, userId: req.auth.user_id,
       });
-      let rubric;
-      try { rubric = parseJsonLoose(result.content); } catch { rubric = null; }
-      res.json({ success: true, content: result.content, rubric, model: result.model, tier: result.tier });
+      res.json({ success: true, content: result.content, model: result.model, tier: result.tier });
     } catch (err) {
       console.error('[ai] rubric failed:', err);
       if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });
@@ -652,9 +632,7 @@ router.post(
         feature: 'study.plan', messages,
         tenantId: req.auth.institution_id, userId: req.auth.user_id,
       });
-      let plan;
-      try { plan = parseJsonLoose(result.content); } catch { plan = null; }
-      res.json({ success: true, content: result.content, plan, model: result.model, tier: result.tier });
+      res.json({ success: true, content: result.content, model: result.model, tier: result.tier });
     } catch (err) {
       console.error('[ai] study-plan failed:', err);
       if (err.code === 'AI_QUOTA_EXCEEDED') return res.status(429).json({ error: err.message });

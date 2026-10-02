@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, X, Send, Loader2, Bot, User } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import Markdown from "@/components/Markdown";
 
 const ROLE_GREETING = {
   student:
@@ -132,7 +133,7 @@ export default function ChatWidget({ userRole = "student" }) {
                     {m.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                   </div>
                   <div
-                    className={`max-w-[78%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
+                    className={`max-w-[78%] min-w-0 rounded-2xl px-3 py-2 text-sm ${
                       m.role === "user"
                         ? "rounded-tr-sm bg-primary-600 text-white"
                         : m.error
@@ -140,7 +141,11 @@ export default function ChatWidget({ userRole = "student" }) {
                           : "rounded-tl-sm bg-zinc-100 text-zinc-700"
                     }`}
                   >
-                    {m.content}
+                    {m.role === "assistant" && !m.error ? (
+                      <Markdown compact>{m.content}</Markdown>
+                    ) : (
+                      <div className="whitespace-pre-wrap">{m.content}</div>
+                    )}
                   </div>
                 </div>
               ))}

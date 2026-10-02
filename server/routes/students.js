@@ -87,6 +87,14 @@ router.get('/', requireAuth, requireRole('admin', 'principal', 'teacher', 'opsad
         where += ` AND s.id = $${idx++}`; params.push(term);
       } else if (REGISTRATION_ID_RE.test(term)) {
         where += ` AND s.registration_id = $${idx++}`; params.push(term.toUpperCase());
+      } else if (/^\d+$/.test(term)) {
+        // Digits alone are a roll number, an admission number or the tail of a
+        // registration id (0005 → DEMO260005). A substring match would hit
+        // every id, since they all contain the admission year; and a tail
+        // shorter than 3 digits is too loose to be meant as an id.
+        where += ` AND (${rollCol} = $${idx} OR s.admission_number = $${idx}
+                        OR (length($${idx}) >= 3 AND s.registration_id LIKE '%' || $${idx}))`;
+        params.push(term); idx++;
       } else {
         where += ` AND (u.full_name ILIKE $${idx} OR u.username ILIKE $${idx}
                         OR s.registration_id ILIKE $${idx}
@@ -157,6 +165,183 @@ router.get('/:id/enrollments', requireAuth, requireTenant, async (req, res) => {
   } catch (err) {
     console.error('[students] enrollments failed:', err);
     res.status(500).json({ error: 'Failed to load enrollment history' });
+  }
+});
+
+const STAFF_ROLES = ['admin', 'principal', 'teacher', 'opsadmin'];
+
+/**
+ * Whether the caller may see this student's academic record: staff for any
+ * student in their school, a student for themselves, a parent for a linked
+ * child. Returns the student's core row, or null.
+ */
+async function viewableStudent(auth, studentId) {
+  if (!UUID_RE.test(String(studentId))) return null;
+  const { rows } = await pool.query(
+    `SELECT s.id, s.user_id, s.registration_id, s.class_id, s.section, s.roll_number,
+            u.full_name, u.institution_id
+       FROM students s JOIN users u ON u.id = s.user_id
+      WHERE s.id = $1 AND u.institution_id = $2`,
+    [studentId, auth.institution_id]
+  );
+  const student = rows[0];
+  if (!student) return null;
+  if (STAFF_ROLES.includes(auth.role)) return student;
+  if (auth.role === 'student') return student.user_id === auth.user_id ? student : null;
+  if (auth.role === 'parent') {
+    const link = await pool.query(
+      `SELECT 1 FROM guardians g JOIN student_guardian sg ON sg.guardian_id = g.id
+        WHERE g.user_id = $1 AND sg.student_id = $2`,
+      [auth.user_id, studentId]
+    );
+    return link.rows.length ? student : null;
+  }
+  return null;
+}
+
+/*
+ * Report cards are per session and per exam. An "exam" here is what a school
+ * calls one — "Mid-Term Exam" — which is stored as one exams row per subject
+ * sharing a title, so exams are grouped by title. Exams carry no session of
+ * their own; they belong to the session whose dates contain the exam date.
+ * Dates are returned as text so they are not shifted by the server time zone.
+ */
+const EXAM_SESSION_JOIN = `
+  JOIN exams e ON e.id = r.exam_id
+  JOIN academic_sessions a ON a.institution_id = $2
+                          AND e.exam_date BETWEEN a.start_date AND a.end_date`;
+
+// What report cards a student has: each session, their class in it, and the
+// exams with results in it.
+router.get('/:id/report-cards', requireAuth, requireTenant, async (req, res) => {
+  try {
+    const student = await viewableStudent(req.auth, req.params.id);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    const [sessions, exams] = await Promise.all([
+      pool.query(
+        `SELECT a.id, a.name, a.start_date::text, a.end_date::text, a.is_current,
+                COALESCE(c.name, cc.name) AS class_name,
+                COALESCE(e.section, CASE WHEN a.is_current THEN s.section END) AS section,
+                COALESCE(e.roll_number, CASE WHEN a.is_current THEN s.roll_number END) AS roll_number
+           FROM academic_sessions a
+           JOIN students s ON s.id = $1
+           LEFT JOIN student_enrollments e ON e.student_id = s.id AND e.session_id = a.id
+           LEFT JOIN classes c ON c.id = e.class_id
+           LEFT JOIN classes cc ON cc.id = s.class_id AND a.is_current
+          WHERE a.institution_id = $2
+            AND (e.id IS NOT NULL OR a.is_current OR EXISTS (
+                  SELECT 1 FROM results r JOIN exams x ON x.id = r.exam_id
+                   WHERE r.student_id = s.id AND x.exam_date BETWEEN a.start_date AND a.end_date))
+          ORDER BY a.start_date DESC`,
+        [student.id, req.auth.institution_id]
+      ),
+      pool.query(
+        `SELECT a.id AS session_id, e.title,
+                count(*)::int AS subjects,
+                min(e.exam_date)::text AS first_date, max(e.exam_date)::text AS last_date
+           FROM results r ${EXAM_SESSION_JOIN}
+          WHERE r.student_id = $1
+          GROUP BY a.id, e.title
+          ORDER BY min(e.exam_date)`,
+        [student.id, req.auth.institution_id]
+      ),
+    ]);
+
+    res.json({
+      student: { id: student.id, full_name: student.full_name, registration_id: student.registration_id },
+      sessions: sessions.rows.map((sess) => ({
+        ...sess,
+        exams: exams.rows
+          .filter((x) => x.session_id === sess.id)
+          .map(({ session_id, ...x }) => x),
+      })),
+    });
+  } catch (err) {
+    console.error('[students] report-card options failed:', err);
+    res.status(500).json({ error: 'Failed to load report cards' });
+  }
+});
+
+// One report card: a single exam (`exam` = its title) or, with no exam, the
+// whole session with every exam side by side.
+router.get('/:id/report-card', requireAuth, requireTenant, async (req, res) => {
+  const { session_id, exam } = req.query;
+  if (!session_id || !UUID_RE.test(session_id)) return res.status(400).json({ error: 'session_id must be a uuid' });
+  try {
+    const student = await viewableStudent(req.auth, req.params.id);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    const sessRes = await pool.query(
+      `SELECT a.id, a.name, a.start_date::text, a.end_date::text, a.is_current,
+              COALESCE(c.name, cc.name) AS class_name,
+              COALESCE(e.section, CASE WHEN a.is_current THEN s.section END) AS section,
+              COALESCE(e.roll_number, CASE WHEN a.is_current THEN s.roll_number END) AS roll_number,
+              e.status AS enrollment_status,
+              i.name AS school_name, i.slug AS school_slug
+         FROM academic_sessions a
+         JOIN institutions i ON i.id = a.institution_id
+         JOIN students s ON s.id = $1
+         LEFT JOIN student_enrollments e ON e.student_id = s.id AND e.session_id = a.id
+         LEFT JOIN classes c ON c.id = e.class_id
+         LEFT JOIN classes cc ON cc.id = s.class_id AND a.is_current
+        WHERE a.id = $3 AND a.institution_id = $2`,
+      [student.id, req.auth.institution_id, session_id]
+    );
+    const session = sessRes.rows[0];
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    const params = [student.id, req.auth.institution_id, session_id];
+    let examFilter = '';
+    if (exam) { params.push(String(exam)); examFilter = ` AND e.title = $4`; }
+    const { rows: results } = await pool.query(
+      `SELECT e.title, e.subject, e.exam_date::text AS exam_date, e.total_marks,
+              COALESCE(e.passing_marks, CEIL(e.total_marks * 0.4))::int AS passing_marks,
+              r.marks_obtained, r.grade, r.feedback
+         FROM results r ${EXAM_SESSION_JOIN}
+        WHERE r.student_id = $1 AND a.id = $3${examFilter}
+        ORDER BY e.exam_date, e.subject`,
+      params
+    );
+    if (exam && results.length === 0) return res.status(404).json({ error: 'No results for that exam' });
+
+    // Attendance over the period the card covers: the session up to the last
+    // paper of the chosen exam, or up to today for a session still running.
+    const lastPaper = results.length ? results[results.length - 1].exam_date : null;
+    const today = new Date().toISOString().slice(0, 10);
+    const periodEnd = [exam ? lastPaper : null, session.end_date, today]
+      .filter(Boolean)
+      .sort()[0];
+    const att = await pool.query(
+      `SELECT present, absent, late, working, percentage
+         FROM student_attendance_stats($1, $2::date, $3::date)`,
+      [student.id, session.start_date, periodEnd]
+    );
+
+    res.json({
+      school: { name: session.school_name, slug: session.school_slug },
+      student: {
+        id: student.id,
+        full_name: student.full_name,
+        registration_id: student.registration_id,
+        class_name: session.class_name,
+        section: session.section,
+        roll_number: session.roll_number,
+      },
+      session: {
+        id: session.id, name: session.name, start_date: session.start_date,
+        end_date: session.end_date, is_current: session.is_current,
+        enrollment_status: session.enrollment_status,
+      },
+      exam: exam || null,
+      period: { from: session.start_date, to: periodEnd },
+      exams: [...new Set(results.map((r) => r.title))],
+      results,
+      attendance: att.rows[0] || null,
+    });
+  } catch (err) {
+    console.error('[students] report card failed:', err);
+    res.status(500).json({ error: 'Failed to build report card' });
   }
 });
 
