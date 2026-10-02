@@ -6,7 +6,12 @@ import { THEME_INIT_SCRIPT } from "@/lib/themeScript";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "mAI-school — School management for modern institutes",
+  // Pages set a short title ("Sign in", "Students"…) shown as "Sign in · mAI-school".
+  title: {
+    default: "mAI-school — School management for modern institutes",
+    template: "%s · mAI-school",
+  },
+  applicationName: "mAI-school",
   description:
     "Attendance, fees, exams, and campus communication in one platform. Self-serve at ₹30/student/month or sales-led setup—each institute on its own subdomain with isolated data.",
 };

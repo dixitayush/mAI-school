@@ -55,6 +55,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTenantPaths } from "@/lib/useTenantPaths";
 import { useLogout } from "@/lib/useLogout";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { tenantAppPath } from "@/lib/tenant";
 
 /*
@@ -386,6 +387,18 @@ export default function Sidebar({
       setInstitution(null);
     }
   }, []);
+
+  // Tab title: "<page> · <institute>", e.g. "Students · Demo Academy".
+  const activeName = useMemo(() => {
+    for (const sec of sections) {
+      const hit = sec.items.find((i) => i.href === activeHref);
+      if (hit) return hit.name;
+    }
+    return null;
+  }, [sections, activeHref]);
+
+  const place = userRole === "mai_admin" ? "MAI Platform" : institution?.name || "mAI-school";
+  useDocumentTitle(activeName ? `${activeName} · ${place}` : place);
 
   // Long menus: keep the current page in view on load.
   useEffect(() => {
